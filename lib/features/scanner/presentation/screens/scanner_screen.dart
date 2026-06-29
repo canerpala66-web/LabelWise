@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:labelwise/features/scanner/data/open_food_facts_service.dart';
+import 'package:labelwise/features/scanner/data/product_repository.dart';
 import 'package:labelwise/features/scanner/presentation/screens/product_result_screen.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' show PostgrestException;
 
 class ScannerScreen extends StatefulWidget {
   const ScannerScreen({super.key});
@@ -12,6 +14,7 @@ class ScannerScreen extends StatefulWidget {
 class _ScannerScreenState extends State<ScannerScreen> {
   final TextEditingController _barcodeController = TextEditingController();
   final OpenFoodFactsService _service = OpenFoodFactsService();
+  final ProductRepository _productRepository = ProductRepository();
 
   bool _isLoading = false;
   String? _errorMessage;
@@ -33,16 +36,26 @@ class _ScannerScreenState extends State<ScannerScreen> {
     });
 
     try {
-      final product = await _service.fetchProduct(barcode);
+      var product = await _productRepository.getProductByBarcode(barcode);
+
+      if (product == null) {
+        product = await _service.fetchProduct(barcode);
+
+        if (product != null) {
+          await _productRepository.saveProduct(product);
+        }
+      }
 
       if (!mounted) {
         return;
       }
 
-      if (product == null) {
+      final foundProduct = product;
+
+      if (foundProduct == null) {
         setState(() {
           _isLoading = false;
-          _errorMessage = 'Product not found.';
+          _errorMessage = 'Product not found';
         });
         return;
       }
@@ -53,10 +66,17 @@ class _ScannerScreenState extends State<ScannerScreen> {
 
       await Navigator.of(context).push(
         MaterialPageRoute<void>(
-          builder: (context) => ProductResultScreen(product: product),
+          builder: (context) => ProductResultScreen(product: foundProduct),
         ),
       );
-    } on Exception {
+    } on Exception catch (e, stackTrace) {
+      debugPrint('Product lookup error: $e');
+      debugPrintStack(stackTrace: stackTrace);
+
+      if (e is PostgrestException) {
+        debugPrint('Supabase error: ${e.message}');
+      }
+
       if (!mounted) {
         return;
       }

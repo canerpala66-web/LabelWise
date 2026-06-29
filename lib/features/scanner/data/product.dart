@@ -17,8 +17,9 @@ class Product {
   final String? nutriscoreGrade;
   final String source;
 
-  factory Product.fromJson(Map<String, dynamic> json) {
+  factory Product.fromJson(Map<String, dynamic> json, {String barcode = ''}) {
     return Product(
+      barcode: barcode,
       productName: (json['product_name'] as String?)?.trim() ?? '',
       brands: (json['brands'] as String?)?.trim() ?? '',
       imageUrl: (json['image_url'] as String?)?.trim(),

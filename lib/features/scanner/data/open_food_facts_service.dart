@@ -29,7 +29,7 @@ class OpenFoodFactsService {
       return null;
     }
 
-    return Product.fromJson(productData);
+    return Product.fromJson(productData, barcode: barcode);
   }
 
   void dispose() {
