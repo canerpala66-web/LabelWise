@@ -4,12 +4,18 @@ class Product {
     required this.brands,
     required this.imageUrl,
     required this.ingredientsText,
+    this.barcode = '',
+    this.nutriscoreGrade,
+    this.source = 'openfoodfacts',
   });
 
   final String productName;
   final String brands;
   final String? imageUrl;
   final String ingredientsText;
+  final String barcode;
+  final String? nutriscoreGrade;
+  final String source;
 
   factory Product.fromJson(Map<String, dynamic> json) {
     return Product(
