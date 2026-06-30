@@ -9,6 +9,7 @@ class ProductResultScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final imageUrl = product.imageUrl;
+    final nutriscoreGrade = product.nutriscoreGrade?.trim();
 
     return Scaffold(
       appBar: AppBar(title: const Text('Product Result')),
@@ -26,6 +27,10 @@ class ProductResultScreen extends StatelessWidget {
             const SizedBox(height: 8),
             Text(
               'Brand: ${product.brands.isEmpty ? 'Unknown brand' : product.brands}',
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Nutri-Score: ${nutriscoreGrade == null || nutriscoreGrade.isEmpty ? 'Unknown' : nutriscoreGrade.toUpperCase()}',
             ),
             if (imageUrl != null && imageUrl.isNotEmpty) ...[
               const SizedBox(height: 24),
