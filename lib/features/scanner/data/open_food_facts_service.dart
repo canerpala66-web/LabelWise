@@ -23,6 +23,7 @@ class OpenFoodFactsService {
     'nutriscore_grade',
     'nutriscore_2023_tags',
     'nutriscore_data',
+    'nutriments',
   ];
 
   final http.Client _client;
@@ -33,20 +34,25 @@ class OpenFoodFactsService {
       'api/v2/product/$barcode.json',
       {'fields': _fields.join(',')},
     );
+    debugPrint('OpenFoodFacts requested URL: $uri');
     final response = await _client.get(uri);
+    debugPrint('OpenFoodFacts response status: ${response.statusCode}');
 
     if (response.statusCode != 200) {
-      final bodyPreview = response.body.length > 500
-          ? response.body.substring(0, 500)
+      final bodyPreview = response.body.length > 300
+          ? response.body.substring(0, 300)
           : response.body;
-      debugPrint('OpenFoodFacts requested URL: $uri');
-      debugPrint('OpenFoodFacts response status: ${response.statusCode}');
       debugPrint('OpenFoodFacts response body: $bodyPreview');
       throw Exception('OpenFoodFacts request failed.');
     }
 
     final data = jsonDecode(utf8.decode(response.bodyBytes));
-    if (data is! Map<String, dynamic> || data['status'] != 1) {
+    if (data is! Map<String, dynamic>) {
+      throw const FormatException('Invalid OpenFoodFacts response.');
+    }
+
+    final status = data['status'];
+    if (status == 0 || status == '0') {
       return null;
     }
 
@@ -55,7 +61,25 @@ class OpenFoodFactsService {
       return null;
     }
 
-    return Product.fromJson(productData, barcode: barcode);
+    if (status != 1 && status != '1') {
+      throw const FormatException('Unexpected OpenFoodFacts status.');
+    }
+
+    final product = Product.fromJson(productData, barcode: barcode);
+    debugPrint(
+      'Nutrition parsed: '
+      'energyKcal=${product.energyKcal}, '
+      'fat=${product.fat}, '
+      'saturatedFat=${product.saturatedFat}, '
+      'sugars=${product.sugars}, '
+      'fiber=${product.fiber}, '
+      'protein=${product.protein}, '
+      'salt=${product.salt}, '
+      'fruitsVegetablesLegumesPercent='
+      '${product.fruitsVegetablesLegumesPercent}',
+    );
+
+    return product;
   }
 
   void dispose() {

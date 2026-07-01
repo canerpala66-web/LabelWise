@@ -7,6 +7,14 @@ class Product {
     this.barcode = '',
     this.nutriscoreGrade,
     this.source = 'openfoodfacts',
+    this.energyKcal,
+    this.fat,
+    this.saturatedFat,
+    this.sugars,
+    this.salt,
+    this.fiber,
+    this.protein,
+    this.fruitsVegetablesLegumesPercent,
   });
 
   final String productName;
@@ -16,6 +24,25 @@ class Product {
   final String barcode;
   final String? nutriscoreGrade;
   final String source;
+  final double? energyKcal;
+  final double? fat;
+  final double? saturatedFat;
+  final double? sugars;
+  final double? salt;
+  final double? fiber;
+  final double? protein;
+  final double? fruitsVegetablesLegumesPercent;
+
+  bool get hasNutritionData => [
+    energyKcal,
+    fat,
+    saturatedFat,
+    sugars,
+    fiber,
+    protein,
+    salt,
+    fruitsVegetablesLegumesPercent,
+  ].any((value) => value != null);
 
   factory Product.fromJson(Map<String, dynamic> json, {String barcode = ''}) {
     final tags = json['nutriscore_2023_tags'];
@@ -39,6 +66,10 @@ class Product {
             ? _nonEmptyString(tags.first)
             : null) ??
         (data is Map<String, dynamic> ? _nonEmptyString(data['grade']) : null);
+    final nutriments = json['nutriments'];
+    final nutrition = nutriments is Map<String, dynamic>
+        ? nutriments
+        : const <String, dynamic>{};
 
     return Product(
       barcode: barcode,
@@ -47,6 +78,16 @@ class Product {
       imageUrl: (json['image_url'] as String?)?.trim(),
       ingredientsText: ingredientsText ?? 'İçindekiler bilgisi bulunamadı',
       nutriscoreGrade: nutriscoreGrade,
+      energyKcal: _number(nutrition['energy-kcal_100g']),
+      fat: _number(nutrition['fat_100g']),
+      saturatedFat: _number(nutrition['saturated-fat_100g']),
+      sugars: _number(nutrition['sugars_100g']),
+      salt: _number(nutrition['salt_100g']),
+      fiber: _number(nutrition['fiber_100g']),
+      protein: _number(nutrition['proteins_100g']),
+      fruitsVegetablesLegumesPercent: _number(
+        nutrition['fruits-vegetables-legumes-estimate-from-ingredients_100g'],
+      ),
     );
   }
 
@@ -67,5 +108,15 @@ class Product {
     }
 
     return value.trim();
+  }
+
+  static double? _number(Object? value) {
+    if (value is num) {
+      return value.toDouble();
+    }
+    if (value is String) {
+      return double.tryParse(value.trim());
+    }
+    return null;
   }
 }
