@@ -20,6 +20,19 @@ class Product {
   factory Product.fromJson(Map<String, dynamic> json, {String barcode = ''}) {
     final tags = json['nutriscore_2023_tags'];
     final data = json['nutriscore_data'];
+    final productName = _firstNonEmpty([
+      json['product_name_tr'],
+      json['product_name_en'],
+      json['product_name'],
+      json['generic_name_tr'],
+      json['generic_name_en'],
+      json['generic_name'],
+    ]);
+    final ingredientsText = _firstNonEmpty([
+      json['ingredients_text_tr'],
+      json['ingredients_text_en'],
+      json['ingredients_text'],
+    ]);
     final nutriscoreGrade =
         _nonEmptyString(json['nutriscore_grade']) ??
         (tags is List && tags.isNotEmpty
@@ -29,12 +42,23 @@ class Product {
 
     return Product(
       barcode: barcode,
-      productName: (json['product_name'] as String?)?.trim() ?? '',
-      brands: (json['brands'] as String?)?.trim() ?? '',
+      productName: productName ?? 'Bilinmeyen Ürün',
+      brands: _nonEmptyString(json['brands']) ?? 'Bilinmeyen Marka',
       imageUrl: (json['image_url'] as String?)?.trim(),
-      ingredientsText: (json['ingredients_text'] as String?)?.trim() ?? '',
+      ingredientsText: ingredientsText ?? 'İçindekiler bilgisi bulunamadı',
       nutriscoreGrade: nutriscoreGrade,
     );
+  }
+
+  static String? _firstNonEmpty(Iterable<Object?> values) {
+    for (final value in values) {
+      final text = _nonEmptyString(value);
+      if (text != null) {
+        return text;
+      }
+    }
+
+    return null;
   }
 
   static String? _nonEmptyString(Object? value) {
