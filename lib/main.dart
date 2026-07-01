@@ -7,6 +7,12 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await dotenv.load(fileName: '.env');
+  debugPrint(
+    'Env check: '
+    'SUPABASE_URL=${dotenv.env['SUPABASE_URL']?.isNotEmpty ?? false}, '
+    'SUPABASE_ANON_KEY=${dotenv.env['SUPABASE_ANON_KEY']?.isNotEmpty ?? false}, '
+    'OPENAI_API_KEY=${dotenv.env['OPENAI_API_KEY']?.isNotEmpty ?? false}',
+  );
   await Supabase.initialize(
     url: Env.supabaseUrl,
     publishableKey: Env.supabaseAnonKey,

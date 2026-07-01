@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:labelwise/features/analysis/models/analysis_result.dart';
+import 'package:labelwise/features/analysis/services/analysis_service.dart';
 import 'package:labelwise/features/scanner/data/product.dart';
 
 class ProductResultScreen extends StatelessWidget {
@@ -62,11 +64,7 @@ class ProductResultScreen extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 16),
-                  const _PlaceholderCard(
-                    icon: Icons.auto_awesome_outlined,
-                    title: 'Yapay Zeka Yorumu',
-                    message: 'Yakında',
-                  ),
+                  _AnalysisCard(product: product),
                   const SizedBox(height: 16),
                   const _PlaceholderCard(
                     icon: Icons.workspace_premium_outlined,
@@ -215,6 +213,142 @@ class _ContentCard extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+class _AnalysisCard extends StatefulWidget {
+  const _AnalysisCard({required this.product});
+
+  final Product product;
+
+  @override
+  State<_AnalysisCard> createState() => _AnalysisCardState();
+}
+
+class _AnalysisCardState extends State<_AnalysisCard> {
+  final AnalysisService _analysisService = const AnalysisService();
+
+  AnalysisResult? _result;
+  bool _isLoading = false;
+  String? _errorMessage;
+
+  Future<void> _generateAnalysis() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final result = await _analysisService.generateAnalysis(widget.product);
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _result = result;
+        _isLoading = false;
+      });
+    } on Object catch (error, stackTrace) {
+      debugPrint('Manual LabelWise Analysis error: $error');
+      debugPrintStack(stackTrace: stackTrace);
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _isLoading = false;
+        _errorMessage = 'Analiz oluşturulamadı. Lütfen tekrar deneyin.';
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final result = _result;
+
+    return Card(
+      margin: EdgeInsets.zero,
+      elevation: 0,
+      color: Colors.white,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Yapay Zeka Yorumu',
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.w700,
+                color: const Color(0xFF17211B),
+              ),
+            ),
+            const SizedBox(height: 16),
+            if (_isLoading)
+              const Center(child: CircularProgressIndicator())
+            else if (result != null) ...[
+              Text(
+                'Sağlık Puanı',
+                style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                  color: const Color(0xFF657069),
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                '${result.labelwiseScore}/100',
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  color: const Color(0xFF17211B),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Risk Seviyesi',
+                style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                  color: const Color(0xFF657069),
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                _localizedRiskLevel(result.riskLevel),
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  color: const Color(0xFF17211B),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                result.summary,
+                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                  height: 1.5,
+                  color: const Color(0xFF3D4841),
+                ),
+              ),
+            ] else ...[
+              if (_errorMessage case final message?) ...[
+                Text(message, style: const TextStyle(color: Color(0xFFB3261E))),
+                const SizedBox(height: 12),
+              ],
+              FilledButton.icon(
+                onPressed: _generateAnalysis,
+                icon: const Icon(Icons.auto_awesome_outlined),
+                label: const Text('Analizi Oluştur'),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _localizedRiskLevel(String riskLevel) {
+    return switch (riskLevel) {
+      'low' => 'Düşük',
+      'high' => 'Yüksek',
+      _ => 'Orta',
+    };
   }
 }
 

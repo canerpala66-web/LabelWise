@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:labelwise/features/scanner/data/open_food_facts_service.dart';
 import 'package:labelwise/features/scanner/data/product_repository.dart';
+import 'package:labelwise/features/scanner/presentation/screens/barcode_scanner_screen.dart';
 import 'package:labelwise/features/scanner/presentation/screens/product_result_screen.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' show PostgrestException;
 
@@ -18,6 +19,21 @@ class _ScannerScreenState extends State<ScannerScreen> {
 
   bool _isLoading = false;
   String? _errorMessage;
+
+  Future<void> _scanBarcode() async {
+    final barcode = await Navigator.of(context).push<String>(
+      MaterialPageRoute<String>(
+        builder: (context) => const BarcodeScannerScreen(),
+      ),
+    );
+
+    if (!mounted || barcode == null || barcode.isEmpty) {
+      return;
+    }
+
+    _barcodeController.text = barcode;
+    await _searchProduct();
+  }
 
   Future<void> _searchProduct() async {
     final barcode = _barcodeController.text.trim();
@@ -118,6 +134,12 @@ class _ScannerScreenState extends State<ScannerScreen> {
               ElevatedButton(
                 onPressed: _isLoading ? null : _searchProduct,
                 child: const Text('Search Product'),
+              ),
+              const SizedBox(height: 12),
+              OutlinedButton.icon(
+                onPressed: _isLoading ? null : _scanBarcode,
+                icon: const Icon(Icons.barcode_reader),
+                label: const Text('Barkod Tara'),
               ),
               if (_isLoading) ...[
                 const SizedBox(height: 16),
