@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import 'package:labelwise/core/config/env.dart';
 import 'package:labelwise/features/analysis/models/analysis_result.dart';
 import 'package:labelwise/features/analysis/services/analysis_prompt_builder.dart';
+import 'package:labelwise/features/analysis/services/labelwise_score_engine.dart';
 import 'package:labelwise/features/scanner/data/product.dart';
 
 class AnalysisService {
@@ -12,11 +13,6 @@ class AnalysisService {
 
   static const _endpoint = 'https://api.openai.com/v1/responses';
   static const _model = 'gpt-4.1-mini';
-  static const _fallbackResult = AnalysisResult(
-    summary: 'Ürün analizi şu anda oluşturulamadı.',
-    riskLevel: 'medium',
-    labelwiseScore: 50,
-  );
 
   Future<AnalysisResult> generateAnalysis(Product product) async {
     final apiKey = Env.openAiApiKey.trim();
@@ -26,11 +22,23 @@ class AnalysisService {
       );
     }
 
+    final scoreResult = const LabelWiseScoreEngine().calculate(product);
     final prompt = const AnalysisPromptBuilder().buildPrompt(
       productName: product.productName,
       brand: product.brands,
-      ingredients: product.ingredientsText,
+      ingredients: product.ingredientsText == 'İçindekiler bilgisi bulunamadı'
+          ? ''
+          : product.ingredientsText,
+      labelwiseScore: scoreResult.score,
+      labelwiseCategory: scoreResult.category,
       nutriscoreGrade: product.nutriscoreGrade,
+      energyKcal: product.energyKcal,
+      fat: product.fat,
+      saturatedFat: product.saturatedFat,
+      sugars: product.sugars,
+      fiber: product.fiber,
+      protein: product.protein,
+      salt: product.salt,
     );
 
     debugPrint('LabelWise Analysis request started.');
@@ -45,6 +53,8 @@ class AnalysisService {
         'model': _model,
         'input': prompt,
         'temperature': 0.2,
+        'max_output_tokens': 250,
+        'store': false,
         'text': {
           'format': {
             'type': 'json_schema',
@@ -56,15 +66,10 @@ class AnalysisService {
                 'summary': {'type': 'string'},
                 'risk_level': {
                   'type': 'string',
-                  'enum': ['low', 'medium', 'high'],
-                },
-                'labelwise_score': {
-                  'type': 'integer',
-                  'minimum': 0,
-                  'maximum': 100,
+                  'enum': ['düşük', 'orta', 'yüksek', 'bilinmiyor'],
                 },
               },
-              'required': ['summary', 'risk_level', 'labelwise_score'],
+              'required': ['summary', 'risk_level'],
               'additionalProperties': false,
             },
           },
@@ -75,6 +80,10 @@ class AnalysisService {
     debugPrint('LabelWise Analysis response received: ${response.statusCode}.');
 
     if (response.statusCode < 200 || response.statusCode >= 300) {
+      final bodyPreview = response.body.length > 500
+          ? response.body.substring(0, 500)
+          : response.body;
+      debugPrint('OpenAI Responses API error body: $bodyPreview');
       throw Exception(
         'OpenAI Responses API request failed (${response.statusCode}).',
       );
@@ -87,7 +96,7 @@ class AnalysisService {
     } on Object catch (error, stackTrace) {
       debugPrint('LabelWise Analysis JSON parsing error: $error');
       debugPrintStack(stackTrace: stackTrace);
-      return _fallbackResult;
+      throw const FormatException('OpenAI analysis response is invalid.');
     }
   }
 
@@ -132,23 +141,46 @@ class AnalysisService {
 
     final summary = data['summary'];
     final riskLevel = data['risk_level'];
-    final labelwiseScore = data['labelwise_score'];
 
     if (summary is! String || summary.trim().isEmpty) {
       throw const FormatException('Analysis summary is invalid.');
     }
-    if (riskLevel is! String ||
-        !const {'low', 'medium', 'high'}.contains(riskLevel)) {
-      throw const FormatException('Analysis risk level is invalid.');
-    }
-    if (labelwiseScore is! int || labelwiseScore < 0 || labelwiseScore > 100) {
-      throw const FormatException('LabelWise Score is invalid.');
+    final normalizedRiskLevel = riskLevel is String
+        ? riskLevel.trim().toLowerCase()
+        : '';
+    final safeRiskLevel =
+        const {
+          'düşük',
+          'orta',
+          'yüksek',
+          'bilinmiyor',
+        }.contains(normalizedRiskLevel)
+        ? normalizedRiskLevel
+        : 'bilinmiyor';
+
+    final safeSummary = _limitWords(summary.trim(), 70);
+    if (_containsForbiddenLanguage(safeSummary)) {
+      throw const FormatException('Analysis summary contains unsafe wording.');
     }
 
-    return AnalysisResult(
-      summary: summary.trim(),
-      riskLevel: riskLevel,
-      labelwiseScore: labelwiseScore,
-    );
+    return AnalysisResult(summary: safeSummary, riskLevel: safeRiskLevel);
+  }
+
+  static String _limitWords(String text, int maximumWords) {
+    final words = text.split(RegExp(r'\s+'));
+    if (words.length <= maximumWords) {
+      return text;
+    }
+    return '${words.take(maximumWords).join(' ')}…';
+  }
+
+  static bool _containsForbiddenLanguage(String summary) {
+    final normalizedSummary = summary.toLowerCase();
+    return const [
+      'asla tüketmeyin',
+      'kanser yapar',
+      'zehirlidir',
+      'güvenlidir',
+    ].any(normalizedSummary.contains);
   }
 }

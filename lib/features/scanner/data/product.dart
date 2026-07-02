@@ -15,6 +15,9 @@ class Product {
     this.fiber,
     this.protein,
     this.fruitsVegetablesLegumesPercent,
+    this.aiSummary,
+    this.aiRiskLevel,
+    this.aiGeneratedAt,
   });
 
   final String productName;
@@ -32,6 +35,9 @@ class Product {
   final double? fiber;
   final double? protein;
   final double? fruitsVegetablesLegumesPercent;
+  final String? aiSummary;
+  final String? aiRiskLevel;
+  final DateTime? aiGeneratedAt;
 
   bool get hasNutritionData => [
     energyKcal,

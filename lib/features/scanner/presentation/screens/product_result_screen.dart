@@ -4,6 +4,8 @@ import 'package:labelwise/features/analysis/models/labelwise_score_result.dart';
 import 'package:labelwise/features/analysis/services/analysis_service.dart';
 import 'package:labelwise/features/analysis/services/labelwise_score_engine.dart';
 import 'package:labelwise/features/scanner/data/product.dart';
+import 'package:labelwise/features/scanner/data/product_repository.dart';
+import 'package:labelwise/features/scanner/presentation/screens/submit_product_screen.dart';
 
 class ProductResultScreen extends StatefulWidget {
   const ProductResultScreen({required this.product, super.key});
@@ -41,6 +43,16 @@ class _ProductResultScreenState extends State<ProductResultScreen>
         : product.productName;
     final brand = product.brands.isEmpty ? 'Bilinmeyen Marka' : product.brands;
     final displayName = _displayProductName(productName, brand);
+    final missingNutritionCount = [
+      product.energyKcal,
+      product.fat,
+      product.saturatedFat,
+      product.sugars,
+      product.fiber,
+      product.protein,
+      product.salt,
+    ].where((value) => value == null).length;
+    final hasInsufficientNutrition = missingNutritionCount >= 3;
     debugPrint(
       'Product nutrition debug: '
       'energyKcal=${product.energyKcal}, '
@@ -124,16 +136,30 @@ class _ProductResultScreenState extends State<ProductResultScreen>
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          'Beslenme Değerleri',
-                          style: Theme.of(context).textTheme.titleLarge
-                              ?.copyWith(
-                                fontWeight: FontWeight.w800,
-                                color: const Color(0xFF17211B),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                'Beslenme Değerleri',
+                                style: Theme.of(context).textTheme.titleLarge
+                                    ?.copyWith(
+                                      fontWeight: FontWeight.w800,
+                                      color: const Color(0xFF17211B),
+                                    ),
                               ),
+                            ),
+                            if (hasInsufficientNutrition) ...[
+                              const SizedBox(width: 10),
+                              const _MissingDataBadge(),
+                            ],
+                          ],
                         ),
                         const SizedBox(height: 14),
                         _NutrientGrid(product: product),
+                        if (hasInsufficientNutrition) ...[
+                          const SizedBox(height: 14),
+                          _MissingNutritionHelperCard(barcode: product.barcode),
+                        ],
                       ],
                     ),
                   ),
@@ -211,6 +237,90 @@ class _StaggeredSection extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+}
+
+class _MissingDataBadge extends StatelessWidget {
+  const _MissingDataBadge();
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: const Color(0xFFE8ECE9),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: const Padding(
+        padding: EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        child: Text(
+          'Veri Eksik',
+          style: TextStyle(
+            color: Color(0xFF657069),
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _MissingNutritionHelperCard extends StatelessWidget {
+  const _MissingNutritionHelperCard({required this.barcode});
+
+  final String barcode;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF0F4F1),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFDCE4DF)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Bu ürünü geliştirmemize yardımcı olun',
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w800,
+              color: const Color(0xFF26342C),
+            ),
+          ),
+          const SizedBox(height: 7),
+          Text(
+            'Beslenme bilgileri eksik olan ürünleri inceleyerek LabelWise veritabanını geliştirebilirsiniz.',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              height: 1.45,
+              color: const Color(0xFF657069),
+            ),
+          ),
+          const SizedBox(height: 14),
+          OutlinedButton(
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (context) =>
+                      SubmitProductScreen(initialBarcode: barcode),
+                ),
+              );
+            },
+            style: OutlinedButton.styleFrom(
+              foregroundColor: const Color(0xFF175C3B),
+              side: const BorderSide(color: Color(0xFFAAC0B2)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+              ),
+              textStyle: const TextStyle(fontWeight: FontWeight.w700),
+            ),
+            child: const Text('İncelemeye Gönder'),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -367,10 +477,10 @@ class _NutrientCard extends StatelessWidget {
               )
             else
               Text(
-                'Bilinmiyor',
+                'Veri Yok',
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: const Color(0xFF78847C),
-                  fontWeight: FontWeight.w700,
+                  color: const Color(0xFF8A928D),
+                  fontWeight: FontWeight.w600,
                 ),
               ),
             if (severity != null) ...[
@@ -409,6 +519,26 @@ class _ScoreReasonsCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (!product.hasNutritionData) {
+      return Card(
+        margin: EdgeInsets.zero,
+        elevation: 1,
+        shadowColor: const Color(0x14000000),
+        color: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Text(
+            'Beslenme verileri eksik olduğu için değerlendirme yapılamadı.',
+            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+              height: 1.5,
+              color: const Color(0xFF657069),
+            ),
+          ),
+        ),
+      );
+    }
+
     final reasons = _buildReasons(product);
 
     return Card(
@@ -686,41 +816,34 @@ class _LabelWiseScoreCard extends StatelessWidget {
             ? Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'LabelWise Score',
-                    style: TextStyle(
-                      color: Color(0xFF657069),
-                      fontWeight: FontWeight.w700,
+                  Text(
+                    'Yeterli Beslenme Verisi Bulunamadı',
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      color: const Color(0xFF26342C),
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    'Bu ürün için beslenme değerleri henüz yeterli olmadığı için LabelWise Skoru oluşturulamadı.',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      height: 1.5,
+                      color: const Color(0xFF657069),
                     ),
                   ),
                   const SizedBox(height: 16),
-                  Row(
-                    children: [
-                      Container(
-                        width: 58,
-                        height: 58,
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.8),
-                          shape: BoxShape.circle,
-                        ),
-                        child: Icon(
-                          Icons.health_and_safety_outlined,
-                          color: visualColor,
-                          size: 28,
-                        ),
-                      ),
-                      const SizedBox(width: 14),
-                      Expanded(
-                        child: Text(
-                          result.category,
-                          style: Theme.of(context).textTheme.titleMedium
-                              ?.copyWith(
-                                fontWeight: FontWeight.w700,
-                                color: const Color(0xFF59635D),
-                              ),
-                        ),
-                      ),
-                    ],
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.65),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: const Color(0xFFD8E0DB)),
+                    ),
+                    child: const Text(
+                      'Bu durum uygulamadan değil, ürün verisinin eksik olmasından kaynaklanmaktadır.',
+                      style: TextStyle(height: 1.45, color: Color(0xFF59635D)),
+                    ),
                   ),
                 ],
               )
@@ -1004,19 +1127,56 @@ class _AnalysisCard extends StatefulWidget {
 
 class _AnalysisCardState extends State<_AnalysisCard> {
   final AnalysisService _analysisService = const AnalysisService();
+  final ProductRepository _productRepository = ProductRepository();
 
   AnalysisResult? _result;
   bool _isLoading = false;
+  bool _isCached = false;
   String? _errorMessage;
 
-  Future<void> _generateAnalysis() async {
+  @override
+  void initState() {
+    super.initState();
+    final cachedResult = _cachedAnalysis(widget.product);
+    if (cachedResult == null) {
+      debugPrint('AI cache miss');
+      return;
+    }
+
+    debugPrint('AI cache hit');
+    _result = cachedResult;
+    _isCached = true;
+  }
+
+  Future<void> _generateAnalysis({bool forceRefresh = false}) async {
+    if (!forceRefresh) {
+      final cachedResult = _cachedAnalysis(widget.product);
+      if (cachedResult != null) {
+        debugPrint('AI cache hit');
+        setState(() {
+          _result = cachedResult;
+          _isCached = true;
+          _errorMessage = null;
+        });
+        return;
+      }
+      debugPrint('AI cache miss');
+    }
+
     setState(() {
       _isLoading = true;
       _errorMessage = null;
     });
 
     try {
+      debugPrint('Calling OpenAI analysis');
       final result = await _analysisService.generateAnalysis(widget.product);
+      await _productRepository.updateAiAnalysis(
+        barcode: widget.product.barcode,
+        summary: result.summary,
+        riskLevel: result.riskLevel,
+      );
+      debugPrint('AI analysis saved to Supabase');
 
       if (!mounted) {
         return;
@@ -1025,9 +1185,10 @@ class _AnalysisCardState extends State<_AnalysisCard> {
       setState(() {
         _result = result;
         _isLoading = false;
+        _isCached = false;
       });
     } on Object catch (error, stackTrace) {
-      debugPrint('Manual LabelWise Analysis error: $error');
+      debugPrint('AI analysis failed: $error');
       debugPrintStack(stackTrace: stackTrace);
 
       if (!mounted) {
@@ -1036,7 +1197,8 @@ class _AnalysisCardState extends State<_AnalysisCard> {
 
       setState(() {
         _isLoading = false;
-        _errorMessage = 'Analiz oluşturulamadı. Lütfen tekrar deneyin.';
+        _errorMessage =
+            'Yapay zeka yorumu oluşturulamadı. Lütfen tekrar deneyin.';
       });
     }
   }
@@ -1065,23 +1227,19 @@ class _AnalysisCardState extends State<_AnalysisCard> {
             ),
             const SizedBox(height: 16),
             if (_isLoading)
-              const Center(child: CircularProgressIndicator())
+              const Center(
+                child: Column(
+                  children: [
+                    CircularProgressIndicator(),
+                    SizedBox(height: 12),
+                    Text(
+                      'Güvenli yorum hazırlanıyor...',
+                      style: TextStyle(color: Color(0xFF657069)),
+                    ),
+                  ],
+                ),
+              )
             else if (result != null) ...[
-              Text(
-                'Risk Seviyesi',
-                style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                  color: const Color(0xFF657069),
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                _localizedRiskLevel(result.riskLevel),
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w700,
-                  color: const Color(0xFF17211B),
-                ),
-              ),
-              const SizedBox(height: 16),
               Text(
                 result.summary,
                 style: Theme.of(context).textTheme.bodyLarge?.copyWith(
@@ -1089,13 +1247,53 @@ class _AnalysisCardState extends State<_AnalysisCard> {
                   color: const Color(0xFF3D4841),
                 ),
               ),
-            ] else ...[
-              if (_errorMessage case final message?) ...[
-                Text(message, style: const TextStyle(color: Color(0xFFB3261E))),
-                const SizedBox(height: 12),
+              const SizedBox(height: 16),
+              DecoratedBox(
+                decoration: BoxDecoration(
+                  color: _riskColor(result.riskLevel).withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 7,
+                  ),
+                  child: Text(
+                    'Risk seviyesi: ${_localizedRiskLevel(result.riskLevel)}',
+                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                      color: _riskColor(result.riskLevel),
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+              ),
+              if (_isCached) ...[
+                const SizedBox(height: 10),
+                const Text(
+                  'Önceden oluşturulmuş yorum',
+                  style: TextStyle(fontSize: 12, color: Color(0xFF78847C)),
+                ),
               ],
+              const SizedBox(height: 10),
+              TextButton(
+                onPressed: () => _generateAnalysis(forceRefresh: true),
+                child: const Text('Yorumu Yenile'),
+              ),
+            ] else ...[
+              Text(
+                'Beslenme değerlerine göre kısa ve anlaşılır bir yorum oluşturabilirsiniz.',
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  height: 1.45,
+                  color: const Color(0xFF657069),
+                ),
+              ),
+              if (_errorMessage case final message?) ...[
+                const SizedBox(height: 12),
+                Text(message, style: const TextStyle(color: Color(0xFFB3261E))),
+              ],
+              const SizedBox(height: 14),
               FilledButton.icon(
-                onPressed: _generateAnalysis,
+                onPressed: () => _generateAnalysis(),
                 icon: const Icon(Icons.auto_awesome_outlined),
                 label: const Text('Analizi Oluştur'),
               ),
@@ -1107,10 +1305,45 @@ class _AnalysisCardState extends State<_AnalysisCard> {
   }
 
   String _localizedRiskLevel(String riskLevel) {
-    return switch (riskLevel) {
-      'low' => 'Düşük',
-      'high' => 'Yüksek',
-      _ => 'Orta',
+    return switch (_normalizeRiskLevel(riskLevel)) {
+      'düşük' => 'Düşük',
+      'orta' => 'Orta',
+      'yüksek' => 'Yüksek',
+      _ => 'Bilinmiyor',
+    };
+  }
+
+  Color _riskColor(String riskLevel) {
+    return switch (_normalizeRiskLevel(riskLevel)) {
+      'düşük' => const Color(0xFF27844B),
+      'orta' => const Color(0xFFB38416),
+      'yüksek' => const Color(0xFFB84A3A),
+      _ => const Color(0xFF7A827D),
+    };
+  }
+
+  AnalysisResult? _cachedAnalysis(Product product) {
+    final summary = product.aiSummary?.trim();
+    final riskLevel = product.aiRiskLevel?.trim();
+    if (summary == null ||
+        summary.isEmpty ||
+        riskLevel == null ||
+        riskLevel.isEmpty) {
+      return null;
+    }
+
+    return AnalysisResult(
+      summary: summary,
+      riskLevel: _normalizeRiskLevel(riskLevel),
+    );
+  }
+
+  String _normalizeRiskLevel(String riskLevel) {
+    return switch (riskLevel.trim().toLowerCase()) {
+      'low' || 'düşük' => 'düşük',
+      'medium' || 'orta' => 'orta',
+      'high' || 'yüksek' => 'yüksek',
+      _ => 'bilinmiyor',
     };
   }
 }

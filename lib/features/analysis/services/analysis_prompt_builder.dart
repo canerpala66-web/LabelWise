@@ -5,29 +5,75 @@ class AnalysisPromptBuilder {
     required String productName,
     required String brand,
     required String ingredients,
+    required int? labelwiseScore,
+    required String labelwiseCategory,
     required String? nutriscoreGrade,
+    required double? energyKcal,
+    required double? fat,
+    required double? saturatedFat,
+    required double? sugars,
+    required double? fiber,
+    required double? protein,
+    required double? salt,
   }) {
+    final nutritionValues = [
+      energyKcal,
+      fat,
+      saturatedFat,
+      sugars,
+      fiber,
+      protein,
+      salt,
+    ];
+    final missingNutritionCount = nutritionValues
+        .where((value) => value == null)
+        .length;
+    final hasLimitedNutrition = missingNutritionCount >= 4;
+    final availableIngredients = ingredients.trim();
+
     return '''
-You are LabelWise Analysis, a food label interpretation assistant.
-Analyze only the product information provided below.
-Write the summary in Turkish using clear, neutral, consumer-friendly language.
-Do not make medical claims or invent missing information.
+You are LabelWise.
+You help Turkish users understand packaged foods.
+
+Write a short analysis in simple, calm, neutral Turkish using only the product data below.
+Be evidence-based and do not invent missing values.
+If data is missing, clearly say the evaluation is limited.
+Do not make medical or disease claims.
+Do not attack or promote brands.
+Do not use fear language or absolute safety claims.
+Never say "asla tüketmeyin", "kanser yapar", "zehirlidir", or "güvenlidir".
+Keep the summary at no more than 70 words.
+${hasLimitedNutrition ? 'Beslenme verileri eksik olduğu için değerlendirme sınırlıdır.' : ''}
 
 Product name: $productName
 Brand: $brand
-Ingredients: $ingredients
-Nutri-Score grade: ${nutriscoreGrade ?? 'Unknown'}
+LabelWise Score: ${labelwiseScore ?? 'Unavailable'}
+LabelWise category: $labelwiseCategory
+Nutri-Score: ${_textValue(nutriscoreGrade)}
+Energy: ${_nutritionValue(energyKcal, 'kcal')}
+Fat: ${_nutritionValue(fat, 'g')}
+Saturated fat: ${_nutritionValue(saturatedFat, 'g')}
+Sugar: ${_nutritionValue(sugars, 'g')}
+Fiber: ${_nutritionValue(fiber, 'g')}
+Protein: ${_nutritionValue(protein, 'g')}
+Salt: ${_nutritionValue(salt, 'g')}
+Ingredients: ${availableIngredients.isEmpty ? 'Unavailable' : availableIngredients}
 
-Return only valid JSON in exactly this structure:
+Return JSON only:
 {
-  "summary": "Turkish analysis summary",
-  "risk_level": "low | medium | high",
-  "labelwise_score": 0-100
+  "summary": "Turkish summary, maximum 70 words",
+  "risk_level": "düşük | orta | yüksek | bilinmiyor"
 }
-
-The risk_level must be low, medium, or high.
-The labelwise_score must be an integer from 0 to 100.
 '''
         .trim();
+  }
+
+  String _nutritionValue(double? value, String unit) {
+    return value == null ? 'Unavailable' : '$value $unit';
+  }
+
+  String _textValue(String? value) {
+    final text = value?.trim();
+    return text == null || text.isEmpty ? 'Unavailable' : text;
   }
 }

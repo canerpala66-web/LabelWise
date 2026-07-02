@@ -28,6 +28,8 @@
 	<true/>
 	<key>NSCameraUsageDescription</key>
 	<string>LabelWise barkodları taramak için kamera erişimine ihtiyaç duyar.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Ürün fotoğraflarını seçebilmeniz için galeri erişimi gereklidir.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

@@ -1,11 +1,6 @@
 class AnalysisResult {
-  const AnalysisResult({
-    required this.summary,
-    required this.riskLevel,
-    required this.labelwiseScore,
-  });
+  const AnalysisResult({required this.summary, required this.riskLevel});
 
   final String summary;
   final String riskLevel;
-  final int labelwiseScore;
 }

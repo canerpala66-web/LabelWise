@@ -17,7 +17,8 @@ class ProductRepository {
             'barcode, name, brand, image_url, ingredients_text, '
             'nutriscore_grade, source, energy_kcal, fat, saturated_fat, '
             'sugars, fiber, protein, salt, '
-            'fruits_vegetables_legumes_percent',
+            'fruits_vegetables_legumes_percent, ai_summary, ai_risk_level, '
+            'ai_generated_at',
           )
           .eq('barcode', barcode)
           .maybeSingle();
@@ -31,7 +32,8 @@ class ProductRepository {
           .from('products')
           .select(
             'barcode, name, brand, image_url, ingredients_text, '
-            'nutriscore_grade, source',
+            'nutriscore_grade, source, ai_summary, ai_risk_level, '
+            'ai_generated_at',
           )
           .eq('barcode', barcode)
           .maybeSingle();
@@ -59,6 +61,9 @@ class ProductRepository {
       fruitsVegetablesLegumesPercent: _number(
         data['fruits_vegetables_legumes_percent'],
       ),
+      aiSummary: data['ai_summary'] as String?,
+      aiRiskLevel: data['ai_risk_level'] as String?,
+      aiGeneratedAt: _dateTime(data['ai_generated_at']),
     );
   }
 
@@ -103,6 +108,32 @@ class ProductRepository {
     }
   }
 
+  Future<void> updateAiAnalysis({
+    required String barcode,
+    required String summary,
+    required String riskLevel,
+  }) async {
+    final trimmedBarcode = barcode.trim();
+    if (trimmedBarcode.isEmpty) {
+      throw ArgumentError.value(barcode, 'barcode', 'Cannot be empty');
+    }
+
+    final updatedProduct = await _client
+        .from('products')
+        .update({
+          'ai_summary': summary.trim(),
+          'ai_risk_level': riskLevel.trim(),
+          'ai_generated_at': DateTime.now().toUtc().toIso8601String(),
+        })
+        .eq('barcode', trimmedBarcode)
+        .select('barcode')
+        .maybeSingle();
+
+    if (updatedProduct == null) {
+      throw StateError('Product not found while saving AI analysis.');
+    }
+  }
+
   bool _isMissingNutritionColumn(PostgrestException error) {
     final description = '${error.message} ${error.details} ${error.hint}';
     return const [
@@ -133,5 +164,12 @@ class ProductRepository {
       return double.tryParse(value.trim());
     }
     return null;
+  }
+
+  DateTime? _dateTime(Object? value) {
+    if (value is! String) {
+      return null;
+    }
+    return DateTime.tryParse(value);
   }
 }
