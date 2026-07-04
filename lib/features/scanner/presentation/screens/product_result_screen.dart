@@ -3,6 +3,7 @@ import 'package:labelwise/features/analysis/models/analysis_result.dart';
 import 'package:labelwise/features/analysis/models/labelwise_score_result.dart';
 import 'package:labelwise/features/analysis/services/analysis_service.dart';
 import 'package:labelwise/features/analysis/services/labelwise_score_engine.dart';
+import 'package:labelwise/features/corrections/presentation/screens/correction_report_screen.dart';
 import 'package:labelwise/features/scanner/data/product.dart';
 import 'package:labelwise/features/scanner/data/product_repository.dart';
 import 'package:labelwise/features/scanner/presentation/screens/submit_product_screen.dart';
@@ -18,7 +19,10 @@ class ProductResultScreen extends StatefulWidget {
 
 class _ProductResultScreenState extends State<ProductResultScreen>
     with SingleTickerProviderStateMixin {
+  final ProductRepository _productRepository = ProductRepository();
+
   late final AnimationController _entranceController;
+  late final Future<String?>? _signedFrontImageUrl;
 
   @override
   void initState() {
@@ -27,6 +31,16 @@ class _ProductResultScreenState extends State<ProductResultScreen>
       vsync: this,
       duration: const Duration(milliseconds: 850),
     )..forward();
+    final publicImageUrl = widget.product.imageUrl?.trim();
+    final frontImagePath = widget.product.frontImagePath?.trim();
+    _signedFrontImageUrl =
+        (publicImageUrl == null || publicImageUrl.isEmpty) &&
+            frontImagePath != null &&
+            frontImagePath.isNotEmpty
+        ? _productRepository.createSubmittedProductPhotoSignedUrl(
+            frontImagePath,
+          )
+        : null;
   }
 
   @override
@@ -52,6 +66,7 @@ class _ProductResultScreenState extends State<ProductResultScreen>
       product.protein,
       product.salt,
     ].where((value) => value == null).length;
+    final hasIncompleteNutrition = missingNutritionCount > 0;
     final hasInsufficientNutrition = missingNutritionCount >= 3;
     debugPrint(
       'Product nutrition debug: '
@@ -84,7 +99,10 @@ class _ProductResultScreenState extends State<ProductResultScreen>
                   _StaggeredSection(
                     animation: _entranceController,
                     start: 0,
-                    child: _ProductImageCard(imageUrl: product.imageUrl),
+                    child: _ProductImageCard(
+                      imageUrl: product.imageUrl,
+                      signedFrontImageUrl: _signedFrontImageUrl,
+                    ),
                   ),
                   const SizedBox(height: 24),
                   _StaggeredSection(
@@ -127,6 +145,23 @@ class _ProductResultScreenState extends State<ProductResultScreen>
                     child: Align(
                       alignment: Alignment.centerLeft,
                       child: _NutriScoreBadge(grade: product.nutriscoreGrade),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  _StaggeredSection(
+                    animation: _entranceController,
+                    start: 0.21,
+                    child: _DataTrustCard(
+                      product: product,
+                      hasIncompleteNutrition: hasIncompleteNutrition,
+                      onCorrection: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) =>
+                                CorrectionReportScreen(product: product),
+                          ),
+                        );
+                      },
                     ),
                   ),
                   const SizedBox(height: 30),
@@ -970,9 +1005,13 @@ Color _scoreRingColor(int score) {
 }
 
 class _ProductImageCard extends StatelessWidget {
-  const _ProductImageCard({required this.imageUrl});
+  const _ProductImageCard({
+    required this.imageUrl,
+    required this.signedFrontImageUrl,
+  });
 
   final String? imageUrl;
+  final Future<String?>? signedFrontImageUrl;
 
   @override
   Widget build(BuildContext context) {
@@ -987,16 +1026,43 @@ class _ProductImageCard extends StatelessWidget {
       child: SizedBox(
         width: double.infinity,
         height: 280,
-        child: url == null || url.isEmpty
+        child: url != null && url.isNotEmpty
+            ? _ProductNetworkImage(url: url)
+            : signedFrontImageUrl == null
             ? const _ImagePlaceholder()
-            : Image.network(
-                url,
-                fit: BoxFit.contain,
-                errorBuilder: (context, error, stackTrace) {
-                  return const _ImagePlaceholder();
+            : FutureBuilder<String?>(
+                future: signedFrontImageUrl,
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const ColoredBox(
+                      color: Color(0xFFF2F5F3),
+                      child: Center(child: CircularProgressIndicator()),
+                    );
+                  }
+                  final signedUrl = snapshot.data;
+                  return signedUrl == null || signedUrl.isEmpty
+                      ? const _ImagePlaceholder()
+                      : _ProductNetworkImage(url: signedUrl);
                 },
               ),
       ),
+    );
+  }
+}
+
+class _ProductNetworkImage extends StatelessWidget {
+  const _ProductNetworkImage({required this.url});
+
+  final String url;
+
+  @override
+  Widget build(BuildContext context) {
+    return Image.network(
+      url,
+      fit: BoxFit.contain,
+      errorBuilder: (context, error, stackTrace) {
+        return const _ImagePlaceholder();
+      },
     );
   }
 }
@@ -1113,6 +1179,115 @@ class _NutriScoreBadge extends StatelessWidget {
       'E' => const Color(0xFFC83E35),
       _ => const Color(0xFF7A827D),
     };
+  }
+}
+
+class _DataTrustCard extends StatelessWidget {
+  const _DataTrustCard({
+    required this.product,
+    required this.hasIncompleteNutrition,
+    required this.onCorrection,
+  });
+
+  final Product product;
+  final bool hasIncompleteNutrition;
+  final VoidCallback onCorrection;
+
+  @override
+  Widget build(BuildContext context) {
+    final isLabelWiseData =
+        product.source.trim().toLowerCase() == 'user_submission';
+    final badgeText = isLabelWiseData ? 'LabelWise verisi' : 'Topluluk verisi';
+    final description = isLabelWiseData
+        ? 'Bu ürün bilgileri LabelWise incelemesinden geçirilerek veritabanına eklenmiştir.'
+        : 'Bu ürün bilgileri OpenFoodFacts gibi topluluk kaynaklarından alınmış olabilir. Ambalaj üzerindeki bilgilerle küçük farklılıklar gösterebilir.';
+
+    return Card(
+      margin: EdgeInsets.zero,
+      elevation: 1,
+      shadowColor: const Color(0x12000000),
+      color: Colors.white,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Veri Güvenilirliği',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w800,
+                color: const Color(0xFF17211B),
+              ),
+            ),
+            const SizedBox(height: 12),
+            DecoratedBox(
+              decoration: BoxDecoration(
+                color: isLabelWiseData
+                    ? const Color(0xFFE7F3EB)
+                    : const Color(0xFFF0F2F1),
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 11,
+                  vertical: 6,
+                ),
+                child: Text(
+                  badgeText,
+                  style: TextStyle(
+                    color: isLabelWiseData
+                        ? const Color(0xFF2F7049)
+                        : const Color(0xFF59645D),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              description,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                height: 1.45,
+                color: const Color(0xFF657069),
+              ),
+            ),
+            if (hasIncompleteNutrition) ...[
+              const SizedBox(height: 10),
+              const Text(
+                'Beslenme verileri eksik veya sınırlı olabilir.',
+                style: TextStyle(
+                  height: 1.4,
+                  color: Color(0xFF78827C),
+                  fontSize: 13,
+                ),
+              ),
+            ],
+            const SizedBox(height: 16),
+            const Divider(height: 1, color: Color(0xFFE8ECE9)),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                const Expanded(
+                  child: Text(
+                    'Bu bilgiler doğru değil mi?',
+                    style: TextStyle(
+                      color: Color(0xFF4B5750),
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                TextButton(
+                  onPressed: onCorrection,
+                  child: const Text('Düzeltme Bildir'),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 
@@ -1274,11 +1449,6 @@ class _AnalysisCardState extends State<_AnalysisCard> {
                   style: TextStyle(fontSize: 12, color: Color(0xFF78847C)),
                 ),
               ],
-              const SizedBox(height: 10),
-              TextButton(
-                onPressed: () => _generateAnalysis(forceRefresh: true),
-                child: const Text('Yorumu Yenile'),
-              ),
             ] else ...[
               Text(
                 'Beslenme değerlerine göre kısa ve anlaşılır bir yorum oluşturabilirsiniz.',
@@ -1295,7 +1465,9 @@ class _AnalysisCardState extends State<_AnalysisCard> {
               FilledButton.icon(
                 onPressed: () => _generateAnalysis(),
                 icon: const Icon(Icons.auto_awesome_outlined),
-                label: const Text('Analizi Oluştur'),
+                label: Text(
+                  _errorMessage == null ? 'Analizi Oluştur' : 'Tekrar Dene',
+                ),
               ),
             ],
           ],

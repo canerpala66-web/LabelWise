@@ -18,6 +18,7 @@ class Product {
     this.aiSummary,
     this.aiRiskLevel,
     this.aiGeneratedAt,
+    this.frontImagePath,
   });
 
   final String productName;
@@ -38,6 +39,7 @@ class Product {
   final String? aiSummary;
   final String? aiRiskLevel;
   final DateTime? aiGeneratedAt;
+  final String? frontImagePath;
 
   bool get hasNutritionData => [
     energyKcal,
@@ -94,6 +96,7 @@ class Product {
       fruitsVegetablesLegumesPercent: _number(
         nutrition['fruits-vegetables-legumes-estimate-from-ingredients_100g'],
       ),
+      frontImagePath: _nonEmptyString(json['front_image_path']),
     );
   }
 

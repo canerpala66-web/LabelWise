@@ -5,6 +5,6 @@ void main() {
   testWidgets('displays the scan action', (tester) async {
     await tester.pumpWidget(const LabelWiseApp());
 
-    expect(find.text('Start Scan'), findsOneWidget);
+    expect(find.text('Barkod Taramaya Başla'), findsOneWidget);
   });
 }

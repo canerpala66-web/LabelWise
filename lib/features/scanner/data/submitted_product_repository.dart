@@ -1,5 +1,5 @@
-import 'dart:typed_data';
-
+import 'package:flutter/foundation.dart';
+import 'package:labelwise/features/admin/models/submitted_product.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class SubmissionPhoto {
@@ -23,6 +23,12 @@ class SubmittedProductRepository {
     : _client = client ?? Supabase.instance.client;
 
   final SupabaseClient _client;
+
+  static const _submissionFields =
+      'id, barcode, name, brand, ingredients_text, energy_kcal, fat, '
+      'saturated_fat, sugars, fiber, protein, salt, front_image_path, '
+      'nutrition_image_path, ingredients_image_path, status, source, '
+      'created_at, reviewed_at, review_note';
 
   Future<void> submitProduct({
     required String barcode,
@@ -104,6 +110,161 @@ class SubmittedProductRepository {
     } on Object {
       await _removeUploadedPhotos(uploadedPaths);
       rethrow;
+    }
+  }
+
+  Future<List<SubmittedProduct>> fetchSubmittedProducts({
+    String status = 'pending',
+  }) async {
+    final normalizedStatus = _reviewStatus(status);
+    debugPrint('AdminReview: fetching $normalizedStatus submissions');
+
+    try {
+      var query = _client.from('submitted_products').select(_submissionFields);
+      query = normalizedStatus == 'pending'
+          ? query.or('status.eq.pending,status.is.null')
+          : query.eq('status', normalizedStatus);
+      final rows = await query.order('created_at', ascending: false);
+      final submissions = rows
+          .map(SubmittedProduct.fromJson)
+          .toList(growable: false);
+      debugPrint('AdminReview: loaded ${submissions.length} submissions');
+      return submissions;
+    } on Object catch (error) {
+      debugPrint('AdminReview: failed step=fetch list, error=$error');
+      rethrow;
+    }
+  }
+
+  Future<SubmittedProduct?> fetchSubmittedProductById(String id) async {
+    try {
+      final row = await _client
+          .from('submitted_products')
+          .select(_submissionFields)
+          .eq('id', id)
+          .maybeSingle();
+      return row == null ? null : SubmittedProduct.fromJson(row);
+    } on Object catch (error) {
+      debugPrint('AdminReview: failed step=fetch detail, error=$error');
+      rethrow;
+    }
+  }
+
+  Future<void> approveSubmission(String id, {String? reviewNote}) async {
+    debugPrint('AdminReview: approving submission id=$id');
+    final submission = await fetchSubmittedProductById(id);
+    if (submission == null) {
+      throw StateError('Submitted product not found.');
+    }
+    if (submission.barcode.isEmpty || submission.name.isEmpty) {
+      throw StateError('Submitted product requires barcode and name.');
+    }
+
+    final productData = <String, dynamic>{
+      'barcode': submission.barcode,
+      'name': submission.name,
+      'source': 'user_submission',
+    };
+    _addIfPresent(productData, 'brand', submission.brand);
+    _addIfPresent(productData, 'ingredients_text', submission.ingredientsText);
+    _addIfPresent(productData, 'energy_kcal', submission.energyKcal);
+    _addIfPresent(productData, 'fat', submission.fat);
+    _addIfPresent(productData, 'saturated_fat', submission.saturatedFat);
+    _addIfPresent(productData, 'sugars', submission.sugars);
+    _addIfPresent(productData, 'fiber', submission.fiber);
+    _addIfPresent(productData, 'protein', submission.protein);
+    _addIfPresent(productData, 'salt', submission.salt);
+    _addIfPresent(productData, 'front_image_path', submission.frontImagePath);
+
+    try {
+      debugPrint(
+        'AdminReview: upserting product barcode=${submission.barcode}',
+      );
+      await _client.from('products').upsert(productData, onConflict: 'barcode');
+      debugPrint('AdminReview: product upsert success');
+    } on Object catch (error) {
+      debugPrint('AdminReview: failed step=upsert product, error=$error');
+      rethrow;
+    }
+
+    try {
+      await _markReviewed(id: id, status: 'approved', reviewNote: reviewNote);
+      debugPrint('AdminReview: submitted product marked approved');
+    } on Object catch (error) {
+      debugPrint('AdminReview: failed step=mark approved, error=$error');
+      rethrow;
+    }
+  }
+
+  Future<void> rejectSubmission(String id, {String? reviewNote}) async {
+    debugPrint('AdminReview: rejecting submission id=$id');
+    try {
+      await _markReviewed(id: id, status: 'rejected', reviewNote: reviewNote);
+    } on Object catch (error) {
+      debugPrint('AdminReview: failed step=mark rejected, error=$error');
+      rethrow;
+    }
+  }
+
+  Future<String?> createPhotoSignedUrl(String? path) async {
+    final trimmedPath = path?.trim();
+    if (trimmedPath == null || trimmedPath.isEmpty) {
+      return null;
+    }
+
+    debugPrint('AdminPhotoPreview: creating signed URL for path=$trimmedPath');
+    try {
+      final signedUrl = await _client.storage
+          .from('submitted-product-photos')
+          .createSignedUrl(trimmedPath, 3600);
+      debugPrint('AdminPhotoPreview: signed URL created');
+      return signedUrl;
+    } on Object catch (error) {
+      debugPrint('AdminPhotoPreview: signed URL failed error=$error');
+      final description = error.toString().toLowerCase();
+      if (description.contains('403') ||
+          description.contains('unauthorized') ||
+          description.contains('permission') ||
+          description.contains('policy') ||
+          description.contains('object not found') ||
+          description.contains('row-level security')) {
+        debugPrint(
+          'AdminPhotoPreview: signed URL permission error. '
+          'Check storage select policy.',
+        );
+      }
+      return null;
+    }
+  }
+
+  Future<void> _markReviewed({
+    required String id,
+    required String status,
+    required String? reviewNote,
+  }) async {
+    await _client
+        .from('submitted_products')
+        .update({
+          'status': _reviewStatus(status),
+          'reviewed_at': DateTime.now().toUtc().toIso8601String(),
+          'review_note': _optionalValue(reviewNote),
+        })
+        .eq('id', id);
+  }
+
+  String _reviewStatus(String status) {
+    final normalizedStatus = status.trim().toLowerCase();
+    if (!const {'pending', 'approved', 'rejected'}.contains(normalizedStatus)) {
+      throw ArgumentError.value(status, 'status', 'Unsupported review status');
+    }
+    return normalizedStatus;
+  }
+
+  void _addIfPresent(Map<String, dynamic> data, String key, Object? value) {
+    if (value is String && value.trim().isNotEmpty) {
+      data[key] = value.trim();
+    } else if (value is num) {
+      data[key] = value;
     }
   }
 

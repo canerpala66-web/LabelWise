@@ -18,7 +18,7 @@ class ProductRepository {
             'nutriscore_grade, source, energy_kcal, fat, saturated_fat, '
             'sugars, fiber, protein, salt, '
             'fruits_vegetables_legumes_percent, ai_summary, ai_risk_level, '
-            'ai_generated_at',
+            'ai_generated_at, front_image_path',
           )
           .eq('barcode', barcode)
           .maybeSingle();
@@ -33,7 +33,7 @@ class ProductRepository {
           .select(
             'barcode, name, brand, image_url, ingredients_text, '
             'nutriscore_grade, source, ai_summary, ai_risk_level, '
-            'ai_generated_at',
+            'ai_generated_at, front_image_path',
           )
           .eq('barcode', barcode)
           .maybeSingle();
@@ -64,6 +64,7 @@ class ProductRepository {
       aiSummary: data['ai_summary'] as String?,
       aiRiskLevel: data['ai_risk_level'] as String?,
       aiGeneratedAt: _dateTime(data['ai_generated_at']),
+      frontImagePath: data['front_image_path'] as String?,
     );
   }
 
@@ -81,6 +82,10 @@ class ProductRepository {
       'nutriscore_grade': product.nutriscoreGrade,
       'source': product.source,
     };
+    if (product.frontImagePath case final frontImagePath?
+        when frontImagePath.trim().isNotEmpty) {
+      baseData['front_image_path'] = frontImagePath.trim();
+    }
     final nutritionData = <String, dynamic>{
       ...baseData,
       'energy_kcal': product.energyKcal,
@@ -131,6 +136,27 @@ class ProductRepository {
 
     if (updatedProduct == null) {
       throw StateError('Product not found while saving AI analysis.');
+    }
+  }
+
+  Future<String?> createSubmittedProductPhotoSignedUrl(String? path) async {
+    final trimmedPath = path?.trim();
+    if (trimmedPath == null || trimmedPath.isEmpty) {
+      return null;
+    }
+
+    debugPrint(
+      'ProductImage: creating signed URL for front_image_path=$trimmedPath',
+    );
+    try {
+      final signedUrl = await _client.storage
+          .from('submitted-product-photos')
+          .createSignedUrl(trimmedPath, 3600);
+      debugPrint('ProductImage: signed URL created');
+      return signedUrl;
+    } on Object catch (error) {
+      debugPrint('ProductImage: signed URL failed error=$error');
+      return null;
     }
   }
 
