@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:labelwise/features/scanner/data/open_food_facts_service.dart';
+import 'package:labelwise/features/scanner/data/product.dart';
 import 'package:labelwise/features/scanner/data/product_repository.dart';
 import 'package:labelwise/features/scanner/presentation/screens/barcode_scanner_screen.dart';
 import 'package:labelwise/features/scanner/presentation/screens/product_result_screen.dart';
@@ -104,6 +105,18 @@ class _ScannerScreenState extends State<ScannerScreen> {
         if (product != null) {
           await _productRepository.saveProduct(product);
         }
+      } else if (_needsCategoryRefresh(product)) {
+        debugPrint(
+          'Cache hit: category missing, refreshing from OpenFoodFacts',
+        );
+        final cachedProduct = product;
+        final refreshedProduct = await _service.fetchProduct(barcode);
+        if (refreshedProduct != null) {
+          await _productRepository.saveProduct(refreshedProduct);
+          product = refreshedProduct;
+        } else {
+          product = cachedProduct;
+        }
       } else {
         debugPrint('Cache hit: complete nutrition');
       }
@@ -150,6 +163,13 @@ class _ScannerScreenState extends State<ScannerScreen> {
         _failedBarcode = barcode;
       });
     }
+  }
+
+  bool _needsCategoryRefresh(Product product) {
+    final source = product.source.trim().toLowerCase();
+    final category = product.category?.trim();
+    return source == 'openfoodfacts' &&
+        (category == null || category.isEmpty || category == 'Belirsiz');
   }
 
   @override

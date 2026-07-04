@@ -8,36 +8,16 @@ class ProductRepository {
 
   final SupabaseClient _client;
 
-  Future<Product?> getProductByBarcode(String barcode) async {
-    Map<String, dynamic>? data;
-    try {
-      data = await _client
-          .from('products')
-          .select(
-            'barcode, name, brand, image_url, ingredients_text, '
-            'nutriscore_grade, source, energy_kcal, fat, saturated_fat, '
-            'sugars, fiber, protein, salt, '
-            'fruits_vegetables_legumes_percent, ai_summary, ai_risk_level, '
-            'ai_generated_at, front_image_path',
-          )
-          .eq('barcode', barcode)
-          .maybeSingle();
-    } on PostgrestException catch (error) {
-      if (!_isMissingNutritionColumn(error)) {
-        rethrow;
-      }
+  static const _baseFields =
+      'barcode, name, brand, image_url, ingredients_text, '
+      'nutriscore_grade, source, ai_summary, ai_risk_level, '
+      'ai_generated_at, front_image_path';
+  static const _nutritionFields =
+      'energy_kcal, fat, saturated_fat, sugars, fiber, protein, salt, '
+      'fruits_vegetables_legumes_percent';
 
-      _logMissingNutritionSchema();
-      data = await _client
-          .from('products')
-          .select(
-            'barcode, name, brand, image_url, ingredients_text, '
-            'nutriscore_grade, source, ai_summary, ai_risk_level, '
-            'ai_generated_at, front_image_path',
-          )
-          .eq('barcode', barcode)
-          .maybeSingle();
-    }
+  Future<Product?> getProductByBarcode(String barcode) async {
+    final data = await _fetchProductData(barcode);
 
     if (data == null) {
       return null;
@@ -65,6 +45,7 @@ class ProductRepository {
       aiRiskLevel: data['ai_risk_level'] as String?,
       aiGeneratedAt: _dateTime(data['ai_generated_at']),
       frontImagePath: data['front_image_path'] as String?,
+      category: data['category'] as String?,
     );
   }
 
@@ -73,6 +54,8 @@ class ProductRepository {
       throw ArgumentError.value(product.barcode, 'barcode', 'Cannot be empty');
     }
 
+    final protectedValues = await _protectedValuesForSave(product);
+    final categoryForSave = protectedValues.category;
     final baseData = <String, dynamic>{
       'barcode': product.barcode,
       'name': product.productName,
@@ -80,7 +63,8 @@ class ProductRepository {
       'image_url': product.imageUrl,
       'ingredients_text': product.ingredientsText,
       'nutriscore_grade': product.nutriscoreGrade,
-      'source': product.source,
+      'source': protectedValues.source,
+      'category': categoryForSave,
     };
     if (product.frontImagePath case final frontImagePath?
         when frontImagePath.trim().isNotEmpty) {
@@ -99,18 +83,11 @@ class ProductRepository {
           product.fruitsVegetablesLegumesPercent,
     };
 
-    try {
-      await _client
-          .from('products')
-          .upsert(nutritionData, onConflict: 'barcode');
-    } on PostgrestException catch (error) {
-      if (!_isMissingNutritionColumn(error)) {
-        rethrow;
-      }
-
-      _logMissingNutritionSchema();
-      await _client.from('products').upsert(baseData, onConflict: 'barcode');
-    }
+    debugPrint('ProductRepository: saving category=$categoryForSave');
+    await _upsertWithSchemaFallback(
+      nutritionData: nutritionData,
+      baseData: baseData,
+    );
   }
 
   Future<void> updateAiAnalysis({
@@ -174,11 +151,143 @@ class ProductRepository {
     ].any(description.contains);
   }
 
+  bool _isMissingCategoryColumn(PostgrestException error) {
+    final description = '${error.message} ${error.details} ${error.hint}';
+    return description.contains('category');
+  }
+
+  Future<({String? category, String source})> _protectedValuesForSave(
+    Product product,
+  ) async {
+    if (product.source.trim().toLowerCase() != 'openfoodfacts') {
+      return (category: product.category, source: product.source);
+    }
+    try {
+      final existing = await _client
+          .from('products')
+          .select('source, category')
+          .eq('barcode', product.barcode)
+          .maybeSingle();
+      final existingSource = (existing?['source'] as String?)
+          ?.trim()
+          .toLowerCase();
+      final existingCategory = (existing?['category'] as String?)?.trim();
+      final isManuallyManaged =
+          existingSource == 'user_submission' ||
+          existingSource == 'labelwise_corrected';
+      final hasUsefulCategory =
+          existingCategory != null &&
+          existingCategory.isNotEmpty &&
+          existingCategory != 'Belirsiz';
+      if (isManuallyManaged && hasUsefulCategory) {
+        return (category: existingCategory, source: existingSource!);
+      }
+    } on PostgrestException catch (error) {
+      if (!_isMissingCategoryColumn(error)) rethrow;
+      _logMissingCategorySchema('products');
+    }
+    return (category: product.category, source: product.source);
+  }
+
+  Future<Map<String, dynamic>?> _fetchProductData(String barcode) async {
+    try {
+      return await _selectProduct(
+        barcode,
+        fields: '$_baseFields, $_nutritionFields, category',
+      );
+    } on PostgrestException catch (error) {
+      if (_isMissingCategoryColumn(error)) {
+        _logMissingCategorySchema('products');
+        try {
+          return await _selectProduct(
+            barcode,
+            fields: '$_baseFields, $_nutritionFields',
+          );
+        } on PostgrestException catch (fallbackError) {
+          if (!_isMissingNutritionColumn(fallbackError)) rethrow;
+          _logMissingNutritionSchema();
+          return _selectProduct(barcode, fields: _baseFields);
+        }
+      }
+      if (!_isMissingNutritionColumn(error)) rethrow;
+      _logMissingNutritionSchema();
+      try {
+        return await _selectProduct(barcode, fields: '$_baseFields, category');
+      } on PostgrestException catch (fallbackError) {
+        if (!_isMissingCategoryColumn(fallbackError)) rethrow;
+        _logMissingCategorySchema('products');
+        return _selectProduct(barcode, fields: _baseFields);
+      }
+    }
+  }
+
+  Future<Map<String, dynamic>?> _selectProduct(
+    String barcode, {
+    required String fields,
+  }) {
+    return _client
+        .from('products')
+        .select(fields)
+        .eq('barcode', barcode)
+        .maybeSingle();
+  }
+
+  Future<void> _upsertWithSchemaFallback({
+    required Map<String, dynamic> nutritionData,
+    required Map<String, dynamic> baseData,
+  }) async {
+    try {
+      await _client
+          .from('products')
+          .upsert(nutritionData, onConflict: 'barcode');
+    } on PostgrestException catch (error) {
+      if (_isMissingCategoryColumn(error)) {
+        _logMissingCategorySchema('products');
+        final withoutCategory = Map<String, dynamic>.of(nutritionData)
+          ..remove('category');
+        try {
+          await _client
+              .from('products')
+              .upsert(withoutCategory, onConflict: 'barcode');
+        } on PostgrestException catch (fallbackError) {
+          if (!_isMissingNutritionColumn(fallbackError)) rethrow;
+          _logMissingNutritionSchema();
+          final baseWithoutCategory = Map<String, dynamic>.of(baseData)
+            ..remove('category');
+          await _client
+              .from('products')
+              .upsert(baseWithoutCategory, onConflict: 'barcode');
+        }
+        return;
+      }
+      if (!_isMissingNutritionColumn(error)) rethrow;
+      _logMissingNutritionSchema();
+      try {
+        await _client.from('products').upsert(baseData, onConflict: 'barcode');
+      } on PostgrestException catch (fallbackError) {
+        if (!_isMissingCategoryColumn(fallbackError)) rethrow;
+        _logMissingCategorySchema('products');
+        final baseWithoutCategory = Map<String, dynamic>.of(baseData)
+          ..remove('category');
+        await _client
+            .from('products')
+            .upsert(baseWithoutCategory, onConflict: 'barcode');
+      }
+    }
+  }
+
   void _logMissingNutritionSchema() {
     debugPrint(
       'Supabase products table is missing nutrition columns. '
       'Nutrition will be refreshed from OpenFoodFacts but cannot be cached '
       'until the required columns are added.',
+    );
+  }
+
+  void _logMissingCategorySchema(String table) {
+    debugPrint(
+      'Supabase $table table is missing category. Run: '
+      'alter table public.$table add column if not exists category text;',
     );
   }
 

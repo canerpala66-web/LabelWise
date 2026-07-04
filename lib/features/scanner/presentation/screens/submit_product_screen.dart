@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:labelwise/features/products/services/product_category_mapper.dart';
 import 'package:labelwise/features/scanner/data/submitted_product_repository.dart';
 
 class SubmitProductScreen extends StatefulWidget {
@@ -33,6 +34,7 @@ class _SubmitProductScreenState extends State<SubmitProductScreen> {
   bool _isSubmitting = false;
   bool _isSubmitted = false;
   String? _errorMessage;
+  String _selectedCategory = 'Belirsiz';
 
   @override
   void initState() {
@@ -106,6 +108,7 @@ class _SubmitProductScreenState extends State<SubmitProductScreen> {
         fiber: _parseNutritionValue(_fiberController.text),
         protein: _parseNutritionValue(_proteinController.text),
         salt: _parseNutritionValue(_saltController.text),
+        category: _selectedCategory,
         frontPhoto: _frontPhoto,
         nutritionPhoto: _nutritionPhoto,
         ingredientsPhoto: _ingredientsPhoto,
@@ -243,6 +246,34 @@ class _SubmitProductScreenState extends State<SubmitProductScreen> {
                         _SubmissionField(
                           controller: _brandController,
                           label: 'Marka',
+                        ),
+                        const SizedBox(height: 16),
+                        DropdownButtonFormField<String>(
+                          initialValue: _selectedCategory,
+                          decoration: InputDecoration(
+                            labelText: 'Kategori',
+                            helperText:
+                                'Ürünün hangi gruba ait olduğunu seçebilirsiniz.',
+                            filled: true,
+                            fillColor: const Color(0xFFF7F9F7),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                          ),
+                          items: [
+                            for (final category
+                                in ProductCategoryMapper.categories)
+                              DropdownMenuItem(
+                                value: category,
+                                child: Text(category),
+                              ),
+                          ],
+                          onChanged: _isSubmitting || _isSubmitted
+                              ? null
+                              : (value) {
+                                  if (value == null) return;
+                                  setState(() => _selectedCategory = value);
+                                },
                         ),
                       ],
                     ),

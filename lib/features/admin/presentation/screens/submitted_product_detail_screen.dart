@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:labelwise/features/admin/models/submitted_product.dart';
+import 'package:labelwise/features/products/services/product_category_mapper.dart';
 import 'package:labelwise/features/scanner/data/submitted_product_repository.dart';
 
 class SubmittedProductDetailScreen extends StatefulWidget {
@@ -19,6 +20,8 @@ class _SubmittedProductDetailScreenState
 
   late Future<SubmittedProduct?> _submission;
   bool _isProcessing = false;
+  bool _categoryInitialized = false;
+  String _selectedCategory = 'Belirsiz';
 
   @override
   void initState() {
@@ -32,6 +35,18 @@ class _SubmittedProductDetailScreenState
     );
     if (mounted && submission != null && _reviewNoteController.text.isEmpty) {
       _reviewNoteController.text = submission.reviewNote ?? '';
+    }
+    if (submission != null && !_categoryInitialized) {
+      final savedCategory = submission.category?.trim();
+      _selectedCategory = savedCategory != null && savedCategory.isNotEmpty
+          ? savedCategory
+          : ProductCategoryMapper.inferCategory(
+              productName: submission.name,
+              brand: submission.brand,
+              ingredientsText: submission.ingredientsText,
+            );
+      _categoryInitialized = true;
+      debugPrint('AdminReview: selected category=$_selectedCategory');
     }
     return submission;
   }
@@ -52,6 +67,7 @@ class _SubmittedProductDetailScreenState
       await _repository.approveSubmission(
         submission.id,
         reviewNote: _reviewNoteController.text,
+        category: _selectedCategory,
       );
       if (!mounted) return;
       await _showCompletion(
@@ -204,6 +220,47 @@ class _SubmittedProductDetailScreenState
                           label: 'Durum',
                           value: _statusLabel(submission.status),
                           isLast: true,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    _DetailSection(
+                      title: 'Kategori',
+                      children: [
+                        DropdownButtonFormField<String>(
+                          initialValue:
+                              ProductCategoryMapper.categories.contains(
+                                _selectedCategory,
+                              )
+                              ? _selectedCategory
+                              : 'Belirsiz',
+                          decoration: InputDecoration(
+                            labelText: 'Kategori',
+                            filled: true,
+                            fillColor: const Color(0xFFF7F9F7),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                          ),
+                          items: [
+                            for (final category
+                                in ProductCategoryMapper.categories)
+                              DropdownMenuItem(
+                                value: category,
+                                child: Text(category),
+                              ),
+                          ],
+                          onChanged: submission.status == 'pending'
+                              ? (value) {
+                                  if (value == null) return;
+                                  setState(() {
+                                    _selectedCategory = value;
+                                  });
+                                  debugPrint(
+                                    'AdminReview: selected category=$value',
+                                  );
+                                }
+                              : null,
                         ),
                       ],
                     ),

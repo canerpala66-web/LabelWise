@@ -57,6 +57,9 @@ class _ProductResultScreenState extends State<ProductResultScreen>
         : product.productName;
     final brand = product.brands.isEmpty ? 'Bilinmeyen Marka' : product.brands;
     final displayName = _displayProductName(productName, brand);
+    final category = product.category?.trim();
+    final showCategory =
+        category != null && category.isNotEmpty && category != 'Belirsiz';
     final missingNutritionCount = [
       product.energyKcal,
       product.fat,
@@ -126,6 +129,29 @@ class _ProductResultScreenState extends State<ProductResultScreen>
                           style: Theme.of(context).textTheme.titleMedium
                               ?.copyWith(color: const Color(0xFF657069)),
                         ),
+                        if (showCategory) ...[
+                          const SizedBox(height: 10),
+                          DecoratedBox(
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFE8F1EB),
+                              borderRadius: BorderRadius.circular(999),
+                            ),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 11,
+                                vertical: 6,
+                              ),
+                              child: Text(
+                                'Kategori: $category',
+                                style: const TextStyle(
+                                  color: Color(0xFF42614F),
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                   ),
@@ -931,8 +957,8 @@ class _LabelWiseScoreCard extends StatelessWidget {
 
   String _helperText(int score) {
     if (score >= 90) return 'Mükemmel bir tercih.';
-    if (score >= 80) return 'Günlük tüketim için güçlü bir seçenek.';
-    if (score >= 70) return 'Genel olarak iyi bir tercih.';
+    if (score >= 80) return 'Genel olarak güçlü bir seçenek.';
+    if (score >= 70) return 'Genel olarak dikkatli tüketilebilir.';
     if (score >= 60) return 'Dengeli tüketim daha uygun olabilir.';
     if (score >= 50) {
       return 'Bazı değerler nedeniyle dikkatli tüketilebilir.';

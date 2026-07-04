@@ -28,6 +28,11 @@ class SubmittedProductRepository {
       'id, barcode, name, brand, ingredients_text, energy_kcal, fat, '
       'saturated_fat, sugars, fiber, protein, salt, front_image_path, '
       'nutrition_image_path, ingredients_image_path, status, source, '
+      'created_at, reviewed_at, review_note, category';
+  static const _submissionFieldsWithoutCategory =
+      'id, barcode, name, brand, ingredients_text, energy_kcal, fat, '
+      'saturated_fat, sugars, fiber, protein, salt, front_image_path, '
+      'nutrition_image_path, ingredients_image_path, status, source, '
       'created_at, reviewed_at, review_note';
 
   Future<void> submitProduct({
@@ -42,6 +47,7 @@ class SubmittedProductRepository {
     double? fiber,
     double? protein,
     double? salt,
+    String? category,
     SubmissionPhoto? frontPhoto,
     SubmissionPhoto? nutritionPhoto,
     SubmissionPhoto? ingredientsPhoto,
@@ -88,7 +94,7 @@ class SubmittedProductRepository {
     }
 
     try {
-      await _client.from('submitted_products').insert({
+      final payload = <String, dynamic>{
         'barcode': trimmedBarcode,
         'name': trimmedName,
         'brand': _optionalValue(brand),
@@ -100,13 +106,15 @@ class SubmittedProductRepository {
         'fiber': fiber,
         'protein': protein,
         'salt': salt,
+        'category': _optionalValue(category),
         'front_image_path': frontImagePath,
         'nutrition_image_path': nutritionImagePath,
         'ingredients_image_path': ingredientsImagePath,
         'status': 'pending',
         'source': 'user_submission',
         'created_at': timestamp.toIso8601String(),
-      });
+      };
+      await _insertSubmission(payload);
     } on Object {
       await _removeUploadedPhotos(uploadedPaths);
       rethrow;
@@ -120,11 +128,7 @@ class SubmittedProductRepository {
     debugPrint('AdminReview: fetching $normalizedStatus submissions');
 
     try {
-      var query = _client.from('submitted_products').select(_submissionFields);
-      query = normalizedStatus == 'pending'
-          ? query.or('status.eq.pending,status.is.null')
-          : query.eq('status', normalizedStatus);
-      final rows = await query.order('created_at', ascending: false);
+      final rows = await _fetchSubmissionRows(normalizedStatus);
       final submissions = rows
           .map(SubmittedProduct.fromJson)
           .toList(growable: false);
@@ -138,11 +142,7 @@ class SubmittedProductRepository {
 
   Future<SubmittedProduct?> fetchSubmittedProductById(String id) async {
     try {
-      final row = await _client
-          .from('submitted_products')
-          .select(_submissionFields)
-          .eq('id', id)
-          .maybeSingle();
+      final row = await _fetchSubmissionRow(id);
       return row == null ? null : SubmittedProduct.fromJson(row);
     } on Object catch (error) {
       debugPrint('AdminReview: failed step=fetch detail, error=$error');
@@ -150,7 +150,11 @@ class SubmittedProductRepository {
     }
   }
 
-  Future<void> approveSubmission(String id, {String? reviewNote}) async {
+  Future<void> approveSubmission(
+    String id, {
+    String? reviewNote,
+    String? category,
+  }) async {
     debugPrint('AdminReview: approving submission id=$id');
     final submission = await fetchSubmittedProductById(id);
     if (submission == null) {
@@ -175,12 +179,15 @@ class SubmittedProductRepository {
     _addIfPresent(productData, 'protein', submission.protein);
     _addIfPresent(productData, 'salt', submission.salt);
     _addIfPresent(productData, 'front_image_path', submission.frontImagePath);
+    final selectedCategory = _optionalValue(category) ?? submission.category;
+    _addIfPresent(productData, 'category', selectedCategory);
+    debugPrint('AdminReview: selected category=$selectedCategory');
 
     try {
       debugPrint(
         'AdminReview: upserting product barcode=${submission.barcode}',
       );
-      await _client.from('products').upsert(productData, onConflict: 'barcode');
+      await _upsertApprovedProduct(productData);
       debugPrint('AdminReview: product upsert success');
     } on Object catch (error) {
       debugPrint('AdminReview: failed step=upsert product, error=$error');
@@ -188,6 +195,7 @@ class SubmittedProductRepository {
     }
 
     try {
+      await _saveSubmissionCategory(id, selectedCategory);
       await _markReviewed(id: id, status: 'approved', reviewNote: reviewNote);
       debugPrint('AdminReview: submitted product marked approved');
     } on Object catch (error) {
@@ -235,6 +243,95 @@ class SubmittedProductRepository {
       }
       return null;
     }
+  }
+
+  Future<void> _insertSubmission(Map<String, dynamic> payload) async {
+    try {
+      await _client.from('submitted_products').insert(payload);
+    } on PostgrestException catch (error) {
+      if (!_isMissingCategoryColumn(error)) rethrow;
+      _logMissingCategorySchema('submitted_products');
+      final fallbackPayload = Map<String, dynamic>.of(payload)
+        ..remove('category');
+      await _client.from('submitted_products').insert(fallbackPayload);
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> _fetchSubmissionRows(String status) async {
+    try {
+      return await _querySubmissionRows(status, _submissionFields);
+    } on PostgrestException catch (error) {
+      if (!_isMissingCategoryColumn(error)) rethrow;
+      _logMissingCategorySchema('submitted_products');
+      return _querySubmissionRows(status, _submissionFieldsWithoutCategory);
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> _querySubmissionRows(
+    String status,
+    String fields,
+  ) async {
+    var query = _client.from('submitted_products').select(fields);
+    query = status == 'pending'
+        ? query.or('status.eq.pending,status.is.null')
+        : query.eq('status', status);
+    return query.order('created_at', ascending: false);
+  }
+
+  Future<Map<String, dynamic>?> _fetchSubmissionRow(String id) async {
+    try {
+      return await _client
+          .from('submitted_products')
+          .select(_submissionFields)
+          .eq('id', id)
+          .maybeSingle();
+    } on PostgrestException catch (error) {
+      if (!_isMissingCategoryColumn(error)) rethrow;
+      _logMissingCategorySchema('submitted_products');
+      return _client
+          .from('submitted_products')
+          .select(_submissionFieldsWithoutCategory)
+          .eq('id', id)
+          .maybeSingle();
+    }
+  }
+
+  Future<void> _upsertApprovedProduct(Map<String, dynamic> data) async {
+    try {
+      await _client.from('products').upsert(data, onConflict: 'barcode');
+    } on PostgrestException catch (error) {
+      if (!_isMissingCategoryColumn(error)) rethrow;
+      _logMissingCategorySchema('products');
+      final fallbackData = Map<String, dynamic>.of(data)..remove('category');
+      await _client
+          .from('products')
+          .upsert(fallbackData, onConflict: 'barcode');
+    }
+  }
+
+  Future<void> _saveSubmissionCategory(String id, String? category) async {
+    if (category == null) return;
+    try {
+      await _client
+          .from('submitted_products')
+          .update({'category': category})
+          .eq('id', id);
+    } on PostgrestException catch (error) {
+      if (!_isMissingCategoryColumn(error)) rethrow;
+      _logMissingCategorySchema('submitted_products');
+    }
+  }
+
+  bool _isMissingCategoryColumn(PostgrestException error) {
+    final description = '${error.message} ${error.details} ${error.hint}';
+    return description.contains('category');
+  }
+
+  void _logMissingCategorySchema(String table) {
+    debugPrint(
+      'Supabase $table table is missing category. Run: '
+      'alter table public.$table add column if not exists category text;',
+    );
   }
 
   Future<void> _markReviewed({

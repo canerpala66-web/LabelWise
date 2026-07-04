@@ -20,6 +20,7 @@ class SubmittedProduct {
     this.createdAt,
     this.reviewedAt,
     this.reviewNote,
+    this.category,
   });
 
   final String id;
@@ -42,6 +43,7 @@ class SubmittedProduct {
   final DateTime? createdAt;
   final DateTime? reviewedAt;
   final String? reviewNote;
+  final String? category;
 
   bool get hasNutritionData => [
     energyKcal,
@@ -80,6 +82,7 @@ class SubmittedProduct {
       createdAt: _dateTime(json['created_at']),
       reviewedAt: _dateTime(json['reviewed_at']),
       reviewNote: _string(json['review_note']),
+      category: _string(json['category']),
     );
   }
 

@@ -1,3 +1,5 @@
+import 'package:labelwise/features/products/services/product_category_mapper.dart';
+
 class Product {
   const Product({
     required this.productName,
@@ -19,6 +21,7 @@ class Product {
     this.aiRiskLevel,
     this.aiGeneratedAt,
     this.frontImagePath,
+    this.category,
   });
 
   final String productName;
@@ -40,6 +43,7 @@ class Product {
   final String? aiRiskLevel;
   final DateTime? aiGeneratedAt;
   final String? frontImagePath;
+  final String? category;
 
   bool get hasNutritionData => [
     energyKcal,
@@ -78,6 +82,17 @@ class Product {
     final nutrition = nutriments is Map<String, dynamic>
         ? nutriments
         : const <String, dynamic>{};
+    final categoryTags = <String>{
+      ..._stringList(json['categories_tags']),
+      ..._stringList(json['categories_hierarchy']),
+    }.toList(growable: false);
+    final category = ProductCategoryMapper.inferCategory(
+      productName: productName,
+      brand: _nonEmptyString(json['brands']),
+      ingredientsText: ingredientsText,
+      categoriesTags: categoryTags,
+      categoriesText: _nonEmptyString(json['categories']),
+    );
 
     return Product(
       barcode: barcode,
@@ -97,6 +112,7 @@ class Product {
         nutrition['fruits-vegetables-legumes-estimate-from-ingredients_100g'],
       ),
       frontImagePath: _nonEmptyString(json['front_image_path']),
+      category: category,
     );
   }
 
@@ -127,5 +143,16 @@ class Product {
       return double.tryParse(value.trim());
     }
     return null;
+  }
+
+  static List<String> _stringList(Object? value) {
+    if (value is! List) return const [];
+    return value
+        .whereType<String>()
+        .map((item) => item.trim())
+        .where((item) {
+          return item.isNotEmpty;
+        })
+        .toList(growable: false);
   }
 }

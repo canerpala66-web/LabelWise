@@ -31,6 +31,7 @@ class AnalysisService {
           : product.ingredientsText,
       labelwiseScore: scoreResult.score,
       labelwiseCategory: scoreResult.category,
+      productCategory: product.category,
       nutriscoreGrade: product.nutriscoreGrade,
       energyKcal: product.energyKcal,
       fat: product.fat,
@@ -92,7 +93,11 @@ class AnalysisService {
     try {
       final responseJson = jsonDecode(utf8.decode(response.bodyBytes));
       final outputText = _extractOutputText(responseJson);
-      return _parseResult(outputText);
+      return _parseResult(
+        outputText,
+        product: product,
+        labelwiseScore: scoreResult.score,
+      );
     } on Object catch (error, stackTrace) {
       debugPrint('LabelWise Analysis JSON parsing error: $error');
       debugPrintStack(stackTrace: stackTrace);
@@ -133,7 +138,11 @@ class AnalysisService {
     throw const FormatException('Responses API output text is missing.');
   }
 
-  static AnalysisResult _parseResult(String outputText) {
+  static AnalysisResult _parseResult(
+    String outputText, {
+    required Product product,
+    required int? labelwiseScore,
+  }) {
     final data = jsonDecode(outputText);
     if (data is! Map<String, dynamic>) {
       throw const FormatException('Analysis output is not a JSON object.');
@@ -145,25 +154,62 @@ class AnalysisService {
     if (summary is! String || summary.trim().isEmpty) {
       throw const FormatException('Analysis summary is invalid.');
     }
-    final normalizedRiskLevel = riskLevel is String
-        ? riskLevel.trim().toLowerCase()
-        : '';
-    final safeRiskLevel =
-        const {
-          'düşük',
-          'orta',
-          'yüksek',
-          'bilinmiyor',
-        }.contains(normalizedRiskLevel)
-        ? normalizedRiskLevel
-        : 'bilinmiyor';
+    final normalizedRiskLevel = _normalizeRiskLevel(riskLevel);
+    final safeRiskLevel = _applyRiskGuardrails(
+      normalizedRiskLevel,
+      product: product,
+      labelwiseScore: labelwiseScore,
+    );
 
-    final safeSummary = _limitWords(summary.trim(), 70);
+    final safeSummary = _limitWords(summary.trim(), 55);
     if (_containsForbiddenLanguage(safeSummary)) {
       throw const FormatException('Analysis summary contains unsafe wording.');
     }
 
     return AnalysisResult(summary: safeSummary, riskLevel: safeRiskLevel);
+  }
+
+  static String _normalizeRiskLevel(Object? riskLevel) {
+    if (riskLevel is! String) return 'bilinmiyor';
+    return switch (riskLevel.trim().toLowerCase()) {
+      'düşük' || 'low' => 'düşük',
+      'orta' || 'medium' => 'orta',
+      'yüksek' || 'high' => 'yüksek',
+      _ => 'bilinmiyor',
+    };
+  }
+
+  static String _applyRiskGuardrails(
+    String riskLevel, {
+    required Product product,
+    required int? labelwiseScore,
+  }) {
+    final hasObjectiveConcern =
+        (product.sugars ?? 0) >= 20 ||
+        (product.saturatedFat ?? 0) >= 10 ||
+        (product.salt ?? 0) >= 1.5 ||
+        (labelwiseScore != null && labelwiseScore < 50);
+    final hasCriticalConcern =
+        (product.sugars ?? 0) >= 25 || (product.saturatedFat ?? 0) >= 10;
+    final highSugarDespiteGoodScore =
+        labelwiseScore != null &&
+        labelwiseScore >= 75 &&
+        (product.sugars ?? 0) >= 10;
+
+    var guardedRisk = riskLevel;
+    if ((hasCriticalConcern || hasObjectiveConcern) &&
+        (guardedRisk == 'düşük' || guardedRisk == 'bilinmiyor')) {
+      guardedRisk = 'orta';
+    } else if (highSugarDespiteGoodScore && guardedRisk == 'düşük') {
+      guardedRisk = 'orta';
+    }
+    if (guardedRisk != riskLevel) {
+      debugPrint(
+        'LabelWise Analysis risk guardrail: '
+        '$riskLevel -> $guardedRisk',
+      );
+    }
+    return guardedRisk;
   }
 
   static String _limitWords(String text, int maximumWords) {
@@ -178,9 +224,15 @@ class AnalysisService {
     final normalizedSummary = summary.toLowerCase();
     return const [
       'asla tüketmeyin',
+      'kesinlikle tüketmeyin',
       'kanser yapar',
+      'kanser',
+      'toksik',
+      'zehir',
       'zehirlidir',
       'güvenlidir',
+      'zararlıdır',
+      'sağlıklıdır',
     ].any(normalizedSummary.contains);
   }
 }

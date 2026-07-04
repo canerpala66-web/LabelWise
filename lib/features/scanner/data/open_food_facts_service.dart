@@ -24,6 +24,9 @@ class OpenFoodFactsService {
     'nutriscore_2023_tags',
     'nutriscore_data',
     'nutriments',
+    'categories',
+    'categories_tags',
+    'categories_hierarchy',
   ];
 
   final http.Client _client;

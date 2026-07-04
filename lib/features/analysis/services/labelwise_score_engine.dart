@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:labelwise/features/analysis/models/labelwise_score_result.dart';
+import 'package:labelwise/features/products/services/product_category_mapper.dart';
 import 'package:labelwise/features/scanner/data/product.dart';
 
 class LabelWiseScoreEngine {
@@ -36,6 +37,14 @@ class LabelWiseScoreEngine {
     'fruktoz şurubu',
     'modifiye nişasta',
   ];
+  static const _dessertAndSnackCategories = {
+    'Çikolata',
+    'Bisküvi',
+    'Kek',
+    'Gofret',
+    'Dondurma',
+    'Puding',
+  };
 
   LabelWiseScoreResult calculate(Product product) {
     if (!product.hasNutritionData) {
@@ -67,11 +76,27 @@ class LabelWiseScoreEngine {
       '${product.productName} ${product.ingredientsText}',
     );
     final ingredients = _normalize(product.ingredientsText);
+    final inferredCategory = ProductCategoryMapper.inferCategory(
+      productName: product.productName,
+      brand: product.brands,
+      ingredientsText: product.ingredientsText,
+    );
+    final isDessertOrSnack =
+        _dessertAndSnackCategories.contains(product.category) ||
+        _dessertAndSnackCategories.contains(inferredCategory);
+    final isWaterCategory =
+        const {'Su', 'Maden Suyu'}.contains(product.category) ||
+        const {'Su', 'Maden Suyu'}.contains(inferredCategory);
 
-    final isBeverage = _containsAny(searchableText, _beverageKeywords);
+    final isBeverage =
+        !isWaterCategory &&
+        _containsAnyPhrase(searchableText, _beverageKeywords);
     if (isBeverage) {
       reasons.add('Gazlı içecek kategorisinde');
-      final isSugarFree = _containsAny(searchableText, _sugarFreeKeywords);
+      final isSugarFree = _containsAnyPhrase(
+        searchableText,
+        _sugarFreeKeywords,
+      );
       caps.add(
         _ScoreCap(
           maximum: isSugarFree ? 78 : 45,
@@ -118,6 +143,30 @@ class LabelWiseScoreEngine {
       reasons.add('Doymuş yağ çok yüksek');
     }
 
+    final sugars = product.sugars;
+    if (isDessertOrSnack && sugars != null) {
+      if (sugars >= 30) {
+        caps.add(const _ScoreCap(maximum: 48, label: 'tatlı şeker >= 30g'));
+      } else if (sugars >= 25) {
+        caps.add(const _ScoreCap(maximum: 55, label: 'tatlı şeker >= 25g'));
+      } else if (sugars >= 20) {
+        caps.add(const _ScoreCap(maximum: 62, label: 'tatlı şeker >= 20g'));
+      } else if (sugars >= 15) {
+        caps.add(const _ScoreCap(maximum: 70, label: 'tatlı şeker >= 15g'));
+      }
+      if (sugars >= 15) reasons.add('Şeker yüksek');
+    }
+
+    if (isDessertOrSnack &&
+        sugars != null &&
+        sugars >= 20 &&
+        (product.saturatedFat ?? 0) >= 5) {
+      caps.add(
+        const _ScoreCap(maximum: 58, label: 'yüksek şeker ve doymuş yağ'),
+      );
+      reasons.add('Şeker ve doymuş yağ birlikte yüksek');
+    }
+
     score = score.clamp(0, 100);
     for (final cap in caps) {
       if (score > cap.maximum) {
@@ -140,6 +189,13 @@ class LabelWiseScoreEngine {
 
   bool _containsAny(String text, Iterable<String> keywords) {
     return keywords.any(text.contains);
+  }
+
+  bool _containsAnyPhrase(String text, Iterable<String> keywords) {
+    final paddedText = ' $text ';
+    return keywords.any((keyword) {
+      return paddedText.contains(' ${_normalize(keyword)} ');
+    });
   }
 
   String _normalize(String value) {
