@@ -43,6 +43,71 @@ class SubmittedProductRepository {
       'saturated_fat, sugars, fiber, protein, salt, front_image_path, '
       'nutrition_image_path, ingredients_image_path, status, source, '
       'created_at, reviewed_at, review_note';
+  static const _insertColumnTypes = <String, String>{
+    'barcode': 'text',
+    'name': 'text',
+    'brand': 'text',
+    'category': 'text',
+    'ingredients_text': 'text',
+    'energy_kcal': 'double precision',
+    'fat': 'double precision',
+    'saturated_fat': 'double precision',
+    'sugars': 'double precision',
+    'fiber': 'double precision',
+    'protein': 'double precision',
+    'salt': 'double precision',
+    'front_image_path': 'text',
+    'nutrition_image_path': 'text',
+    'ingredients_image_path': 'text',
+    'status': "text default 'pending'",
+    'source': "text default 'user_submission'",
+  };
+
+  @visibleForTesting
+  static Map<String, dynamic> buildInsertPayload({
+    required String barcode,
+    required String name,
+    String? brand,
+    String? category,
+    String? ingredientsText,
+    double? energyKcal,
+    double? fat,
+    double? saturatedFat,
+    double? sugars,
+    double? fiber,
+    double? protein,
+    double? salt,
+    String? frontImagePath,
+    String? nutritionImagePath,
+    String? ingredientsImagePath,
+  }) {
+    final payload = <String, dynamic>{
+      'barcode': barcode.trim(),
+      'name': name.trim(),
+      'status': 'pending',
+      'source': 'user_submission',
+    };
+    _addIfPresent(payload, 'brand', brand);
+    _addIfPresent(payload, 'category', category);
+    _addIfPresent(payload, 'ingredients_text', ingredientsText);
+    _addIfPresent(payload, 'energy_kcal', energyKcal);
+    _addIfPresent(payload, 'fat', fat);
+    _addIfPresent(payload, 'saturated_fat', saturatedFat);
+    _addIfPresent(payload, 'sugars', sugars);
+    _addIfPresent(payload, 'fiber', fiber);
+    _addIfPresent(payload, 'protein', protein);
+    _addIfPresent(payload, 'salt', salt);
+    _addIfPresent(payload, 'front_image_path', frontImagePath);
+    _addIfPresent(payload, 'nutrition_image_path', nutritionImagePath);
+    _addIfPresent(payload, 'ingredients_image_path', ingredientsImagePath);
+    return payload;
+  }
+
+  static double? parseNutritionValue(String value) {
+    final normalizedValue = value.trim().replaceAll(',', '.');
+    if (normalizedValue.isEmpty) return null;
+    return double.tryParse(normalizedValue);
+  }
 
   Future<void> submitProduct({
     required String barcode,
@@ -71,13 +136,19 @@ class SubmittedProductRepository {
       throw ArgumentError.value(name, 'name', 'Cannot be empty');
     }
 
-    debugPrint('SubmitProductFix: front image selected=${frontPhoto != null}');
+    debugPrint('SubmitProduct: front image selected=${frontPhoto != null}');
     debugPrint(
-      'SubmitProductFix: nutrition image selected=${nutritionPhoto != null}',
+      'SubmitProduct: nutrition image selected=${nutritionPhoto != null}',
     );
     debugPrint(
-      'SubmitProductFix: ingredients image selected=${ingredientsPhoto != null}',
+      'SubmitProduct: ingredients image selected=${ingredientsPhoto != null}',
     );
+
+    if (frontPhoto == null ||
+        nutritionPhoto == null ||
+        ingredientsPhoto == null) {
+      debugPrint('SubmitProduct: skipping empty optional images');
+    }
 
     final timestamp = DateTime.now().toUtc();
     final folderPath =
@@ -109,38 +180,36 @@ class SubmittedProductRepository {
         uploadedPaths: uploadedPaths,
       );
     } on Object catch (error, stackTrace) {
-      debugPrint('SubmitProductFix: failed step=image upload, error=$error');
+      debugPrint('SubmitProduct: failed step=image_upload, error=$error');
       debugPrintStack(stackTrace: stackTrace);
       await _removeUploadedPhotos(uploadedPaths);
       throw PhotoUploadException(error);
     }
 
     try {
-      final payload = <String, dynamic>{
-        'barcode': trimmedBarcode,
-        'name': trimmedName,
-        'brand': _optionalValue(brand),
-        'ingredients_text': _optionalValue(ingredientsText),
-        'energy_kcal': energyKcal,
-        'fat': fat,
-        'saturated_fat': saturatedFat,
-        'sugars': sugars,
-        'fiber': fiber,
-        'protein': protein,
-        'salt': salt,
-        'category': _optionalValue(category),
-        'front_image_path': frontImagePath,
-        'nutrition_image_path': nutritionImagePath,
-        'ingredients_image_path': ingredientsImagePath,
-        'status': 'pending',
-        'source': 'user_submission',
-        'created_at': timestamp.toIso8601String(),
-      };
-      debugPrint('SubmitProductFix: inserting submitted_products row...');
+      final payload = buildInsertPayload(
+        barcode: trimmedBarcode,
+        name: trimmedName,
+        brand: brand,
+        category: category,
+        ingredientsText: ingredientsText,
+        energyKcal: energyKcal,
+        fat: fat,
+        saturatedFat: saturatedFat,
+        sugars: sugars,
+        fiber: fiber,
+        protein: protein,
+        salt: salt,
+        frontImagePath: frontImagePath,
+        nutritionImagePath: nutritionImagePath,
+        ingredientsImagePath: ingredientsImagePath,
+      );
+      debugPrint('SubmitProduct: insert payload keys=${payload.keys.toList()}');
+      debugPrint('SubmitProduct: inserting row');
       await _insertSubmission(payload);
-      debugPrint('SubmitProductFix: insert success');
+      debugPrint('SubmitProduct: insert success');
     } on Object catch (error, stackTrace) {
-      debugPrint('SubmitProductFix: failed step=database insert, error=$error');
+      debugPrint('SubmitProduct: failed step=database_insert, error=$error');
       debugPrintStack(stackTrace: stackTrace);
       await _removeUploadedPhotos(uploadedPaths);
       throw SubmissionInsertException(error);
@@ -275,15 +344,44 @@ class SubmittedProductRepository {
     try {
       await _client.from('submitted_products').insert(payload);
     } on PostgrestException catch (error) {
-      if (!_isMissingCategoryColumn(error)) rethrow;
-      _logMissingCategorySchema('submitted_products');
-      debugPrint(
-        'SubmitProductFix: category column missing, retrying insert without category',
-      );
-      final fallbackPayload = Map<String, dynamic>.of(payload)
-        ..remove('category');
-      await _client.from('submitted_products').insert(fallbackPayload);
+      _logMissingInsertColumnSql(error);
+      rethrow;
     }
+  }
+
+  void _logMissingInsertColumnSql(PostgrestException error) {
+    final description = '${error.message} ${error.details} ${error.hint}';
+    final patterns = <RegExp>[
+      RegExp("Could not find the '([^']+)' column", caseSensitive: false),
+      RegExp(
+        r'column (?:public\.)?submitted_products\.([a-zA-Z0-9_]+) does not exist',
+        caseSensitive: false,
+      ),
+      RegExp(r'column "([a-zA-Z0-9_]+)"', caseSensitive: false),
+    ];
+    String? missingColumn;
+    for (final pattern in patterns) {
+      final match = pattern.firstMatch(description);
+      if (match != null) {
+        missingColumn = match.group(1);
+        break;
+      }
+    }
+
+    final columnType = _insertColumnTypes[missingColumn];
+    if (missingColumn != null && columnType != null) {
+      debugPrint(
+        'SubmitProduct: missing column=$missingColumn. Run SQL: '
+        'alter table public.submitted_products add column if not exists '
+        '$missingColumn $columnType;',
+      );
+      return;
+    }
+
+    debugPrint(
+      'SubmitProduct: submitted_products schema must contain only these insert '
+      'columns: ${_insertColumnTypes.keys.join(', ')}',
+    );
   }
 
   Future<List<Map<String, dynamic>>> _fetchSubmissionRows(String status) async {
@@ -386,7 +484,11 @@ class SubmittedProductRepository {
     return normalizedStatus;
   }
 
-  void _addIfPresent(Map<String, dynamic> data, String key, Object? value) {
+  static void _addIfPresent(
+    Map<String, dynamic> data,
+    String key,
+    Object? value,
+  ) {
     if (value is String && value.trim().isNotEmpty) {
       data[key] = value.trim();
     } else if (value is num) {
@@ -401,11 +503,10 @@ class SubmittedProductRepository {
     required List<String> uploadedPaths,
   }) async {
     if (photo == null) {
-      debugPrint('SubmitProductFix: no $label image selected, skipping');
       return null;
     }
 
-    debugPrint('SubmitProductFix: uploading $label image...');
+    debugPrint('SubmitProduct: uploading $label image');
     final extension = _safeExtension(photo.fileExtension);
     final path = '$pathWithoutExtension.$extension';
     await _client.storage
@@ -419,7 +520,7 @@ class SubmittedProductRepository {
           ),
         );
     uploadedPaths.add(path);
-    debugPrint('SubmitProductFix: $label image uploaded path=$path');
+    debugPrint('SubmitProduct: $label image uploaded path=$path');
     return path;
   }
 

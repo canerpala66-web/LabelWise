@@ -85,9 +85,11 @@ class _SubmitProductScreenState extends State<SubmitProductScreen> {
   }
 
   Future<void> _submit() async {
-    debugPrint('SubmitProductFix: submit tapped');
+    debugPrint('SubmitProduct: submit tapped');
     if (!(_formKey.currentState?.validate() ?? false)) {
-      debugPrint('SubmitProductFix: failed step=validation');
+      debugPrint(
+        'SubmitProduct: failed step=validation, error=form validation failed',
+      );
       return;
     }
 
@@ -98,22 +100,22 @@ class _SubmitProductScreenState extends State<SubmitProductScreen> {
     final fiber = _parseNutritionValue(_fiberController.text);
     final protein = _parseNutritionValue(_proteinController.text);
     final salt = _parseNutritionValue(_saltController.text);
-    debugPrint('SubmitProductFix: validation passed');
-    debugPrint('SubmitProductFix: barcode=${_barcodeController.text.trim()}');
-    debugPrint('SubmitProductFix: name=${_nameController.text.trim()}');
-    debugPrint('SubmitProductFix: brand=${_brandController.text.trim()}');
-    debugPrint('SubmitProductFix: category=$_selectedCategory');
+    debugPrint('SubmitProduct: validation passed');
+    debugPrint('SubmitProduct: barcode=${_barcodeController.text.trim()}');
+    debugPrint('SubmitProduct: name=${_nameController.text.trim()}');
+    debugPrint('SubmitProduct: brand=${_brandController.text.trim()}');
+    debugPrint('SubmitProduct: category=$_selectedCategory');
     debugPrint(
-      'SubmitProductFix: nutrition values='
+      'SubmitProduct: nutrition values='
       '{energyKcal: $energyKcal, fat: $fat, saturatedFat: $saturatedFat, '
       'sugars: $sugars, fiber: $fiber, protein: $protein, salt: $salt}',
     );
-    debugPrint('SubmitProductFix: front image selected=${_frontPhoto != null}');
+    debugPrint('SubmitProduct: front image selected=${_frontPhoto != null}');
     debugPrint(
-      'SubmitProductFix: nutrition image selected=${_nutritionPhoto != null}',
+      'SubmitProduct: nutrition image selected=${_nutritionPhoto != null}',
     );
     debugPrint(
-      'SubmitProductFix: ingredients image selected=${_ingredientsPhoto != null}',
+      'SubmitProduct: ingredients image selected=${_ingredientsPhoto != null}',
     );
 
     FocusScope.of(context).unfocus();
@@ -153,7 +155,7 @@ class _SubmitProductScreenState extends State<SubmitProductScreen> {
         const SnackBar(content: Text('Ürün inceleme için gönderildi.')),
       );
     } on PhotoUploadException catch (error, stackTrace) {
-      debugPrint('SubmitProductFix: failed step=image upload, error=$error');
+      debugPrint('SubmitProduct: failed step=image_upload, error=$error');
       debugPrintStack(stackTrace: stackTrace);
 
       if (!mounted) {
@@ -165,7 +167,7 @@ class _SubmitProductScreenState extends State<SubmitProductScreen> {
         _errorMessage = 'Fotoğraf yüklenemedi. Lütfen tekrar deneyin.';
       });
     } on SubmissionInsertException catch (error, stackTrace) {
-      debugPrint('SubmitProductFix: failed step=database insert, error=$error');
+      debugPrint('SubmitProduct: failed step=database_insert, error=$error');
       debugPrintStack(stackTrace: stackTrace);
 
       if (!mounted) return;
@@ -174,7 +176,7 @@ class _SubmitProductScreenState extends State<SubmitProductScreen> {
         _errorMessage = 'Ürün bilgileri kaydedilemedi. Lütfen tekrar deneyin.';
       });
     } on Exception catch (error, stackTrace) {
-      debugPrint('SubmitProductFix: failed step=unexpected, error=$error');
+      debugPrint('SubmitProduct: failed step=unexpected, error=$error');
       debugPrintStack(stackTrace: stackTrace);
 
       if (!mounted) {
@@ -531,11 +533,7 @@ class _SubmitProductScreenState extends State<SubmitProductScreen> {
   }
 
   double? _parseNutritionValue(String value) {
-    final normalizedValue = value.trim().replaceAll(',', '.');
-    if (normalizedValue.isEmpty) {
-      return null;
-    }
-    return double.tryParse(normalizedValue);
+    return SubmittedProductRepository.parseNutritionValue(value);
   }
 
   String _fileExtension(String fileName) {
