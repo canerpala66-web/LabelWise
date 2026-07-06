@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:labelwise/features/products/services/product_category_mapper.dart';
 import 'package:labelwise/features/scanner/data/product.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -15,6 +16,14 @@ class ProductRepository {
   static const _nutritionFields =
       'energy_kcal, fat, saturated_fat, sugars, fiber, protein, salt, '
       'fruits_vegetables_legumes_percent';
+  static const _alternativeFields =
+      'barcode, name, brand, image_url, front_image_path, category, '
+      'ingredients_text, nutriscore_grade, energy_kcal, fat, saturated_fat, '
+      'sugars, fiber, protein, salt, source';
+  static const _alternativeFieldsWithoutCategory =
+      'barcode, name, brand, image_url, front_image_path, ingredients_text, '
+      'nutriscore_grade, energy_kcal, fat, saturated_fat, sugars, fiber, '
+      'protein, salt, source';
 
   Future<Product?> getProductByBarcode(String barcode) async {
     final data = await _fetchProductData(barcode);
@@ -23,30 +32,89 @@ class ProductRepository {
       return null;
     }
 
-    return Product(
-      barcode: data['barcode'] as String? ?? barcode,
-      productName: data['name'] as String? ?? '',
-      brands: data['brand'] as String? ?? '',
-      imageUrl: data['image_url'] as String?,
-      ingredientsText: data['ingredients_text'] as String? ?? '',
-      nutriscoreGrade: data['nutriscore_grade'] as String?,
-      source: data['source'] as String? ?? 'openfoodfacts',
-      energyKcal: _number(data['energy_kcal']),
-      fat: _number(data['fat']),
-      saturatedFat: _number(data['saturated_fat']),
-      sugars: _number(data['sugars']),
-      fiber: _number(data['fiber']),
-      protein: _number(data['protein']),
-      salt: _number(data['salt']),
-      fruitsVegetablesLegumesPercent: _number(
-        data['fruits_vegetables_legumes_percent'],
-      ),
-      aiSummary: data['ai_summary'] as String?,
-      aiRiskLevel: data['ai_risk_level'] as String?,
-      aiGeneratedAt: _dateTime(data['ai_generated_at']),
-      frontImagePath: data['front_image_path'] as String?,
-      category: data['category'] as String?,
+    return _productFromData(data, fallbackBarcode: barcode);
+  }
+
+  Future<List<Product>> fetchProductsByCategory(String category) async {
+    final canonicalCategory = ProductCategoryMapper.canonicalCategory(category);
+    if (canonicalCategory == null || canonicalCategory.isEmpty) return const [];
+
+    debugPrint(
+      'AlternativesDebug: querying Supabase category=$canonicalCategory',
     );
+    late final List<Map<String, dynamic>> exactRows;
+    var inferMissingCategories = false;
+    try {
+      final response = await _client
+          .from('products')
+          .select(_alternativeFields)
+          .eq('category', canonicalCategory)
+          .limit(30);
+      exactRows = List<Map<String, dynamic>>.from(response);
+    } on PostgrestException catch (error) {
+      if (!_isMissingCategoryColumn(error)) rethrow;
+      _logMissingCategorySchema('products');
+      debugPrint(
+        'AlternativesDebug: category column unavailable, '
+        'using bounded local category matching',
+      );
+      final response = await _client
+          .from('products')
+          .select(_alternativeFieldsWithoutCategory)
+          .limit(50);
+      exactRows = List<Map<String, dynamic>>.from(response);
+      inferMissingCategories = true;
+    }
+
+    final rowsByBarcode = <String, Map<String, dynamic>>{};
+    for (final row in exactRows) {
+      if (_rowMatchesCategory(
+        row,
+        canonicalCategory,
+        inferWhenMissing: inferMissingCategories,
+      )) {
+        rowsByBarcode[_text(row['barcode']) ?? 'row-${rowsByBarcode.length}'] =
+            row;
+      }
+    }
+    if (!inferMissingCategories && rowsByBarcode.length < 5) {
+      debugPrint(
+        'AlternativesDebug: exact category result limited, '
+        'using bounded normalized fallback',
+      );
+      final fallbackRows = await _client
+          .from('products')
+          .select(_alternativeFields)
+          .limit(50);
+      for (final row in List<Map<String, dynamic>>.from(fallbackRows)) {
+        if (_rowMatchesCategory(row, canonicalCategory)) {
+          rowsByBarcode[_text(row['barcode']) ??
+                  'fallback-${rowsByBarcode.length}'] =
+              row;
+        }
+      }
+    }
+
+    final products = <Product>[];
+    for (final row in rowsByBarcode.values) {
+      try {
+        products.add(
+          _productFromData(
+            row,
+            inferredCategory: inferMissingCategories
+                ? _inferredCategoryForRow(row)
+                : null,
+          ),
+        );
+      } on Object catch (error) {
+        debugPrint(
+          'AlternativesDebug: skipped candidate reason=malformed row, '
+          'error=$error',
+        );
+      }
+    }
+    debugPrint('AlternativesDebug: fetched candidate count=${products.length}');
+    return products;
   }
 
   Future<void> saveProduct(Product product) async {
@@ -90,30 +158,49 @@ class ProductRepository {
     );
   }
 
-  Future<void> updateAiAnalysis({
+  Future<bool> updateAiAnalysis({
     required String barcode,
     required String summary,
     required String riskLevel,
+    required String analysisVersion,
   }) async {
     final trimmedBarcode = barcode.trim();
     if (trimmedBarcode.isEmpty) {
       throw ArgumentError.value(barcode, 'barcode', 'Cannot be empty');
     }
 
-    final updatedProduct = await _client
-        .from('products')
-        .update({
-          'ai_summary': summary.trim(),
-          'ai_risk_level': riskLevel.trim(),
-          'ai_generated_at': DateTime.now().toUtc().toIso8601String(),
-        })
-        .eq('barcode', trimmedBarcode)
-        .select('barcode')
-        .maybeSingle();
+    final data = <String, dynamic>{
+      'ai_summary': summary.trim(),
+      'ai_risk_level': riskLevel.trim(),
+      'ai_generated_at': DateTime.now().toUtc().toIso8601String(),
+      'ai_analysis_version': analysisVersion.trim(),
+    };
+    Map<String, dynamic>? updatedProduct;
+    var versionSaved = true;
+    try {
+      updatedProduct = await _client
+          .from('products')
+          .update(data)
+          .eq('barcode', trimmedBarcode)
+          .select('barcode')
+          .maybeSingle();
+    } on PostgrestException catch (error) {
+      if (!_isMissingAnalysisVersionColumn(error)) rethrow;
+      _logMissingAnalysisVersionSchema();
+      data.remove('ai_analysis_version');
+      versionSaved = false;
+      updatedProduct = await _client
+          .from('products')
+          .update(data)
+          .eq('barcode', trimmedBarcode)
+          .select('barcode')
+          .maybeSingle();
+    }
 
     if (updatedProduct == null) {
       throw StateError('Product not found while saving AI analysis.');
     }
+    return versionSaved;
   }
 
   Future<String?> createSubmittedProductPhotoSignedUrl(String? path) async {
@@ -156,6 +243,11 @@ class ProductRepository {
     return description.contains('category');
   }
 
+  bool _isMissingAnalysisVersionColumn(PostgrestException error) {
+    final description = '${error.message} ${error.details} ${error.hint}';
+    return description.contains('ai_analysis_version');
+  }
+
   Future<({String? category, String source})> _protectedValuesForSave(
     Product product,
   ) async {
@@ -190,33 +282,35 @@ class ProductRepository {
   }
 
   Future<Map<String, dynamic>?> _fetchProductData(String barcode) async {
-    try {
-      return await _selectProduct(
-        barcode,
-        fields: '$_baseFields, $_nutritionFields, category',
-      );
-    } on PostgrestException catch (error) {
-      if (_isMissingCategoryColumn(error)) {
-        _logMissingCategorySchema('products');
-        try {
-          return await _selectProduct(
-            barcode,
-            fields: '$_baseFields, $_nutritionFields',
-          );
-        } on PostgrestException catch (fallbackError) {
-          if (!_isMissingNutritionColumn(fallbackError)) rethrow;
-          _logMissingNutritionSchema();
-          return _selectProduct(barcode, fields: _baseFields);
-        }
-      }
-      if (!_isMissingNutritionColumn(error)) rethrow;
-      _logMissingNutritionSchema();
+    var includeNutrition = true;
+    var includeCategory = true;
+    var includeAnalysisVersion = true;
+    while (true) {
+      final fields = <String>[
+        _baseFields,
+        if (includeNutrition) _nutritionFields,
+        if (includeCategory) 'category',
+        if (includeAnalysisVersion) 'ai_analysis_version',
+      ].join(', ');
       try {
-        return await _selectProduct(barcode, fields: '$_baseFields, category');
-      } on PostgrestException catch (fallbackError) {
-        if (!_isMissingCategoryColumn(fallbackError)) rethrow;
-        _logMissingCategorySchema('products');
-        return _selectProduct(barcode, fields: _baseFields);
+        return await _selectProduct(barcode, fields: fields);
+      } on PostgrestException catch (error) {
+        if (includeCategory && _isMissingCategoryColumn(error)) {
+          includeCategory = false;
+          _logMissingCategorySchema('products');
+          continue;
+        }
+        if (includeNutrition && _isMissingNutritionColumn(error)) {
+          includeNutrition = false;
+          _logMissingNutritionSchema();
+          continue;
+        }
+        if (includeAnalysisVersion && _isMissingAnalysisVersionColumn(error)) {
+          includeAnalysisVersion = false;
+          _logMissingAnalysisVersionSchema();
+          continue;
+        }
+        rethrow;
       }
     }
   }
@@ -291,6 +385,14 @@ class ProductRepository {
     );
   }
 
+  void _logMissingAnalysisVersionSchema() {
+    debugPrint(
+      'Supabase products table is missing ai_analysis_version. Run: '
+      'alter table public.products add column if not exists '
+      'ai_analysis_version text;',
+    );
+  }
+
   double? _number(Object? value) {
     if (value is num) {
       return value.toDouble();
@@ -299,6 +401,65 @@ class ProductRepository {
       return double.tryParse(value.trim());
     }
     return null;
+  }
+
+  Product _productFromData(
+    Map<String, dynamic> data, {
+    String fallbackBarcode = '',
+    String? inferredCategory,
+  }) {
+    final barcode = _text(data['barcode']) ?? fallbackBarcode;
+    final name = _text(data['name']);
+    return Product(
+      barcode: barcode,
+      productName: name ?? '',
+      brands: _text(data['brand']) ?? '',
+      imageUrl: _text(data['image_url']),
+      ingredientsText: _text(data['ingredients_text']) ?? '',
+      nutriscoreGrade: _text(data['nutriscore_grade']),
+      source: _text(data['source']) ?? 'openfoodfacts',
+      energyKcal: _number(data['energy_kcal']),
+      fat: _number(data['fat']),
+      saturatedFat: _number(data['saturated_fat']),
+      sugars: _number(data['sugars']),
+      fiber: _number(data['fiber']),
+      protein: _number(data['protein']),
+      salt: _number(data['salt']),
+      fruitsVegetablesLegumesPercent: _number(
+        data['fruits_vegetables_legumes_percent'],
+      ),
+      aiSummary: _text(data['ai_summary']),
+      aiRiskLevel: _text(data['ai_risk_level']),
+      aiGeneratedAt: _dateTime(data['ai_generated_at']),
+      aiAnalysisVersion: _text(data['ai_analysis_version']),
+      frontImagePath: _text(data['front_image_path']),
+      category: _text(data['category']) ?? inferredCategory,
+    );
+  }
+
+  bool _rowMatchesCategory(
+    Map<String, dynamic> row,
+    String category, {
+    bool inferWhenMissing = false,
+  }) {
+    final rowCategory = _text(row['category']);
+    final comparableCategory =
+        rowCategory ?? (inferWhenMissing ? _inferredCategoryForRow(row) : null);
+    return ProductCategoryMapper.normalizeCategory(comparableCategory) ==
+        ProductCategoryMapper.normalizeCategory(category);
+  }
+
+  String _inferredCategoryForRow(Map<String, dynamic> row) {
+    return ProductCategoryMapper.inferCategory(
+      productName: _text(row['name']),
+      brand: _text(row['brand']),
+      ingredientsText: _text(row['ingredients_text']),
+    );
+  }
+
+  String? _text(Object? value) {
+    if (value is! String || value.trim().isEmpty) return null;
+    return value.trim();
   }
 
   DateTime? _dateTime(Object? value) {

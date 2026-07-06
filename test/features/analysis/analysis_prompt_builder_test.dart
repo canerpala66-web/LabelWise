@@ -20,6 +20,7 @@ void main() {
       labelwiseScore: 70,
       labelwiseCategory: 'İyi Seçim',
       productCategory: 'Bisküvi',
+      scoreReasons: const ['Şeker yüksek', 'Kategori nedeniyle sınırlandı'],
       nutriscoreGrade: 'C',
       energyKcal: energyKcal,
       fat: fat,
@@ -58,5 +59,24 @@ void main() {
 
     expect(prompt, contains('Data completeness: limited'));
     expect(prompt, contains('değerlendirme dikkatli yorumlanmalıdır'));
+  });
+
+  test('marks two missing key fields as limited', () {
+    final prompt = build(sugars: null, salt: null);
+
+    expect(prompt, contains('Data completeness: limited'));
+  });
+
+  test('anchors interpretation to Score v3 without listing values', () {
+    final prompt = build();
+
+    expect(prompt, contains('LabelWise Score is the primary deterministic'));
+    expect(prompt, contains('Mention at most one number'));
+    expect(
+      prompt,
+      contains(
+        'LabelWise Score reasons: Şeker yüksek; Kategori nedeniyle sınırlandı',
+      ),
+    );
   });
 }

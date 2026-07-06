@@ -5,12 +5,15 @@ import 'package:http/http.dart' as http;
 import 'package:labelwise/core/config/env.dart';
 import 'package:labelwise/features/analysis/models/analysis_result.dart';
 import 'package:labelwise/features/analysis/services/analysis_prompt_builder.dart';
+import 'package:labelwise/features/analysis/services/analysis_risk_guardrails.dart';
 import 'package:labelwise/features/analysis/services/labelwise_score_engine.dart';
+import 'package:labelwise/features/products/services/product_category_mapper.dart';
 import 'package:labelwise/features/scanner/data/product.dart';
 
 class AnalysisService {
   const AnalysisService();
 
+  static const analysisVersion = 'v3';
   static const _endpoint = 'https://api.openai.com/v1/responses';
   static const _model = 'gpt-4.1-mini';
 
@@ -23,7 +26,22 @@ class AnalysisService {
     }
 
     final scoreResult = const LabelWiseScoreEngine().calculate(product);
-    final prompt = const AnalysisPromptBuilder().buildPrompt(
+    const promptBuilder = AnalysisPromptBuilder();
+    final productCategory = _effectiveCategory(product);
+    final dataCompleteness = promptBuilder.calculateDataCompleteness(
+      energyKcal: product.energyKcal,
+      fat: product.fat,
+      saturatedFat: product.saturatedFat,
+      sugars: product.sugars,
+      fiber: product.fiber,
+      protein: product.protein,
+      salt: product.salt,
+    );
+    debugPrint(
+      'AI: score=${scoreResult.score}, category=$productCategory, '
+      'dataCompleteness=$dataCompleteness',
+    );
+    final prompt = promptBuilder.buildPrompt(
       productName: product.productName,
       brand: product.brands,
       ingredients: product.ingredientsText == 'İçindekiler bilgisi bulunamadı'
@@ -31,7 +49,8 @@ class AnalysisService {
           : product.ingredientsText,
       labelwiseScore: scoreResult.score,
       labelwiseCategory: scoreResult.category,
-      productCategory: product.category,
+      productCategory: productCategory,
+      scoreReasons: scoreResult.reasons,
       nutriscoreGrade: product.nutriscoreGrade,
       energyKcal: product.energyKcal,
       fat: product.fat,
@@ -42,7 +61,7 @@ class AnalysisService {
       salt: product.salt,
     );
 
-    debugPrint('LabelWise Analysis request started.');
+    debugPrint('AI: calling OpenAI');
 
     final response = await http.post(
       Uri.parse(_endpoint),
@@ -154,12 +173,12 @@ class AnalysisService {
     if (summary is! String || summary.trim().isEmpty) {
       throw const FormatException('Analysis summary is invalid.');
     }
-    final normalizedRiskLevel = _normalizeRiskLevel(riskLevel);
-    final safeRiskLevel = _applyRiskGuardrails(
-      normalizedRiskLevel,
+    final safeRiskLevel = AnalysisRiskGuardrails.apply(
+      riskLevel,
       product: product,
       labelwiseScore: labelwiseScore,
     );
+    debugPrint('AI: normalized riskLevel=$safeRiskLevel');
 
     final safeSummary = _limitWords(summary.trim(), 55);
     if (_containsForbiddenLanguage(safeSummary)) {
@@ -167,49 +186,6 @@ class AnalysisService {
     }
 
     return AnalysisResult(summary: safeSummary, riskLevel: safeRiskLevel);
-  }
-
-  static String _normalizeRiskLevel(Object? riskLevel) {
-    if (riskLevel is! String) return 'bilinmiyor';
-    return switch (riskLevel.trim().toLowerCase()) {
-      'düşük' || 'low' => 'düşük',
-      'orta' || 'medium' => 'orta',
-      'yüksek' || 'high' => 'yüksek',
-      _ => 'bilinmiyor',
-    };
-  }
-
-  static String _applyRiskGuardrails(
-    String riskLevel, {
-    required Product product,
-    required int? labelwiseScore,
-  }) {
-    final hasObjectiveConcern =
-        (product.sugars ?? 0) >= 20 ||
-        (product.saturatedFat ?? 0) >= 10 ||
-        (product.salt ?? 0) >= 1.5 ||
-        (labelwiseScore != null && labelwiseScore < 50);
-    final hasCriticalConcern =
-        (product.sugars ?? 0) >= 25 || (product.saturatedFat ?? 0) >= 10;
-    final highSugarDespiteGoodScore =
-        labelwiseScore != null &&
-        labelwiseScore >= 75 &&
-        (product.sugars ?? 0) >= 10;
-
-    var guardedRisk = riskLevel;
-    if ((hasCriticalConcern || hasObjectiveConcern) &&
-        (guardedRisk == 'düşük' || guardedRisk == 'bilinmiyor')) {
-      guardedRisk = 'orta';
-    } else if (highSugarDespiteGoodScore && guardedRisk == 'düşük') {
-      guardedRisk = 'orta';
-    }
-    if (guardedRisk != riskLevel) {
-      debugPrint(
-        'LabelWise Analysis risk guardrail: '
-        '$riskLevel -> $guardedRisk',
-      );
-    }
-    return guardedRisk;
   }
 
   static String _limitWords(String text, int maximumWords) {
@@ -234,5 +210,17 @@ class AnalysisService {
       'zararlıdır',
       'sağlıklıdır',
     ].any(normalizedSummary.contains);
+  }
+
+  static String _effectiveCategory(Product product) {
+    final category = product.category?.trim();
+    if (category != null && category.isNotEmpty && category != 'Belirsiz') {
+      return category;
+    }
+    return ProductCategoryMapper.inferCategory(
+      productName: product.productName,
+      brand: product.brands,
+      ingredientsText: product.ingredientsText,
+    );
   }
 }

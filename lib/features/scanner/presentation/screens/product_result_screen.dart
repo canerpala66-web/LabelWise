@@ -4,6 +4,7 @@ import 'package:labelwise/features/analysis/models/labelwise_score_result.dart';
 import 'package:labelwise/features/analysis/services/analysis_service.dart';
 import 'package:labelwise/features/analysis/services/labelwise_score_engine.dart';
 import 'package:labelwise/features/corrections/presentation/screens/correction_report_screen.dart';
+import 'package:labelwise/features/products/presentation/screens/healthier_alternatives_screen.dart';
 import 'package:labelwise/features/scanner/data/product.dart';
 import 'package:labelwise/features/scanner/data/product_repository.dart';
 import 'package:labelwise/features/scanner/presentation/screens/submit_product_screen.dart';
@@ -240,7 +241,16 @@ class _ProductResultScreenState extends State<ProductResultScreen>
                   _StaggeredSection(
                     animation: _entranceController,
                     start: 0.42,
-                    child: const _PremiumAlternativesCard(),
+                    child: _PremiumAlternativesCard(
+                      onTap: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) =>
+                                HealthierAlternativesScreen(product: product),
+                          ),
+                        );
+                      },
+                    ),
                   ),
                 ],
               ),
@@ -956,16 +966,19 @@ class _LabelWiseScoreCard extends StatelessWidget {
   }
 
   String _helperText(int score) {
-    if (score >= 90) return 'Mükemmel bir tercih.';
-    if (score >= 80) return 'Genel olarak güçlü bir seçenek.';
-    if (score >= 70) return 'Genel olarak dikkatli tüketilebilir.';
-    if (score >= 60) return 'Dengeli tüketim daha uygun olabilir.';
-    if (score >= 50) {
-      return 'Bazı değerler nedeniyle dikkatli tüketilebilir.';
+    if (score >= 90) return 'Besin değerleri açısından güçlü bir seçenek.';
+    if (score >= 80) return 'Genel olarak dengeli bir seçenek.';
+    if (score >= 70) return 'Uygun porsiyonla dengeli değerlendirilebilir.';
+    if (score >= 60) {
+      return 'Bazı değerler nedeniyle dikkatli tüketim daha uygundur.';
     }
-    if (score >= 40) return 'Sık tüketim için uygun olmayabilir.';
-    if (score >= 20) return 'Ara sıra tüketim daha uygun olabilir.';
-    return 'Beslenme açısından zayıf bir tercih.';
+    if (score >= 45) {
+      return 'Sık tüketim yerine ara sıra tercih edilmesi daha uygundur.';
+    }
+    if (score >= 25) {
+      return 'Besin profili nedeniyle nadir tüketim daha uygun olabilir.';
+    }
+    return 'Beslenme profili zayıf olduğu için dikkatli değerlendirilmelidir.';
   }
 }
 
@@ -1025,8 +1038,8 @@ Color _scoreRingColor(int score) {
   if (score >= 80) return const Color(0xFF63A94B);
   if (score >= 70) return const Color(0xFF8EAD3D);
   if (score >= 60) return const Color(0xFFA6AA3D);
-  if (score >= 50) return const Color(0xFFD58B2A);
-  if (score >= 30) return const Color(0xFFD86138);
+  if (score >= 45) return const Color(0xFFD58B2A);
+  if (score >= 25) return const Color(0xFFD86138);
   return const Color(0xFFC33F39);
 }
 
@@ -1339,12 +1352,8 @@ class _AnalysisCardState extends State<_AnalysisCard> {
   void initState() {
     super.initState();
     final cachedResult = _cachedAnalysis(widget.product);
-    if (cachedResult == null) {
-      debugPrint('AI cache miss');
-      return;
-    }
+    if (cachedResult == null) return;
 
-    debugPrint('AI cache hit');
     _result = cachedResult;
     _isCached = true;
   }
@@ -1353,7 +1362,6 @@ class _AnalysisCardState extends State<_AnalysisCard> {
     if (!forceRefresh) {
       final cachedResult = _cachedAnalysis(widget.product);
       if (cachedResult != null) {
-        debugPrint('AI cache hit');
         setState(() {
           _result = cachedResult;
           _isCached = true;
@@ -1361,7 +1369,6 @@ class _AnalysisCardState extends State<_AnalysisCard> {
         });
         return;
       }
-      debugPrint('AI cache miss');
     }
 
     setState(() {
@@ -1370,14 +1377,19 @@ class _AnalysisCardState extends State<_AnalysisCard> {
     });
 
     try {
-      debugPrint('Calling OpenAI analysis');
+      debugPrint('AI: calling OpenAI');
       final result = await _analysisService.generateAnalysis(widget.product);
-      await _productRepository.updateAiAnalysis(
+      final versionSaved = await _productRepository.updateAiAnalysis(
         barcode: widget.product.barcode,
         summary: result.summary,
         riskLevel: result.riskLevel,
+        analysisVersion: AnalysisService.analysisVersion,
       );
-      debugPrint('AI analysis saved to Supabase');
+      if (versionSaved) {
+        debugPrint(
+          'AI: saved analysis version=${AnalysisService.analysisVersion}',
+        );
+      }
 
       if (!mounted) {
         return;
@@ -1523,6 +1535,14 @@ class _AnalysisCardState extends State<_AnalysisCard> {
   AnalysisResult? _cachedAnalysis(Product product) {
     final summary = product.aiSummary?.trim();
     final riskLevel = product.aiRiskLevel?.trim();
+    final cacheVersion = product.aiAnalysisVersion?.trim();
+    debugPrint('AI: cache version=$cacheVersion');
+    if (cacheVersion != AnalysisService.analysisVersion) {
+      if ((summary?.isNotEmpty ?? false) || (riskLevel?.isNotEmpty ?? false)) {
+        debugPrint('AI: cache ignored old version');
+      }
+      return null;
+    }
     if (summary == null ||
         summary.isEmpty ||
         riskLevel == null ||
@@ -1530,6 +1550,7 @@ class _AnalysisCardState extends State<_AnalysisCard> {
       return null;
     }
 
+    debugPrint('AI: cache hit v3');
     return AnalysisResult(
       summary: summary,
       riskLevel: _normalizeRiskLevel(riskLevel),
@@ -1547,96 +1568,106 @@ class _AnalysisCardState extends State<_AnalysisCard> {
 }
 
 class _PremiumAlternativesCard extends StatelessWidget {
-  const _PremiumAlternativesCard();
+  const _PremiumAlternativesCard({required this.onTap});
+
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Color(0xFF173F2D), Color(0xFF0E2E22)],
-        ),
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x24123828),
-            blurRadius: 24,
-            offset: Offset(0, 12),
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(24),
+      child: Ink(
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xFF173F2D), Color(0xFF0E2E22)],
           ),
-        ],
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(22),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              width: 46,
-              height: 46,
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(15),
-              ),
-              child: const Icon(
-                Icons.workspace_premium_outlined,
-                color: Color(0xFFFFD782),
-              ),
+          borderRadius: BorderRadius.circular(24),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x24123828),
+              blurRadius: 24,
+              offset: Offset(0, 12),
             ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
+          ],
+        ),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(24),
+          child: Padding(
+            padding: const EdgeInsets.all(22),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 46,
+                  height: 46,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(15),
+                  ),
+                  child: const Icon(
+                    Icons.workspace_premium_outlined,
+                    color: Color(0xFFFFD782),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Expanded(
-                        child: Text(
-                          'Daha Sağlıklı Alternatifler',
-                          style: Theme.of(context).textTheme.titleMedium
-                              ?.copyWith(
-                                fontWeight: FontWeight.w800,
-                                color: Colors.white,
-                              ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      DecoratedBox(
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFFFD782),
-                          borderRadius: BorderRadius.circular(999),
-                        ),
-                        child: const Padding(
-                          padding: EdgeInsets.symmetric(
-                            horizontal: 9,
-                            vertical: 4,
-                          ),
-                          child: Text(
-                            'Premium',
-                            style: TextStyle(
-                              color: Color(0xFF3D2B08),
-                              fontSize: 11,
-                              fontWeight: FontWeight.w800,
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: Text(
+                              'Daha Sağlıklı Alternatifler',
+                              style: Theme.of(context).textTheme.titleMedium
+                                  ?.copyWith(
+                                    fontWeight: FontWeight.w800,
+                                    color: Colors.white,
+                                  ),
                             ),
                           ),
+                          const SizedBox(width: 8),
+                          DecoratedBox(
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFFFD782),
+                              borderRadius: BorderRadius.circular(999),
+                            ),
+                            child: const Padding(
+                              padding: EdgeInsets.symmetric(
+                                horizontal: 9,
+                                vertical: 4,
+                              ),
+                              child: Text(
+                                'Premium',
+                                style: TextStyle(
+                                  color: Color(0xFF3D2B08),
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Benzer ürünler arasında daha iyi seçenekleri keşfedin.',
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: const Color(0xFFD4E3DA),
+                          height: 1.4,
                         ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Benzer ürünler arasında daha iyi seçenekleri keşfedin.',
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: const Color(0xFFD4E3DA),
-                      height: 1.4,
-                    ),
-                  ),
-                ],
-              ),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );

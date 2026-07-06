@@ -6,199 +6,314 @@ import 'package:labelwise/features/scanner/data/product.dart';
 class LabelWiseScoreEngine {
   const LabelWiseScoreEngine();
 
-  static const _beverageKeywords = [
-    'kola',
-    'cola',
-    'gazlı',
-    'soda',
-    'soft drink',
-    'energy drink',
-    'enerji içeceği',
-  ];
-  static const _sugarFreeKeywords = ['zero', 'şekersiz', 'sugar free', 'light'];
-  static const _sweetenerKeywords = [
-    'tatlandırıcı',
-    'sukraloz',
-    'asesülfam',
-    'aspartam',
-    'acesulfame',
-    'sucralose',
-    'sweetener',
-  ];
-  static const _ultraProcessedSignals = [
-    'aroma',
-    'renklendirici',
-    'koruyucu',
-    'emülgatör',
-    'stabilizör',
-    'kıvam artırıcı',
-    'maltodekstrin',
-    'glikoz şurubu',
-    'fruktoz şurubu',
-    'modifiye nişasta',
-  ];
-  static const _dessertAndSnackCategories = {
-    'Çikolata',
+  static const _categoryCaps = <String, int>{
+    'Cips': 62,
+    'Kraker': 68,
+    'Bisküvi': 62,
+    'Kek': 58,
+    'Gofret': 55,
+    'Çikolata': 55,
+    'Puding': 60,
+    'Dondurma': 60,
+    'Enerji İçeceği': 45,
+    'Gazlı İçecek': 45,
+    'Meyve Suyu': 65,
+  };
+  static const _snackAndDessertCategories = {
+    'Cips',
+    'Kraker',
     'Bisküvi',
     'Kek',
     'Gofret',
-    'Dondurma',
+    'Çikolata',
     'Puding',
+    'Dondurma',
   };
+  static const _sugarSensitiveCategories = {
+    ..._snackAndDessertCategories,
+    'Enerji İçeceği',
+    'Gazlı İçecek',
+    'Meyve Suyu',
+  };
+  static const _sugarFreeKeywords = {'zero', 'şekersiz', 'sugar free', 'light'};
 
   LabelWiseScoreResult calculate(Product product) {
-    if (!product.hasNutritionData) {
-      debugPrint(
-        'Score v2: baseScore=null, caps=[], finalScore=null, '
-        'reasons=[Besin değerleri bulunamadı]',
-      );
+    final category = _effectiveCategory(product);
+    final keyValues = [
+      product.energyKcal,
+      product.fat,
+      product.saturatedFat,
+      product.sugars,
+      product.salt,
+    ];
+    final missingKeyCount = keyValues.where((value) => value == null).length;
+
+    debugPrint('ScoreV3: product=${product.productName}, category=$category');
+    debugPrint('ScoreV3: baseScore=100');
+
+    if (missingKeyCount == keyValues.length) {
+      const reasons = ['Temel beslenme değerleri bulunamadı'];
+      debugPrint('ScoreV3: penalties=[]');
+      debugPrint('ScoreV3: bonuses=[]');
+      debugPrint('ScoreV3: caps=[]');
+      debugPrint('ScoreV3: finalScore=null');
+      debugPrint('ScoreV3: reasons=$reasons');
       return const LabelWiseScoreResult(
         score: null,
         category: 'Sağlık puanı hesaplanamadı.',
         color: Color(0xFF7A827D),
+        reasons: reasons,
       );
     }
 
-    var score = 100;
-    score -= _sugarDeduction(product.sugars);
-    score -= _saturatedFatDeduction(product.saturatedFat);
-    score -= _saltDeduction(product.salt);
-    score -= _energyDeduction(product.energyKcal);
-    score += _fiberAddition(product.fiber);
-    score += _proteinAddition(product.protein);
-    score += _produceAddition(product.fruitsVegetablesLegumesPercent);
-    score = score.clamp(0, 100);
-    final baseScore = score;
+    final penalties = <String, int>{
+      'şeker': _sugarPenalty(product.sugars),
+      'doymuş yağ': _saturatedFatPenalty(product.saturatedFat),
+      'tuz': _saltPenalty(product.salt),
+      'enerji': _energyPenalty(product.energyKcal),
+      'yağ': _fatPenalty(product.fat),
+    }..removeWhere((_, value) => value == 0);
+    final bonuses = <String, int>{
+      'lif': _fiberBonus(product.fiber),
+      'protein': _proteinBonus(product.protein),
+    }..removeWhere((_, value) => value == 0);
 
-    final caps = <_ScoreCap>[];
-    final reasons = <String>[];
-    final searchableText = _normalize(
+    var score = 100;
+    for (final penalty in penalties.values) {
+      score -= penalty;
+    }
+    for (final bonus in bonuses.values) {
+      score += bonus;
+    }
+
+    if ((product.sugars ?? 0) >= 15 && (product.saturatedFat ?? 0) >= 5) {
+      penalties['şeker+doymuş yağ'] = 10;
+      score -= 10;
+    }
+    if ((product.sugars ?? 0) >= 20 &&
+        _snackAndDessertCategories.contains(category)) {
+      penalties['yüksek şekerli atıştırmalık'] = 10;
+      score -= 10;
+    }
+    if ((product.salt ?? 0) >= 0.8 && (product.fat ?? 0) >= 20) {
+      penalties['tuz+yağ'] = 8;
+      score -= 8;
+    }
+    if ((product.energyKcal ?? 0) >= 450 && (product.fat ?? 0) >= 20) {
+      penalties['enerji+yağ'] = 8;
+      score -= 8;
+    }
+
+    final searchableText = _normalizeText(
       '${product.productName} ${product.ingredientsText}',
     );
-    final ingredients = _normalize(product.ingredientsText);
-    final inferredCategory = ProductCategoryMapper.inferCategory(
+    final isSugarFree = _sugarFreeKeywords.any((keyword) {
+      return ' $searchableText '.contains(' ${_normalizeText(keyword)} ');
+    });
+    final caps = <String, int>{};
+    final baseCategoryCap = category == 'Gazlı İçecek' && isSugarFree
+        ? 68
+        : _categoryCaps[category];
+    if (baseCategoryCap != null) caps['$category kategorisi'] = baseCategoryCap;
+
+    if (category == 'Enerji İçeceği' && (product.sugars ?? 0) >= 5) {
+      caps['şekerli enerji içeceği'] = 38;
+    }
+    if (category == 'Gazlı İçecek' && !isSugarFree) {
+      if ((product.sugars ?? 0) >= 10) {
+        caps['gazlı içecek şekeri'] = 35;
+      } else if ((product.sugars ?? 0) >= 5) {
+        caps['gazlı içecek şekeri'] = 42;
+      }
+    }
+    if (category == 'Meyve Suyu' && (product.sugars ?? 0) >= 10) {
+      caps['meyve suyu şekeri'] = 58;
+    }
+    if ((product.salt ?? 0) >= 5) caps['çok yüksek tuz'] = 45;
+
+    if (missingKeyCount >= 3) {
+      caps['3+ temel veri eksik'] = 60;
+    } else if (missingKeyCount == 2) {
+      caps['2 temel veri eksik'] = 70;
+    }
+    if (product.sugars == null &&
+        _sugarSensitiveCategories.contains(category)) {
+      caps['şeker verisi eksik'] = 60;
+    }
+    if (product.salt == null && const {'Cips', 'Kraker'}.contains(category)) {
+      caps['tuz verisi eksik'] = 60;
+    }
+
+    score = score.clamp(0, 100);
+    final scoreBeforeCaps = score;
+    for (final cap in caps.values) {
+      score = score.clamp(0, cap);
+    }
+    final finalScore = score.clamp(0, 100);
+    final reasons = _buildReasons(
+      product: product,
+      category: category,
+      bonuses: bonuses,
+      caps: caps,
+      scoreBeforeCaps: scoreBeforeCaps,
+      missingKeyCount: missingKeyCount,
+    );
+
+    debugPrint('ScoreV3: penalties=$penalties');
+    debugPrint('ScoreV3: bonuses=$bonuses');
+    debugPrint('ScoreV3: caps=$caps');
+    debugPrint('ScoreV3: finalScore=$finalScore');
+    debugPrint('ScoreV3: reasons=$reasons');
+
+    return LabelWiseScoreResult(
+      score: finalScore,
+      category: _scoreLabel(finalScore),
+      color: _scoreColor(finalScore),
+      reasons: reasons,
+    );
+  }
+
+  List<String> _buildReasons({
+    required Product product,
+    required String category,
+    required Map<String, int> bonuses,
+    required Map<String, int> caps,
+    required int scoreBeforeCaps,
+    required int missingKeyCount,
+  }) {
+    final reasons = <String>[];
+    if ((product.sugars ?? 0) >= 15) reasons.add('Şeker yüksek');
+    if ((product.salt ?? 0) >= 0.8) reasons.add('Tuz yüksek');
+    if ((product.saturatedFat ?? 0) >= 5) reasons.add('Doymuş yağ yüksek');
+    if ((product.energyKcal ?? 0) >= 400) {
+      reasons.add('Enerji yoğunluğu yüksek');
+    }
+    final categoryCap = caps['$category kategorisi'];
+    if (categoryCap != null && scoreBeforeCaps > categoryCap) {
+      reasons.add('Kategori nedeniyle sınırlandı');
+    }
+    if (missingKeyCount >= 2) {
+      reasons.add('Bazı temel beslenme değerleri eksik');
+    }
+    if (product.sugars == null &&
+        _sugarSensitiveCategories.contains(category)) {
+      reasons.add('Şeker verisi eksik');
+    }
+    if (product.salt == null && const {'Cips', 'Kraker'}.contains(category)) {
+      reasons.add('Tuz verisi eksik');
+    }
+    if (bonuses.containsKey('protein')) reasons.add('Protein iyi');
+    if (bonuses.containsKey('lif')) reasons.add('Lif iyi');
+    return reasons.toSet().take(4).toList(growable: false);
+  }
+
+  String _effectiveCategory(Product product) {
+    final storedCategory = _canonicalCategory(product.category);
+    if (storedCategory != null &&
+        storedCategory != 'Belirsiz' &&
+        storedCategory != 'Diğer') {
+      return storedCategory;
+    }
+    return ProductCategoryMapper.inferCategory(
       productName: product.productName,
       brand: product.brands,
       ingredientsText: product.ingredientsText,
     );
-    final isDessertOrSnack =
-        _dessertAndSnackCategories.contains(product.category) ||
-        _dessertAndSnackCategories.contains(inferredCategory);
-    final isWaterCategory =
-        const {'Su', 'Maden Suyu'}.contains(product.category) ||
-        const {'Su', 'Maden Suyu'}.contains(inferredCategory);
-
-    final isBeverage =
-        !isWaterCategory &&
-        _containsAnyPhrase(searchableText, _beverageKeywords);
-    if (isBeverage) {
-      reasons.add('Gazlı içecek kategorisinde');
-      final isSugarFree = _containsAnyPhrase(
-        searchableText,
-        _sugarFreeKeywords,
-      );
-      caps.add(
-        _ScoreCap(
-          maximum: isSugarFree ? 78 : 45,
-          label: isSugarFree ? 'şekersiz içecek' : 'içecek kategorisi',
-        ),
-      );
-    }
-
-    if (_containsAny(ingredients, _sweetenerKeywords)) {
-      caps.add(const _ScoreCap(maximum: 78, label: 'tatlandırıcı'));
-      reasons.add('Tatlandırıcı içeriyor');
-    }
-
-    final ultraProcessedSignalCount = _ultraProcessedSignals
-        .where(ingredients.contains)
-        .length;
-    final ultraProcessedDeduction = _ultraProcessedDeduction(
-      ultraProcessedSignalCount,
-    );
-    if (ultraProcessedDeduction > 0) {
-      score -= ultraProcessedDeduction;
-      reasons.add(
-        '$ultraProcessedSignalCount işlenmiş içerik sinyali: '
-        '-$ultraProcessedDeduction',
-      );
-    }
-
-    final nutriScoreGrade = product.nutriscoreGrade?.trim().toUpperCase();
-    if (nutriScoreGrade == 'D') {
-      caps.add(const _ScoreCap(maximum: 65, label: 'Nutri-Score D'));
-      reasons.add('Nutri-Score D nedeniyle sınırlandı');
-    } else if (nutriScoreGrade == 'E') {
-      caps.add(const _ScoreCap(maximum: 45, label: 'Nutri-Score E'));
-      reasons.add('Nutri-Score E nedeniyle sınırlandı');
-    }
-
-    if (product.salt case final salt? when salt >= 5) {
-      caps.add(const _ScoreCap(maximum: 70, label: 'tuz >= 5g'));
-      reasons.add('Tuz çok yüksek');
-    }
-
-    if (product.saturatedFat case final saturatedFat? when saturatedFat >= 10) {
-      caps.add(const _ScoreCap(maximum: 65, label: 'doymuş yağ >= 10g'));
-      reasons.add('Doymuş yağ çok yüksek');
-    }
-
-    final sugars = product.sugars;
-    if (isDessertOrSnack && sugars != null) {
-      if (sugars >= 30) {
-        caps.add(const _ScoreCap(maximum: 48, label: 'tatlı şeker >= 30g'));
-      } else if (sugars >= 25) {
-        caps.add(const _ScoreCap(maximum: 55, label: 'tatlı şeker >= 25g'));
-      } else if (sugars >= 20) {
-        caps.add(const _ScoreCap(maximum: 62, label: 'tatlı şeker >= 20g'));
-      } else if (sugars >= 15) {
-        caps.add(const _ScoreCap(maximum: 70, label: 'tatlı şeker >= 15g'));
-      }
-      if (sugars >= 15) reasons.add('Şeker yüksek');
-    }
-
-    if (isDessertOrSnack &&
-        sugars != null &&
-        sugars >= 20 &&
-        (product.saturatedFat ?? 0) >= 5) {
-      caps.add(
-        const _ScoreCap(maximum: 58, label: 'yüksek şeker ve doymuş yağ'),
-      );
-      reasons.add('Şeker ve doymuş yağ birlikte yüksek');
-    }
-
-    score = score.clamp(0, 100);
-    for (final cap in caps) {
-      if (score > cap.maximum) {
-        score = cap.maximum;
-      }
-    }
-
-    debugPrint(
-      'Score v2: baseScore=$baseScore, '
-      'caps=${caps.map((cap) => '${cap.label}:${cap.maximum}').toList()}, '
-      'finalScore=$score, reasons=$reasons',
-    );
-
-    return LabelWiseScoreResult(
-      score: score,
-      category: _category(score),
-      color: _color(score),
-    );
   }
 
-  bool _containsAny(String text, Iterable<String> keywords) {
-    return keywords.any(text.contains);
+  String? _canonicalCategory(String? value) {
+    final normalized = _normalizeCategory(value);
+    if (normalized.isEmpty) return null;
+    for (final category in ProductCategoryMapper.categories) {
+      if (_normalizeCategory(category) == normalized) return category;
+    }
+    return value?.trim();
   }
 
-  bool _containsAnyPhrase(String text, Iterable<String> keywords) {
-    final paddedText = ' $text ';
-    return keywords.any((keyword) {
-      return paddedText.contains(' ${_normalize(keyword)} ');
-    });
+  String _normalizeCategory(String? value) {
+    return (value ?? '')
+        .trim()
+        .toLowerCase()
+        .replaceAll('ç', 'c')
+        .replaceAll('ğ', 'g')
+        .replaceAll('ı', 'i')
+        .replaceAll('ö', 'o')
+        .replaceAll('ş', 's')
+        .replaceAll('ü', 'u')
+        .replaceAll(RegExp(r'\s+'), ' ');
   }
 
-  String _normalize(String value) {
+  int _sugarPenalty(double? value) {
+    if (value == null || value < 5) return 0;
+    if (value < 10) return 8;
+    if (value < 15) return 15;
+    if (value < 20) return 22;
+    if (value < 30) return 32;
+    return 42;
+  }
+
+  int _saturatedFatPenalty(double? value) {
+    if (value == null || value < 2) return 0;
+    if (value < 5) return 8;
+    if (value < 10) return 18;
+    return 30;
+  }
+
+  int _saltPenalty(double? value) {
+    if (value == null || value < 0.3) return 0;
+    if (value < 0.8) return 8;
+    if (value < 1.5) return 18;
+    return 30;
+  }
+
+  int _energyPenalty(double? value) {
+    if (value == null || value < 100) return 0;
+    if (value < 250) return 3;
+    if (value < 400) return 8;
+    if (value < 500) return 15;
+    return 22;
+  }
+
+  int _fatPenalty(double? value) {
+    if (value == null || value < 10) return 0;
+    if (value < 20) return 8;
+    if (value < 30) return 16;
+    return 25;
+  }
+
+  int _fiberBonus(double? value) {
+    if (value == null || value < 3) return 0;
+    if (value < 6) return 3;
+    return 6;
+  }
+
+  int _proteinBonus(double? value) {
+    if (value == null || value < 10) return 0;
+    if (value < 20) return 3;
+    return 6;
+  }
+
+  String _scoreLabel(int score) {
+    if (score >= 90) return 'Çok Dengeli Seçim';
+    if (score >= 80) return 'İyi Seçim';
+    if (score >= 70) return 'Dengeli Seçim';
+    if (score >= 60) return 'Dikkatli Tüketim';
+    if (score >= 45) return 'Sınırlı Tüketim';
+    if (score >= 25) return 'Nadir Tüketim';
+    return 'Zayıf Beslenme Profili';
+  }
+
+  Color _scoreColor(int score) {
+    if (score >= 90) return const Color(0xFF16843B);
+    if (score >= 80) return const Color(0xFF2E9650);
+    if (score >= 70) return const Color(0xFF65A43A);
+    if (score >= 60) return const Color(0xFF9A9A32);
+    if (score >= 45) return const Color(0xFFD48620);
+    if (score >= 25) return const Color(0xFFC85D35);
+    return const Color(0xFFB3261E);
+  }
+
+  String _normalizeText(String value) {
     return value
         .replaceAll('İ', 'I')
         .toLowerCase()
@@ -206,92 +321,4 @@ class LabelWiseScoreEngine {
         .replaceAll(RegExp(r'\s+'), ' ')
         .trim();
   }
-
-  int _ultraProcessedDeduction(int signalCount) {
-    if (signalCount >= 5) return 15;
-    if (signalCount >= 3) return 10;
-    if (signalCount >= 1) return 5;
-    return 0;
-  }
-
-  int _sugarDeduction(double? value) {
-    if (value == null) return 0;
-    if (value >= 20) return 25;
-    if (value >= 10) return 15;
-    if (value >= 5) return 8;
-    return 0;
-  }
-
-  int _saturatedFatDeduction(double? value) {
-    if (value == null) return 0;
-    if (value >= 10) return 20;
-    if (value >= 5) return 10;
-    if (value >= 2) return 5;
-    return 0;
-  }
-
-  int _saltDeduction(double? value) {
-    if (value == null) return 0;
-    if (value >= 1.5) return 20;
-    if (value >= 0.8) return 10;
-    if (value >= 0.3) return 5;
-    return 0;
-  }
-
-  int _energyDeduction(double? value) {
-    if (value == null) return 0;
-    if (value >= 500) return 10;
-    if (value >= 300) return 5;
-    return 0;
-  }
-
-  int _fiberAddition(double? value) {
-    if (value == null) return 0;
-    if (value >= 6) return 10;
-    if (value >= 3) return 5;
-    return 0;
-  }
-
-  int _proteinAddition(double? value) {
-    if (value == null) return 0;
-    if (value >= 20) return 10;
-    if (value >= 10) return 5;
-    return 0;
-  }
-
-  int _produceAddition(double? value) {
-    if (value == null) return 0;
-    if (value >= 80) return 10;
-    if (value >= 40) return 5;
-    return 0;
-  }
-
-  String _category(int score) {
-    if (score >= 90) return 'Mükemmel Seçim';
-    if (score >= 80) return 'Çok İyi';
-    if (score >= 70) return 'İyi Seçim';
-    if (score >= 60) return 'Dengeli Tüketim';
-    if (score >= 50) return 'Dikkatli Tüket';
-    if (score >= 40) return 'Sınırlı Tüketim';
-    if (score >= 20) return 'Düşük Sağlık Değeri';
-    return 'Önerilmez';
-  }
-
-  Color _color(int score) {
-    if (score >= 90) return const Color(0xFF16843B);
-    if (score >= 80) return const Color(0xFF2E9650);
-    if (score >= 70) return const Color(0xFF65A43A);
-    if (score >= 60) return const Color(0xFF8A9F37);
-    if (score >= 50) return const Color(0xFFD49B18);
-    if (score >= 40) return const Color(0xFFE47D22);
-    if (score >= 20) return const Color(0xFFC85D35);
-    return const Color(0xFFB3261E);
-  }
-}
-
-class _ScoreCap {
-  const _ScoreCap({required this.maximum, required this.label});
-
-  final int maximum;
-  final String label;
 }

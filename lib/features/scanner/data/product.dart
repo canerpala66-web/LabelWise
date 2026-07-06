@@ -22,6 +22,7 @@ class Product {
     this.aiGeneratedAt,
     this.frontImagePath,
     this.category,
+    this.aiAnalysisVersion,
   });
 
   final String productName;
@@ -44,6 +45,7 @@ class Product {
   final DateTime? aiGeneratedAt;
   final String? frontImagePath;
   final String? category;
+  final String? aiAnalysisVersion;
 
   bool get hasNutritionData => [
     energyKcal,

@@ -18,6 +18,15 @@ class PhotoUploadException implements Exception {
   String toString() => 'Photo upload failed: $cause';
 }
 
+class SubmissionInsertException implements Exception {
+  const SubmissionInsertException(this.cause);
+
+  final Object cause;
+
+  @override
+  String toString() => 'Submission insert failed: $cause';
+}
+
 class SubmittedProductRepository {
   SubmittedProductRepository({SupabaseClient? client})
     : _client = client ?? Supabase.instance.client;
@@ -62,6 +71,14 @@ class SubmittedProductRepository {
       throw ArgumentError.value(name, 'name', 'Cannot be empty');
     }
 
+    debugPrint('SubmitProductFix: front image selected=${frontPhoto != null}');
+    debugPrint(
+      'SubmitProductFix: nutrition image selected=${nutritionPhoto != null}',
+    );
+    debugPrint(
+      'SubmitProductFix: ingredients image selected=${ingredientsPhoto != null}',
+    );
+
     final timestamp = DateTime.now().toUtc();
     final folderPath =
         'submitted-products/${_safePathSegment(trimmedBarcode)}/'
@@ -74,21 +91,26 @@ class SubmittedProductRepository {
 
     try {
       frontImagePath = await _uploadPhoto(
+        label: 'front',
         photo: frontPhoto,
         pathWithoutExtension: '$folderPath/front',
         uploadedPaths: uploadedPaths,
       );
       nutritionImagePath = await _uploadPhoto(
+        label: 'nutrition',
         photo: nutritionPhoto,
         pathWithoutExtension: '$folderPath/nutrition',
         uploadedPaths: uploadedPaths,
       );
       ingredientsImagePath = await _uploadPhoto(
+        label: 'ingredients',
         photo: ingredientsPhoto,
         pathWithoutExtension: '$folderPath/ingredients',
         uploadedPaths: uploadedPaths,
       );
-    } on Object catch (error) {
+    } on Object catch (error, stackTrace) {
+      debugPrint('SubmitProductFix: failed step=image upload, error=$error');
+      debugPrintStack(stackTrace: stackTrace);
       await _removeUploadedPhotos(uploadedPaths);
       throw PhotoUploadException(error);
     }
@@ -114,10 +136,14 @@ class SubmittedProductRepository {
         'source': 'user_submission',
         'created_at': timestamp.toIso8601String(),
       };
+      debugPrint('SubmitProductFix: inserting submitted_products row...');
       await _insertSubmission(payload);
-    } on Object {
+      debugPrint('SubmitProductFix: insert success');
+    } on Object catch (error, stackTrace) {
+      debugPrint('SubmitProductFix: failed step=database insert, error=$error');
+      debugPrintStack(stackTrace: stackTrace);
       await _removeUploadedPhotos(uploadedPaths);
-      rethrow;
+      throw SubmissionInsertException(error);
     }
   }
 
@@ -251,6 +277,9 @@ class SubmittedProductRepository {
     } on PostgrestException catch (error) {
       if (!_isMissingCategoryColumn(error)) rethrow;
       _logMissingCategorySchema('submitted_products');
+      debugPrint(
+        'SubmitProductFix: category column missing, retrying insert without category',
+      );
       final fallbackPayload = Map<String, dynamic>.of(payload)
         ..remove('category');
       await _client.from('submitted_products').insert(fallbackPayload);
@@ -366,14 +395,17 @@ class SubmittedProductRepository {
   }
 
   Future<String?> _uploadPhoto({
+    required String label,
     required SubmissionPhoto? photo,
     required String pathWithoutExtension,
     required List<String> uploadedPaths,
   }) async {
     if (photo == null) {
+      debugPrint('SubmitProductFix: no $label image selected, skipping');
       return null;
     }
 
+    debugPrint('SubmitProductFix: uploading $label image...');
     final extension = _safeExtension(photo.fileExtension);
     final path = '$pathWithoutExtension.$extension';
     await _client.storage
@@ -387,6 +419,7 @@ class SubmittedProductRepository {
           ),
         );
     uploadedPaths.add(path);
+    debugPrint('SubmitProductFix: $label image uploaded path=$path');
     return path;
   }
 
