@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:labelwise/features/scanner/data/open_food_facts_service.dart';
 import 'package:labelwise/features/scanner/data/product.dart';
+import 'package:labelwise/features/scanner/data/product_barcode_validator.dart';
 import 'package:labelwise/features/scanner/data/product_repository.dart';
+import 'package:labelwise/features/scanner/data/recent_scan.dart';
+import 'package:labelwise/features/scanner/data/recent_scans_repository.dart';
 import 'package:labelwise/features/scanner/presentation/screens/barcode_scanner_screen.dart';
 import 'package:labelwise/features/scanner/presentation/screens/product_result_screen.dart';
 import 'package:labelwise/features/scanner/presentation/screens/submit_product_screen.dart';
+import 'package:labelwise/features/scanner/presentation/widgets/recent_scans_section.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' show PostgrestException;
 
 class ScannerScreen extends StatefulWidget {
@@ -20,7 +24,10 @@ class _ScannerScreenState extends State<ScannerScreen> {
   final TextEditingController _barcodeController = TextEditingController();
   final OpenFoodFactsService _service = OpenFoodFactsService();
   final ProductRepository _productRepository = ProductRepository();
+  final RecentScansRepository _recentScansRepository =
+      const RecentScansRepository();
 
+  late Future<List<RecentScan>> _recentScans;
   bool _isLoading = false;
   String? _errorMessage;
   String? _missingBarcode;
@@ -29,6 +36,7 @@ class _ScannerScreenState extends State<ScannerScreen> {
   @override
   void initState() {
     super.initState();
+    _recentScans = _recentScansRepository.getRecentScans();
 
     final initialBarcode = widget.initialBarcode?.trim();
     if (initialBarcode == null || initialBarcode.isEmpty) {
@@ -58,6 +66,13 @@ class _ScannerScreenState extends State<ScannerScreen> {
     await _searchProduct();
   }
 
+  void _refreshRecentScans() {
+    if (!mounted) return;
+    setState(() {
+      _recentScans = _recentScansRepository.getRecentScans();
+    });
+  }
+
   void _openSubmission(String barcode) {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
@@ -66,18 +81,61 @@ class _ScannerScreenState extends State<ScannerScreen> {
     );
   }
 
-  Future<void> _searchProduct() async {
-    final barcode = _barcodeController.text.trim();
+  Future<void> _openRecentScan(RecentScan scan) async {
+    try {
+      final product = await _productRepository.getProductByBarcode(
+        scan.barcode,
+      );
+      if (!mounted) return;
+      if (product == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Ürün bilgileri yüklenemedi.')),
+        );
+        return;
+      }
 
-    if (barcode.isEmpty) {
+      await Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (context) => ProductResultScreen(product: product),
+        ),
+      );
+      _refreshRecentScans();
+    } on Object catch (error) {
+      debugPrint('RecentScans: scanner open failed error=$error');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Ürün yüklenemedi. Lütfen tekrar deneyin.'),
+        ),
+      );
+    }
+  }
+
+  Future<void> _clearRecentScans() async {
+    await _recentScansRepository.clear();
+    _refreshRecentScans();
+  }
+
+  Future<void> _searchProduct() async {
+    final validation = ProductBarcodeValidator.validate(
+      _barcodeController.text,
+    );
+
+    if (!validation.isValid) {
+      debugPrint(
+        'Manual barcode ignored: rawValue=${_barcodeController.text}, '
+        'ignored reason=${validation.reason}',
+      );
       setState(() {
-        _errorMessage = 'Lütfen bir barkod numarası girin.';
+        _errorMessage = 'Lütfen geçerli bir barkod numarası girin.';
         _missingBarcode = null;
         _failedBarcode = null;
       });
       return;
     }
 
+    final barcode = validation.value!;
+    _barcodeController.text = barcode;
     FocusScope.of(context).unfocus();
     setState(() {
       _isLoading = true;
@@ -144,6 +202,7 @@ class _ScannerScreenState extends State<ScannerScreen> {
           builder: (context) => ProductResultScreen(product: foundProduct),
         ),
       );
+      _refreshRecentScans();
     } on Exception catch (e, stackTrace) {
       debugPrint('Product lookup error: $e');
       debugPrintStack(stackTrace: stackTrace);
@@ -524,6 +583,12 @@ class _ScannerScreenState extends State<ScannerScreen> {
                       icon: const Icon(Icons.barcode_reader),
                       label: const Text('Barkod Tara'),
                     ),
+                  ),
+                  const SizedBox(height: 28),
+                  RecentScansSection(
+                    recentScans: _recentScans,
+                    onTap: _openRecentScan,
+                    onClear: _clearRecentScans,
                   ),
                 ],
               ),

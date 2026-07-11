@@ -16,6 +16,7 @@ class ProductRepository {
   static const _nutritionFields =
       'energy_kcal, fat, saturated_fat, sugars, fiber, protein, salt, '
       'fruits_vegetables_legumes_percent';
+  static const _carbohydrateField = 'carbohydrates';
   static const _alternativeFields =
       'barcode, name, brand, image_url, front_image_path, category, '
       'ingredients_text, nutriscore_grade, energy_kcal, fat, saturated_fat, '
@@ -143,6 +144,7 @@ class ProductRepository {
       'energy_kcal': product.energyKcal,
       'fat': product.fat,
       'saturated_fat': product.saturatedFat,
+      'carbohydrates': product.carbohydrates,
       'sugars': product.sugars,
       'fiber': product.fiber,
       'protein': product.protein,
@@ -238,6 +240,11 @@ class ProductRepository {
     ].any(description.contains);
   }
 
+  bool _isMissingCarbohydratesColumn(PostgrestException error) {
+    final description = '${error.message} ${error.details} ${error.hint}';
+    return description.contains('carbohydrates');
+  }
+
   bool _isMissingCategoryColumn(PostgrestException error) {
     final description = '${error.message} ${error.details} ${error.hint}';
     return description.contains('category');
@@ -283,12 +290,14 @@ class ProductRepository {
 
   Future<Map<String, dynamic>?> _fetchProductData(String barcode) async {
     var includeNutrition = true;
+    var includeCarbohydrates = true;
     var includeCategory = true;
     var includeAnalysisVersion = true;
     while (true) {
       final fields = <String>[
         _baseFields,
         if (includeNutrition) _nutritionFields,
+        if (includeCarbohydrates) _carbohydrateField,
         if (includeCategory) 'category',
         if (includeAnalysisVersion) 'ai_analysis_version',
       ].join(', ');
@@ -303,6 +312,11 @@ class ProductRepository {
         if (includeNutrition && _isMissingNutritionColumn(error)) {
           includeNutrition = false;
           _logMissingNutritionSchema();
+          continue;
+        }
+        if (includeCarbohydrates && _isMissingCarbohydratesColumn(error)) {
+          includeCarbohydrates = false;
+          _logMissingCarbohydratesSchema();
           continue;
         }
         if (includeAnalysisVersion && _isMissingAnalysisVersionColumn(error)) {
@@ -335,6 +349,16 @@ class ProductRepository {
           .from('products')
           .upsert(nutritionData, onConflict: 'barcode');
     } on PostgrestException catch (error) {
+      if (_isMissingCarbohydratesColumn(error)) {
+        _logMissingCarbohydratesSchema();
+        final withoutCarbohydrates = Map<String, dynamic>.of(nutritionData)
+          ..remove('carbohydrates');
+        await _upsertWithSchemaFallback(
+          nutritionData: withoutCarbohydrates,
+          baseData: baseData,
+        );
+        return;
+      }
       if (_isMissingCategoryColumn(error)) {
         _logMissingCategorySchema('products');
         final withoutCategory = Map<String, dynamic>.of(nutritionData)
@@ -344,6 +368,16 @@ class ProductRepository {
               .from('products')
               .upsert(withoutCategory, onConflict: 'barcode');
         } on PostgrestException catch (fallbackError) {
+          if (_isMissingCarbohydratesColumn(fallbackError)) {
+            _logMissingCarbohydratesSchema();
+            final withoutCategoryOrCarbohydrates = Map<String, dynamic>.of(
+              withoutCategory,
+            )..remove('carbohydrates');
+            await _client
+                .from('products')
+                .upsert(withoutCategoryOrCarbohydrates, onConflict: 'barcode');
+            return;
+          }
           if (!_isMissingNutritionColumn(fallbackError)) rethrow;
           _logMissingNutritionSchema();
           final baseWithoutCategory = Map<String, dynamic>.of(baseData)
@@ -375,6 +409,14 @@ class ProductRepository {
       'Supabase products table is missing nutrition columns. '
       'Nutrition will be refreshed from OpenFoodFacts but cannot be cached '
       'until the required columns are added.',
+    );
+  }
+
+  void _logMissingCarbohydratesSchema() {
+    debugPrint(
+      'Supabase products table is missing carbohydrates. Run: '
+      'alter table public.products add column if not exists '
+      'carbohydrates double precision;',
     );
   }
 
@@ -421,6 +463,7 @@ class ProductRepository {
       energyKcal: _number(data['energy_kcal']),
       fat: _number(data['fat']),
       saturatedFat: _number(data['saturated_fat']),
+      carbohydrates: _number(data['carbohydrates']),
       sugars: _number(data['sugars']),
       fiber: _number(data['fiber']),
       protein: _number(data['protein']),

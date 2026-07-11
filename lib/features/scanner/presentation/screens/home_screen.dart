@@ -1,9 +1,37 @@
 import 'package:flutter/material.dart';
+import 'package:labelwise/features/scanner/data/product_repository.dart';
+import 'package:labelwise/features/scanner/data/recent_scan.dart';
+import 'package:labelwise/features/scanner/data/recent_scans_repository.dart';
 import 'package:labelwise/features/scanner/presentation/screens/barcode_scanner_screen.dart';
+import 'package:labelwise/features/scanner/presentation/screens/product_result_screen.dart';
 import 'package:labelwise/features/scanner/presentation/screens/scanner_screen.dart';
+import 'package:labelwise/features/scanner/presentation/widgets/recent_scans_section.dart';
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
+
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  final RecentScansRepository _recentScansRepository =
+      const RecentScansRepository();
+
+  late Future<List<RecentScan>> _recentScans;
+
+  @override
+  void initState() {
+    super.initState();
+    _recentScans = _recentScansRepository.getRecentScans();
+  }
+
+  void _refreshRecentScans() {
+    if (!mounted) return;
+    setState(() {
+      _recentScans = _recentScansRepository.getRecentScans();
+    });
+  }
 
   Future<void> _openBarcodeScanner(BuildContext context) async {
     final barcode = await Navigator.of(context).push<String>(
@@ -21,12 +49,48 @@ class HomeScreen extends StatelessWidget {
         builder: (context) => ScannerScreen(initialBarcode: barcode),
       ),
     );
+    _refreshRecentScans();
   }
 
-  void _openManualLookup(BuildContext context) {
-    Navigator.of(context).push(
+  Future<void> _openManualLookup(BuildContext context) async {
+    await Navigator.of(context).push(
       MaterialPageRoute<void>(builder: (context) => const ScannerScreen()),
     );
+    _refreshRecentScans();
+  }
+
+  Future<void> _openRecentScan(BuildContext context, RecentScan scan) async {
+    try {
+      final productRepository = ProductRepository();
+      final product = await productRepository.getProductByBarcode(scan.barcode);
+      if (!context.mounted) return;
+      if (product == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Ürün bilgileri yüklenemedi.')),
+        );
+        return;
+      }
+
+      await Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (context) => ProductResultScreen(product: product),
+        ),
+      );
+      _refreshRecentScans();
+    } on Object catch (error) {
+      debugPrint('RecentScans: open failed error=$error');
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Ürün yüklenemedi. Lütfen tekrar deneyin.'),
+        ),
+      );
+    }
+  }
+
+  Future<void> _clearRecentScans() async {
+    await _recentScansRepository.clear();
+    _refreshRecentScans();
   }
 
   @override
@@ -172,6 +236,12 @@ class HomeScreen extends StatelessWidget {
                         ),
                       ),
                     ),
+                  ),
+                  const SizedBox(height: 28),
+                  RecentScansSection(
+                    recentScans: _recentScans,
+                    onTap: (scan) => _openRecentScan(context, scan),
+                    onClear: _clearRecentScans,
                   ),
                 ],
               ),

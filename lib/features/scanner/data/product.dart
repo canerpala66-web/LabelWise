@@ -12,6 +12,7 @@ class Product {
     this.energyKcal,
     this.fat,
     this.saturatedFat,
+    this.carbohydrates,
     this.sugars,
     this.salt,
     this.fiber,
@@ -35,6 +36,7 @@ class Product {
   final double? energyKcal;
   final double? fat;
   final double? saturatedFat;
+  final double? carbohydrates;
   final double? sugars;
   final double? salt;
   final double? fiber;
@@ -106,6 +108,7 @@ class Product {
       energyKcal: _number(nutrition['energy-kcal_100g']),
       fat: _number(nutrition['fat_100g']),
       saturatedFat: _number(nutrition['saturated-fat_100g']),
+      carbohydrates: _number(nutrition['carbohydrates_100g']),
       sugars: _number(nutrition['sugars_100g']),
       salt: _number(nutrition['salt_100g']),
       fiber: _number(nutrition['fiber_100g']),

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:labelwise/features/scanner/data/product_barcode_validator.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
 class BarcodeScannerScreen extends StatefulWidget {
@@ -9,7 +10,16 @@ class BarcodeScannerScreen extends StatefulWidget {
 }
 
 class _BarcodeScannerScreenState extends State<BarcodeScannerScreen> {
-  final MobileScannerController _controller = MobileScannerController();
+  static const _acceptedFormats = [
+    BarcodeFormat.ean13,
+    BarcodeFormat.ean8,
+    BarcodeFormat.upcA,
+    BarcodeFormat.upcE,
+  ];
+
+  final MobileScannerController _controller = MobileScannerController(
+    formats: _acceptedFormats,
+  );
 
   bool _hasDetected = false;
 
@@ -18,27 +28,37 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen> {
       return;
     }
 
-    String? barcodeValue;
     for (final barcode in capture.barcodes) {
-      final value = barcode.rawValue?.trim();
-      if (value != null && value.isNotEmpty) {
-        barcodeValue = value;
-        break;
+      final rawValue = barcode.rawValue;
+      final format = barcode.format;
+      final validation = ProductBarcodeValidator.validate(rawValue);
+      final numericValid = validation.isValid;
+
+      debugPrint(
+        'Scanner detected: rawValue=$rawValue, format=${format.name}, '
+        'numericValid=$numericValid',
+      );
+
+      if (!validation.isValid) {
+        debugPrint(
+          'Scanner ignored invalid code: rawValue=$rawValue, '
+          'ignored reason=${validation.reason}',
+        );
+        continue;
       }
-    }
 
-    if (barcodeValue == null) {
+      final barcodeValue = validation.value!;
+      _hasDetected = true;
+      debugPrint('Scanner accepted barcode=$barcodeValue');
+      await _controller.stop();
+
+      if (!mounted) {
+        return;
+      }
+
+      Navigator.of(context).pop(barcodeValue);
       return;
     }
-
-    _hasDetected = true;
-    await _controller.stop();
-
-    if (!mounted) {
-      return;
-    }
-
-    Navigator.of(context).pop(barcodeValue);
   }
 
   @override

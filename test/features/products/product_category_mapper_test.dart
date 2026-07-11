@@ -26,7 +26,7 @@ void main() {
         categoriesTags: const ['en:carbonated-water'],
       );
 
-      expect(category, 'Maden Suyu');
+      expect(category, 'Su & Maden Suyu');
     });
 
     test('returns Belirsiz when no input is available', () {
@@ -36,9 +36,20 @@ void main() {
     test('canonicalizes Turkish category casing and whitespace', () {
       expect(ProductCategoryMapper.canonicalCategory(' CİPS '), 'Cips');
       expect(ProductCategoryMapper.normalizeCategory(' CİPS '), 'cips');
+      expect(
+        ProductCategoryMapper.canonicalCategory('Maden Suyu'),
+        'Su & Maden Suyu',
+      );
+      expect(
+        ProductCategoryMapper.canonicalCategory('Protein Bar'),
+        'Sporcu Ürünü',
+      );
     });
 
     final expectations = <String, String>{
+      'Tütsülenmiş piliç jumbo sosis': 'İşlenmiş Et',
+      'Sucuk': 'İşlenmiş Et',
+      'Salam': 'İşlenmiş Et',
       'Cipso Deniz Tuzlu': 'Cips',
       'Sade Patates Cipsi': 'Cips',
       'Doritos Nacho': 'Cips',
@@ -51,42 +62,64 @@ void main() {
       'Ülker Hanımeller': 'Bisküvi',
       'Oreo': 'Bisküvi',
       'Eti Crax Baharatlı': 'Kraker',
+      'Çubuk Kraker': 'Kraker',
       'Ülker Çizi': 'Kraker',
       'Tuc Kraker': 'Kraker',
       'Coca-Cola Zero': 'Gazlı İçecek',
+      'Coca Cola': 'Gazlı İçecek',
       'Pepsi Max': 'Gazlı İçecek',
+      'Fanta': 'Gazlı İçecek',
       'Uludağ Gazoz': 'Gazlı İçecek',
       'Red Bull': 'Enerji İçeceği',
       'Monster Energy': 'Enerji İçeceği',
+      'Pınar Süt': 'Süt',
       'İçim Süt Tam Yağlı': 'Süt',
       'İçim Tam Yağlı Süt': 'Süt',
       'Pınar Laktozsuz Süt': 'Süt',
       'Sütlü Çikolata': 'Çikolata',
       'Milka Oreo': 'Çikolata',
       'Tadelle': 'Çikolata',
-      'Ülker Çokonat': 'Gofret',
-      'Eti Hoşbeş': 'Gofret',
-      '9 Kat Tat': 'Gofret',
-      'Eti Browni': 'Kek',
-      'Ülker Dankek': 'Kek',
-      'Eti Popkek': 'Kek',
-      'Danone Puding': 'Puding',
-      'Daphne Muzlu Puding': 'Puding',
-      'Danette Çikolatalı': 'Puding',
-      'Supangle': 'Puding',
+      'Ülker Çokonat': 'Bisküvi',
+      'Eti Hoşbeş': 'Bisküvi',
+      '9 Kat Tat': 'Bisküvi',
+      'Eti Browni': 'Kek & Tatlı',
+      'Ülker Dankek': 'Kek & Tatlı',
+      'Eti Popkek': 'Kek & Tatlı',
+      'Danone Puding': 'Sütlü Tatlı',
+      'Daphne Muzlu Puding': 'Sütlü Tatlı',
+      'Danette Çikolatalı': 'Sütlü Tatlı',
+      'Supangle': 'Sütlü Tatlı',
       'Ruffles Soğanlı': 'Cips',
-      'Maden Suyu': 'Maden Suyu',
-      'Beypazarı Maden Suyu': 'Maden Suyu',
-      'Kızılay Soda': 'Maden Suyu',
+      'Maden Suyu': 'Su & Maden Suyu',
+      'Beypazarı Maden Suyu': 'Su & Maden Suyu',
+      'Kızılay Soda': 'Su & Maden Suyu',
       'Pınar Labne': 'Peynir',
+      'Süzme peynir': 'Peynir',
       'Magnum Badem': 'Dondurma',
-      'Nutella': 'Sos',
-      'Dardanel Ton Balığı': 'Konserve',
-      'Knorr Mercimek Çorbası': 'Hazır Çorba',
-      'Barilla Spaghetti': 'Makarna',
-      'Züber Protein Bar': 'Protein Bar',
-      'Lipton Ice Tea Şeftali': 'Meyve Suyu',
-      'Eti Lifalif Granola': 'Kahvaltılık Gevrek',
+      'Nutella': 'Sürülebilir Tatlı',
+      'Sarelle': 'Sürülebilir Tatlı',
+      'Reçel': 'Sürülebilir Tatlı',
+      'Bal': 'Sürülebilir Tatlı',
+      'Ketçap': 'Sos',
+      'Mayonez': 'Sos',
+      'Barbekü sos': 'Sos',
+      'Dardanel Ton Balığı': 'Hazır Yemek & Konserve',
+      'Konserve': 'Hazır Yemek & Konserve',
+      'Knorr Mercimek Çorbası': 'Hazır Yemek & Konserve',
+      'Barilla Spaghetti': 'Tahıl & Bakliyat',
+      'Yulaf': 'Tahıl & Bakliyat',
+      'Granola': 'Tahıl & Bakliyat',
+      'Makarna': 'Tahıl & Bakliyat',
+      'Pirinç': 'Tahıl & Bakliyat',
+      'Züber Protein Bar': 'Sporcu Ürünü',
+      'Whey Protein': 'Sporcu Ürünü',
+      'Bebek maması': 'Bebek Gıdası',
+      'Lipton Ice Tea Şeftali': 'Soğuk Çay',
+      'Didi': 'Soğuk Çay',
+      'Nescafe': 'Kahve',
+      '3ü1 arada': 'Kahve',
+      'Cappuccino': 'Kahve',
+      'Eti Lifalif Granola': 'Tahıl & Bakliyat',
     };
 
     for (final entry in expectations.entries) {
@@ -115,11 +148,11 @@ void main() {
       );
       expect(
         ProductCategoryMapper.inferCategory(productName: 'Sütlü Gofret'),
-        'Gofret',
+        'Bisküvi',
       );
       expect(
         ProductCategoryMapper.inferCategory(productName: 'Sütlü Kek'),
-        'Kek',
+        'Kek & Tatlı',
       );
     });
   });

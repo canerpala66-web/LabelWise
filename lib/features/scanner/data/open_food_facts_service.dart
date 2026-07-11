@@ -74,12 +74,17 @@ class OpenFoodFactsService {
       'energyKcal=${product.energyKcal}, '
       'fat=${product.fat}, '
       'saturatedFat=${product.saturatedFat}, '
+      'carbohydrates=${product.carbohydrates}, '
       'sugars=${product.sugars}, '
       'fiber=${product.fiber}, '
       'protein=${product.protein}, '
       'salt=${product.salt}, '
       'fruitsVegetablesLegumesPercent='
       '${product.fruitsVegetablesLegumesPercent}',
+    );
+    debugPrint(
+      'Nutrition: carbohydrates value=${product.carbohydrates}, '
+      'carbohydrates mapped from source=${product.carbohydrates != null}',
     );
 
     return product;

@@ -351,7 +351,7 @@ class _SubmitProductScreenState extends State<SubmitProductScreen> {
                     _FormSection(
                       title: 'Beslenme Değerleri',
                       helperText:
-                          'Varsa ürün ambalajındaki 100 g / 100 ml beslenme değerlerini girebilirsiniz.',
+                          'Besin değerlerini 100 g / 100 ml için girin. Ürünün ambalajındaki ‘100 g için’ veya ‘100 ml için’ değerleri kullanın.',
                       children: [
                         _NutritionField(
                           controller: _energyController,

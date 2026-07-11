@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:labelwise/features/analysis/models/analysis_result.dart';
 import 'package:labelwise/features/analysis/models/labelwise_score_result.dart';
+import 'package:labelwise/features/analysis/models/processing_profile_result.dart';
 import 'package:labelwise/features/analysis/services/analysis_service.dart';
 import 'package:labelwise/features/analysis/services/labelwise_score_engine.dart';
+import 'package:labelwise/features/analysis/services/processing_profile_engine.dart';
 import 'package:labelwise/features/corrections/presentation/screens/correction_report_screen.dart';
-import 'package:labelwise/features/products/presentation/screens/healthier_alternatives_screen.dart';
+import 'package:labelwise/features/premium/presentation/screens/premium_screen.dart';
 import 'package:labelwise/features/scanner/data/product.dart';
 import 'package:labelwise/features/scanner/data/product_repository.dart';
+import 'package:labelwise/features/scanner/data/recent_scans_repository.dart';
 import 'package:labelwise/features/scanner/presentation/screens/submit_product_screen.dart';
 
 class ProductResultScreen extends StatefulWidget {
@@ -20,7 +23,10 @@ class ProductResultScreen extends StatefulWidget {
 
 class _ProductResultScreenState extends State<ProductResultScreen>
     with SingleTickerProviderStateMixin {
+  static const _sectionSpacing = 20.0;
   final ProductRepository _productRepository = ProductRepository();
+  final RecentScansRepository _recentScansRepository =
+      const RecentScansRepository();
 
   late final AnimationController _entranceController;
   late final Future<String?>? _signedFrontImageUrl;
@@ -42,6 +48,15 @@ class _ProductResultScreenState extends State<ProductResultScreen>
             frontImagePath,
           )
         : null;
+    _saveRecentScan();
+  }
+
+  Future<void> _saveRecentScan() async {
+    try {
+      await _recentScansRepository.saveProduct(widget.product);
+    } on Object catch (error) {
+      debugPrint('RecentScans: save failed error=$error');
+    }
   }
 
   @override
@@ -77,12 +92,19 @@ class _ProductResultScreenState extends State<ProductResultScreen>
       'energyKcal=${product.energyKcal}, '
       'fat=${product.fat}, '
       'saturatedFat=${product.saturatedFat}, '
+      'carbohydrates=${product.carbohydrates}, '
       'sugars=${product.sugars}, '
       'fiber=${product.fiber}, '
       'protein=${product.protein}, '
       'salt=${product.salt}',
     );
+    debugPrint('Nutrition: carbohydrates value=${product.carbohydrates}');
+    debugPrint(
+      'Nutrition: incomplete data warning reason='
+      '${hasInsufficientNutrition ? '3+ scoring-critical fields missing' : 'none'}',
+    );
     final scoreResult = const LabelWiseScoreEngine().calculate(product);
+    final processingProfile = const ProcessingProfileEngine().evaluate(product);
 
     return Scaffold(
       backgroundColor: const Color(0xFFF4F6F5),
@@ -117,6 +139,8 @@ class _ProductResultScreenState extends State<ProductResultScreen>
                       children: [
                         Text(
                           displayName,
+                          maxLines: 3,
+                          overflow: TextOverflow.ellipsis,
                           style: Theme.of(context).textTheme.headlineMedium
                               ?.copyWith(
                                 fontWeight: FontWeight.w800,
@@ -127,6 +151,8 @@ class _ProductResultScreenState extends State<ProductResultScreen>
                         const SizedBox(height: 6),
                         Text(
                           'Marka: $brand',
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
                           style: Theme.of(context).textTheme.titleMedium
                               ?.copyWith(color: const Color(0xFF657069)),
                         ),
@@ -142,12 +168,19 @@ class _ProductResultScreenState extends State<ProductResultScreen>
                                 horizontal: 11,
                                 vertical: 6,
                               ),
-                              child: Text(
-                                'Kategori: $category',
-                                style: const TextStyle(
-                                  color: Color(0xFF42614F),
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w700,
+                              child: ConstrainedBox(
+                                constraints: const BoxConstraints(
+                                  maxWidth: 260,
+                                ),
+                                child: Text(
+                                  'Kategori: $category',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    color: Color(0xFF42614F),
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                  ),
                                 ),
                               ),
                             ),
@@ -156,7 +189,7 @@ class _ProductResultScreenState extends State<ProductResultScreen>
                       ],
                     ),
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: _sectionSpacing),
                   _StaggeredSection(
                     animation: _entranceController,
                     start: 0.12,
@@ -191,7 +224,7 @@ class _ProductResultScreenState extends State<ProductResultScreen>
                       },
                     ),
                   ),
-                  const SizedBox(height: 30),
+                  const SizedBox(height: 28),
                   _StaggeredSection(
                     animation: _entranceController,
                     start: 0.24,
@@ -216,6 +249,15 @@ class _ProductResultScreenState extends State<ProductResultScreen>
                             ],
                           ],
                         ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Besin değerleri 100 g / 100 ml üzerinden değerlendirilir. Bu sayede farklı paket boyutları adil şekilde karşılaştırılır.',
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(
+                                height: 1.45,
+                                color: const Color(0xFF637068),
+                              ),
+                        ),
                         const SizedBox(height: 14),
                         _NutrientGrid(product: product),
                         if (hasInsufficientNutrition) ...[
@@ -225,28 +267,33 @@ class _ProductResultScreenState extends State<ProductResultScreen>
                       ],
                     ),
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: _sectionSpacing),
                   _StaggeredSection(
                     animation: _entranceController,
                     start: 0.30,
                     child: _ScoreReasonsCard(product: product),
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: _sectionSpacing),
                   _StaggeredSection(
                     animation: _entranceController,
-                    start: 0.36,
+                    start: 0.34,
+                    child: _ProcessingProfileCard(result: processingProfile),
+                  ),
+                  const SizedBox(height: _sectionSpacing),
+                  _StaggeredSection(
+                    animation: _entranceController,
+                    start: 0.40,
                     child: _AnalysisCard(product: product),
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: _sectionSpacing),
                   _StaggeredSection(
                     animation: _entranceController,
-                    start: 0.42,
+                    start: 0.46,
                     child: _PremiumAlternativesCard(
                       onTap: () {
                         Navigator.of(context).push(
                           MaterialPageRoute<void>(
-                            builder: (_) =>
-                                HealthierAlternativesScreen(product: product),
+                            builder: (_) => const PremiumScreen(),
                           ),
                         );
                       },
@@ -422,6 +469,12 @@ class _NutrientGrid extends StatelessWidget {
         amount: product.saturatedFat,
         unit: 'g',
         severity: _saturatedFatSeverity(product.saturatedFat),
+      ),
+      _NutrientData(
+        icon: Icons.bakery_dining_outlined,
+        label: 'Karbonhidrat',
+        amount: product.carbohydrates,
+        unit: 'g',
       ),
       _NutrientData(
         icon: Icons.cookie_outlined,
@@ -775,6 +828,193 @@ class _ScoreReason {
   final String text;
   final Color color;
   final IconData icon;
+}
+
+class _ProcessingProfileCard extends StatelessWidget {
+  const _ProcessingProfileCard({required this.result});
+
+  final ProcessingProfileResult result;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = _profileColor(result.grade);
+    final gradeText = _profileGradeText(result.grade);
+    final visibleReasons = result.reasons.take(3).toList(growable: false);
+
+    return Card(
+      margin: EdgeInsets.zero,
+      elevation: 1,
+      shadowColor: const Color(0x14000000),
+      color: Colors.white,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Icon(Icons.eco_outlined, color: color, size: 22),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'İçerik Profili',
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.w800,
+                          color: const Color(0xFF17211B),
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'İçindekiler listesine göre genel bir işlenmişlik değerlendirmesi.',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          height: 1.35,
+                          color: const Color(0xFF657069),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 10),
+                DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 7,
+                    ),
+                    child: Text(
+                      gradeText,
+                      style: TextStyle(
+                        color: color,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 18),
+            Text(
+              result.label,
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                color: const Color(0xFF26342C),
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(height: 7),
+            Text(
+              result.description,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                height: 1.5,
+                color: const Color(0xFF59635D),
+              ),
+            ),
+            if (visibleReasons.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              for (var index = 0; index < visibleReasons.length; index++) ...[
+                _ProcessingReasonRow(
+                  reason: visibleReasons[index],
+                  color: color,
+                ),
+                if (index != visibleReasons.length - 1)
+                  const SizedBox(height: 10),
+              ],
+            ],
+            const SizedBox(height: 16),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF4F7F5),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: const Color(0xFFDCE4DF)),
+              ),
+              child: const Text(
+                ProcessingProfileResult.helperText,
+                style: TextStyle(
+                  height: 1.45,
+                  color: Color(0xFF657069),
+                  fontSize: 12.5,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Color _profileColor(ProcessingProfileGrade grade) {
+    return switch (grade) {
+      ProcessingProfileGrade.a => const Color(0xFF27844B),
+      ProcessingProfileGrade.b => const Color(0xFF9A7A20),
+      ProcessingProfileGrade.c => const Color(0xFFD56A31),
+      ProcessingProfileGrade.unknown => const Color(0xFF7A827D),
+    };
+  }
+
+  String _profileGradeText(ProcessingProfileGrade grade) {
+    return switch (grade) {
+      ProcessingProfileGrade.a => 'A',
+      ProcessingProfileGrade.b => 'B',
+      ProcessingProfileGrade.c => 'C',
+      ProcessingProfileGrade.unknown => '?',
+    };
+  }
+}
+
+class _ProcessingReasonRow extends StatelessWidget {
+  const _ProcessingReasonRow({required this.reason, required this.color});
+
+  final String reason;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: 22,
+          height: 22,
+          margin: const EdgeInsets.only(top: 1),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.12),
+            shape: BoxShape.circle,
+          ),
+          child: Icon(Icons.check_rounded, size: 14, color: color),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Text(
+            reason,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              height: 1.35,
+              fontWeight: FontWeight.w600,
+              color: const Color(0xFF4B5750),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
 }
 
 class _NutrientData {
@@ -1145,8 +1385,10 @@ class _NutriScoreBadge extends StatelessWidget {
     final isKnown = const {'A', 'B', 'C', 'D', 'E'}.contains(normalizedGrade);
     final displayGrade = isKnown ? normalizedGrade! : 'Bilinmiyor';
 
-    return Row(
-      mainAxisSize: MainAxisSize.min,
+    return Wrap(
+      crossAxisAlignment: WrapCrossAlignment.center,
+      spacing: 4,
+      runSpacing: 4,
       children: [
         DecoratedBox(
           decoration: BoxDecoration(
@@ -1157,6 +1399,8 @@ class _NutriScoreBadge extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
             child: Text(
               'Nutri-Score: $displayGrade',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: Theme.of(context).textTheme.labelMedium?.copyWith(
                 color: Colors.white,
                 fontWeight: FontWeight.w700,
@@ -1164,7 +1408,6 @@ class _NutriScoreBadge extends StatelessWidget {
             ),
           ),
         ),
-        const SizedBox(width: 4),
         IconButton(
           onPressed: () => _showNutriScoreInfo(context),
           tooltip: 'Nutri-Score hakkında bilgi',
@@ -1306,10 +1549,14 @@ class _DataTrustCard extends StatelessWidget {
             const SizedBox(height: 16),
             const Divider(height: 1, color: Color(0xFFE8ECE9)),
             const SizedBox(height: 10),
-            Row(
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              crossAxisAlignment: WrapCrossAlignment.center,
               children: [
-                const Expanded(
-                  child: Text(
+                ConstrainedBox(
+                  constraints: const BoxConstraints(minWidth: 180),
+                  child: const Text(
                     'Bu bilgiler doğru değil mi?',
                     style: TextStyle(
                       color: Color(0xFF4B5750),
@@ -1344,6 +1591,8 @@ class _AnalysisCardState extends State<_AnalysisCard> {
   final ProductRepository _productRepository = ProductRepository();
 
   AnalysisResult? _result;
+  AnalysisResult? _cachedResult;
+  Future<AnalysisResult?>? _cacheLookup;
   bool _isLoading = false;
   bool _isCached = false;
   String? _errorMessage;
@@ -1351,26 +1600,164 @@ class _AnalysisCardState extends State<_AnalysisCard> {
   @override
   void initState() {
     super.initState();
-    final cachedResult = _cachedAnalysis(widget.product);
-    if (cachedResult == null) return;
-
-    _result = cachedResult;
-    _isCached = true;
+    _initializeIdleAiState(widget.product);
   }
 
-  Future<void> _generateAnalysis({bool forceRefresh = false}) async {
-    if (!forceRefresh) {
-      final cachedResult = _cachedAnalysis(widget.product);
-      if (cachedResult != null) {
-        setState(() {
-          _result = cachedResult;
-          _isCached = true;
-          _errorMessage = null;
+  @override
+  void didUpdateWidget(covariant _AnalysisCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final oldProduct = oldWidget.product;
+    final product = widget.product;
+    if (oldProduct.barcode != product.barcode ||
+        oldProduct.aiSummary != product.aiSummary ||
+        oldProduct.aiRiskLevel != product.aiRiskLevel ||
+        oldProduct.aiAnalysisVersion != product.aiAnalysisVersion) {
+      _initializeIdleAiState(product);
+    }
+  }
+
+  void _initializeIdleAiState(Product product) {
+    final cachedResult = _cachedAnalysis(product);
+    _result = null;
+    _cachedResult = cachedResult;
+    _cacheLookup = null;
+    _isLoading = false;
+    _errorMessage = null;
+    _isCached = false;
+    debugPrint('AI Card Init: product barcode=${product.barcode}');
+    debugPrint('AI Card Init: cached ai exists=${cachedResult != null}');
+    debugPrint('AI Card Init: initial state=idle_button');
+    debugPrint('AI Card Init: auto showing cached analysis=false');
+    _logAiCacheDecision(
+      product,
+      showingCachedAi: false,
+      showingGenerateButton: true,
+    );
+    if (cachedResult == null) {
+      _startCacheLookup();
+    }
+  }
+
+  void _startCacheLookup() {
+    final lookup = _fetchCachedAnalysisFromRepository();
+    _cacheLookup = lookup;
+    lookup
+        .then((cachedResult) {
+          if (!mounted || _cacheLookup != lookup) return;
+          setState(() {
+            _cachedResult = cachedResult;
+          });
+        })
+        .catchError((Object error) {
+          debugPrint('AI UI: cache lookup failed error=$error');
+          if (!mounted || _cacheLookup != lookup) return;
         });
-        return;
+  }
+
+  Future<AnalysisResult?> _fetchCachedAnalysisFromRepository() async {
+    final barcode = widget.product.barcode.trim();
+    if (barcode.isEmpty) {
+      return null;
+    }
+
+    final cachedProduct = await _productRepository.getProductByBarcode(barcode);
+    if (widget.product.barcode.trim() != barcode) return null;
+
+    final cachedResult = cachedProduct == null
+        ? null
+        : _cachedAnalysis(cachedProduct);
+    _logAiCacheDecision(
+      cachedProduct ?? widget.product,
+      showingCachedAi: false,
+      showingGenerateButton: true,
+    );
+    return cachedResult;
+  }
+
+  Future<AnalysisResult?> _ensureCachedAnalysis() async {
+    if (_cachedResult != null) return _cachedResult;
+
+    final existingLookup = _cacheLookup;
+    if (existingLookup != null) {
+      try {
+        final cachedResult = await existingLookup;
+        if (cachedResult != null) {
+          if (mounted) {
+            setState(() {
+              _cachedResult = cachedResult;
+            });
+          }
+          return cachedResult;
+        }
+      } on Object catch (error) {
+        debugPrint('AI UI: cache lookup failed error=$error');
       }
     }
 
+    try {
+      final cachedResult = await _fetchCachedAnalysisFromRepository();
+      if (mounted) {
+        setState(() {
+          _cachedResult = cachedResult;
+        });
+      }
+      return cachedResult;
+    } on Object catch (error) {
+      debugPrint('AI UI: cache lookup failed error=$error');
+      return null;
+    }
+  }
+
+  Future<void> _handleAnalysisButtonTap() async {
+    if (_isLoading) return;
+
+    setState(() => _errorMessage = null);
+
+    final cachedResult = await _ensureCachedAnalysis();
+    final cachedExists = cachedResult != null;
+    debugPrint('AI Card Button Tap: cached ai exists=$cachedExists');
+
+    if (cachedResult != null) {
+      debugPrint('AI Card Button Tap: action=show_cached');
+      debugPrint('AI Card: showing cached analysis after button tap');
+      if (!mounted) return;
+      setState(() {
+        _result = cachedResult;
+        _isCached = true;
+        _isLoading = false;
+        _errorMessage = null;
+      });
+      return;
+    }
+
+    debugPrint('AI Card Button Tap: action=generate_new');
+    debugPrint('AI Card: generating new analysis');
+    await _generateAnalysis();
+  }
+
+  void _logAiCacheDecision(
+    Product product, {
+    required bool showingCachedAi,
+    required bool showingGenerateButton,
+  }) {
+    final summaryExists = product.aiSummary?.trim().isNotEmpty ?? false;
+    final summaryEmpty = !summaryExists;
+    debugPrint('AI Cache Debug: product barcode=${product.barcode}');
+    debugPrint('AI Cache Debug: ai_summary empty=$summaryEmpty');
+    debugPrint('AI Cache Debug: ai_risk_level=${product.aiRiskLevel}');
+    debugPrint(
+      'AI Cache Debug: ai_analysis_version=${product.aiAnalysisVersion}',
+    );
+    debugPrint(
+      'AI Cache Debug: current_ai_version=${AnalysisService.analysisVersion}',
+    );
+    debugPrint('AI Cache Debug: showing cached AI=$showingCachedAi');
+    debugPrint(
+      'AI Cache Debug: showing generate button=$showingGenerateButton',
+    );
+  }
+
+  Future<void> _generateAnalysis() async {
     setState(() {
       _isLoading = true;
       _errorMessage = null;
@@ -1389,6 +1776,8 @@ class _AnalysisCardState extends State<_AnalysisCard> {
         debugPrint(
           'AI: saved analysis version=${AnalysisService.analysisVersion}',
         );
+      } else {
+        debugPrint('AI: saved analysis without version column');
       }
 
       if (!mounted) {
@@ -1397,6 +1786,7 @@ class _AnalysisCardState extends State<_AnalysisCard> {
 
       setState(() {
         _result = result;
+        _cachedResult = result;
         _isLoading = false;
         _isCached = false;
       });
@@ -1431,19 +1821,39 @@ class _AnalysisCardState extends State<_AnalysisCard> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Yapay Zeka Yorumu',
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.w700,
-                color: const Color(0xFF17211B),
-              ),
+            Row(
+              children: [
+                Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFE5F2E9),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: const Icon(
+                    Icons.auto_awesome_outlined,
+                    color: Color(0xFF175C3B),
+                    size: 21,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'Yapay Zeka Yorumu',
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w700,
+                      color: const Color(0xFF17211B),
+                    ),
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 16),
             if (_isLoading)
               const Center(
                 child: Column(
                   children: [
-                    CircularProgressIndicator(),
+                    CircularProgressIndicator(color: Color(0xFF175C3B)),
                     SizedBox(height: 12),
                     Text(
                       'Güvenli yorum hazırlanıyor...',
@@ -1461,24 +1871,34 @@ class _AnalysisCardState extends State<_AnalysisCard> {
                 ),
               ),
               const SizedBox(height: 16),
-              DecoratedBox(
-                decoration: BoxDecoration(
-                  color: _riskColor(result.riskLevel).withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(999),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 7,
-                  ),
-                  child: Text(
-                    'Risk seviyesi: ${_localizedRiskLevel(result.riskLevel)}',
-                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                      color: _riskColor(result.riskLevel),
-                      fontWeight: FontWeight.w800,
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: _riskColor(
+                        result.riskLevel,
+                      ).withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 7,
+                      ),
+                      child: Text(
+                        'Risk seviyesi: ${_localizedRiskLevel(result.riskLevel)}',
+                        style: Theme.of(context).textTheme.labelMedium
+                            ?.copyWith(
+                              color: _riskColor(result.riskLevel),
+                              fontWeight: FontWeight.w800,
+                            ),
+                      ),
                     ),
                   ),
-                ),
+                ],
               ),
               if (_isCached) ...[
                 const SizedBox(height: 10),
@@ -1500,11 +1920,28 @@ class _AnalysisCardState extends State<_AnalysisCard> {
                 Text(message, style: const TextStyle(color: Color(0xFFB3261E))),
               ],
               const SizedBox(height: 14),
-              FilledButton.icon(
-                onPressed: () => _generateAnalysis(),
-                icon: const Icon(Icons.auto_awesome_outlined),
-                label: Text(
-                  _errorMessage == null ? 'Analizi Oluştur' : 'Tekrar Dene',
+              Align(
+                alignment: Alignment.center,
+                child: FilledButton.icon(
+                  onPressed: _handleAnalysisButtonTap,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: const Color(0xFF175C3B),
+                    foregroundColor: Colors.white,
+                    minimumSize: const Size(190, 50),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 22,
+                      vertical: 14,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    textStyle: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  icon: const Icon(Icons.auto_awesome_outlined, size: 19),
+                  label: Text(_analysisButtonText),
                 ),
               ),
             ],
@@ -1512,6 +1949,12 @@ class _AnalysisCardState extends State<_AnalysisCard> {
         ),
       ),
     );
+  }
+
+  String get _analysisButtonText {
+    if (_errorMessage != null) return 'Tekrar Dene';
+    if (_cachedResult != null) return 'AI Analizini Göster';
+    return 'Analizi Oluştur';
   }
 
   String _localizedRiskLevel(String riskLevel) {
@@ -1536,13 +1979,6 @@ class _AnalysisCardState extends State<_AnalysisCard> {
     final summary = product.aiSummary?.trim();
     final riskLevel = product.aiRiskLevel?.trim();
     final cacheVersion = product.aiAnalysisVersion?.trim();
-    debugPrint('AI: cache version=$cacheVersion');
-    if (cacheVersion != AnalysisService.analysisVersion) {
-      if ((summary?.isNotEmpty ?? false) || (riskLevel?.isNotEmpty ?? false)) {
-        debugPrint('AI: cache ignored old version');
-      }
-      return null;
-    }
     if (summary == null ||
         summary.isEmpty ||
         riskLevel == null ||
@@ -1550,11 +1986,41 @@ class _AnalysisCardState extends State<_AnalysisCard> {
       return null;
     }
 
-    debugPrint('AI: cache hit v3');
+    if (!_isUsableCachedAnalysisVersion(cacheVersion)) {
+      debugPrint(
+        'AI: cache ignored version=$cacheVersion, '
+        'current=${AnalysisService.analysisVersion}',
+      );
+      return null;
+    }
+
+    debugPrint('AI: cache hit version=${cacheVersion ?? 'legacy'}');
     return AnalysisResult(
       summary: summary,
       riskLevel: _normalizeRiskLevel(riskLevel),
     );
+  }
+
+  bool _isUsableCachedAnalysisVersion(String? cacheVersion) {
+    final normalizedCacheVersion = cacheVersion?.trim().toLowerCase();
+    if (normalizedCacheVersion == null || normalizedCacheVersion.isEmpty) {
+      debugPrint('AI: cache version missing; using saved summary/risk');
+      return true;
+    }
+
+    final currentVersion = AnalysisService.analysisVersion.trim().toLowerCase();
+    if (normalizedCacheVersion == currentVersion) return true;
+
+    final compactCacheVersion = normalizedCacheVersion.replaceAll(
+      RegExp(r'[^a-z0-9]'),
+      '',
+    );
+    final compactCurrentVersion = currentVersion.replaceAll(
+      RegExp(r'[^a-z0-9]'),
+      '',
+    );
+    return compactCacheVersion == compactCurrentVersion ||
+        compactCacheVersion.endsWith(compactCurrentVersion);
   }
 
   String _normalizeRiskLevel(String riskLevel) {
@@ -1618,20 +2084,21 @@ class _PremiumAlternativesCard extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        crossAxisAlignment: WrapCrossAlignment.center,
                         children: [
-                          Expanded(
-                            child: Text(
-                              'Daha Sağlıklı Alternatifler',
-                              style: Theme.of(context).textTheme.titleMedium
-                                  ?.copyWith(
-                                    fontWeight: FontWeight.w800,
-                                    color: Colors.white,
-                                  ),
-                            ),
+                          Text(
+                            'Daha Sağlıklı Alternatifler',
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context).textTheme.titleMedium
+                                ?.copyWith(
+                                  fontWeight: FontWeight.w800,
+                                  color: Colors.white,
+                                ),
                           ),
-                          const SizedBox(width: 8),
                           DecoratedBox(
                             decoration: BoxDecoration(
                               color: const Color(0xFFFFD782),

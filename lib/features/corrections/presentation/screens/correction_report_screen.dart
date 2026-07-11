@@ -43,12 +43,6 @@ class _CorrectionReportScreenState extends State<CorrectionReportScreen> {
 
     final isFormValid = _formKey.currentState?.validate() ?? false;
     final hasIssue = _selectedIssue != null;
-    setState(() {
-      _issueError = hasIssue ? null : 'Lütfen bir sorun türü seçin.';
-    });
-    if (!isFormValid || !hasIssue) return;
-    debugPrint('CorrectionReport: validation passed');
-
     final correctedValues = (
       energyKcal: _parseNumber(_energyController.text),
       fat: _parseNumber(_fatController.text),
@@ -58,6 +52,31 @@ class _CorrectionReportScreenState extends State<CorrectionReportScreen> {
       protein: _parseNumber(_proteinController.text),
       salt: _parseNumber(_saltController.text),
     );
+    final hasCorrectionDetails =
+        correctedValues.energyKcal != null ||
+        correctedValues.fat != null ||
+        correctedValues.saturatedFat != null ||
+        correctedValues.sugars != null ||
+        correctedValues.fiber != null ||
+        correctedValues.protein != null ||
+        correctedValues.salt != null ||
+        _noteController.text.trim().isNotEmpty;
+    setState(() {
+      _issueError = hasIssue ? null : 'Lütfen bir sorun türü seçin.';
+      _errorMessage = hasCorrectionDetails
+          ? null
+          : 'Lütfen en az bir düzeltme değeri veya açıklama girin.';
+    });
+    if (!isFormValid || !hasIssue || !hasCorrectionDetails) {
+      debugPrint(
+        'CorrectionReport: validation failed '
+        'isFormValid=$isFormValid, hasIssue=$hasIssue, '
+        'hasCorrectionDetails=$hasCorrectionDetails',
+      );
+      return;
+    }
+    debugPrint('CorrectionReport: validation passed');
+
     debugPrint('CorrectionReport: barcode=${widget.product.barcode}');
     debugPrint('CorrectionReport: reportedIssue=$_selectedIssue');
     debugPrint(
@@ -78,6 +97,23 @@ class _CorrectionReportScreenState extends State<CorrectionReportScreen> {
     });
 
     try {
+      final payloadPreview = <String, Object?>{
+        'barcode': widget.product.barcode,
+        'product_name': widget.product.productName,
+        'brand': widget.product.brands,
+        'reported_issue': _selectedIssue,
+        'corrected_energy_kcal': correctedValues.energyKcal,
+        'corrected_fat': correctedValues.fat,
+        'corrected_saturated_fat': correctedValues.saturatedFat,
+        'corrected_sugars': correctedValues.sugars,
+        'corrected_fiber': correctedValues.fiber,
+        'corrected_protein': correctedValues.protein,
+        'corrected_salt': correctedValues.salt,
+        'note': _noteController.text.trim(),
+        'status': 'pending',
+        'source': 'user_correction',
+      };
+      debugPrint('CorrectionReport: inserting payload=$payloadPreview');
       debugPrint('CorrectionReport: calling repository insert');
       await _repository.submitCorrectionReport(
         barcode: widget.product.barcode,
@@ -211,7 +247,7 @@ class _CorrectionReportScreenState extends State<CorrectionReportScreen> {
                     _FormSection(
                       title: 'Doğru beslenme değerleri',
                       helperText:
-                          'Varsa ambalajdaki 100 g / 100 ml değerlerini girin.',
+                          'Besin değerlerini 100 g / 100 ml için girin. Ürünün ambalajındaki ‘100 g için’ veya ‘100 ml için’ değerleri kullanın.',
                       children: [
                         _NutritionField(
                           controller: _energyController,
@@ -331,7 +367,7 @@ class _CorrectionReportScreenState extends State<CorrectionReportScreen> {
                           borderRadius: BorderRadius.circular(16),
                         ),
                         child: const Text(
-                          'Teşekkürler! Düzeltme bildiriminiz incelemeye alındı.',
+                          'Bildiriminiz gönderildi, teşekkürler.',
                           textAlign: TextAlign.center,
                           style: TextStyle(
                             color: Color(0xFF175C3B),
