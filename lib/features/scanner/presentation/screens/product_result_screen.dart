@@ -1988,20 +1988,23 @@ class _AnalysisCardState extends State<_AnalysisCard> {
   }
 
   Future<void> _handleAnalysisButtonTap() async {
-    if (_isLoading) return;
+    if (_isLoading) {
+      debugPrint('AI Button: tapped while loading=true, ignoring');
+      return;
+    }
 
-    setState(() => _errorMessage = null);
+    debugPrint('AI Button: tapped');
+    debugPrint('AI Button: product barcode=${widget.product.barcode}');
 
-    final cachedResult = await _ensureCachedAnalysis();
-    final cachedExists = cachedResult != null;
-    debugPrint('AI Card Button Tap: cached ai exists=$cachedExists');
+    final localCachedResult = _cachedResult;
+    final hasCachedAi = localCachedResult != null;
+    debugPrint('AI Button: hasCachedAi=$hasCachedAi');
 
-    if (cachedResult != null) {
-      debugPrint('AI Card Button Tap: action=show_cached');
-      debugPrint('AI Card: showing cached analysis after button tap');
+    if (localCachedResult != null) {
+      debugPrint('AI Button: showing cached result');
       if (!mounted) return;
       setState(() {
-        _result = cachedResult;
+        _result = localCachedResult;
         _isCached = true;
         _isLoading = false;
         _errorMessage = null;
@@ -2009,9 +2012,45 @@ class _AnalysisCardState extends State<_AnalysisCard> {
       return;
     }
 
-    debugPrint('AI Card Button Tap: action=generate_new');
-    debugPrint('AI Card: generating new analysis');
-    await _generateAnalysis();
+    debugPrint('AI Button: cached=false, generating=true');
+    if (mounted) {
+      setState(() {
+        _isLoading = true;
+        _errorMessage = null;
+      });
+    }
+
+    try {
+      final cachedResult = await _ensureCachedAnalysis();
+      final cachedExists = cachedResult != null;
+      debugPrint('AI Card Button Tap: cached ai exists=$cachedExists');
+
+      if (cachedResult != null) {
+        debugPrint('AI Card Button Tap: action=show_cached');
+        debugPrint('AI Button: showing cached result');
+        if (!mounted) return;
+        setState(() {
+          _result = cachedResult;
+          _isCached = true;
+          _isLoading = false;
+          _errorMessage = null;
+        });
+        return;
+      }
+
+      debugPrint('AI Card Button Tap: action=generate_new');
+      debugPrint('AI Button: calling analysis service');
+      await _generateAnalysis();
+    } on Object catch (error, stackTrace) {
+      debugPrint('AI Button: analysis service error=$error');
+      debugPrintStack(stackTrace: stackTrace);
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+        _errorMessage =
+            'Yapay zeka yorumu oluşturulamadı. Lütfen tekrar deneyin.';
+      });
+    }
   }
 
   void _logAiCacheDecision(
@@ -2037,32 +2076,15 @@ class _AnalysisCardState extends State<_AnalysisCard> {
   }
 
   Future<void> _generateAnalysis() async {
-    setState(() {
-      _isLoading = true;
-      _errorMessage = null;
-    });
-
     try {
-      debugPrint('AI: calling OpenAI');
+      debugPrint('AI Button: calling analysis service');
       final result = await _analysisService.generateAnalysis(widget.product);
-      final versionSaved = await _productRepository.updateAiAnalysis(
-        barcode: widget.product.barcode,
-        summary: result.summary,
-        riskLevel: result.riskLevel,
-        analysisVersion: AnalysisService.analysisVersion,
-      );
-      if (versionSaved) {
-        debugPrint(
-          'AI: saved analysis version=${AnalysisService.analysisVersion}',
-        );
-      } else {
-        debugPrint('AI: saved analysis without version column');
-      }
 
       if (!mounted) {
         return;
       }
 
+      debugPrint('AI Button: analysis service success');
       setState(() {
         _result = result;
         _cachedResult = result;
@@ -2070,6 +2092,7 @@ class _AnalysisCardState extends State<_AnalysisCard> {
         _isCached = false;
       });
     } on Object catch (error, stackTrace) {
+      debugPrint('AI Button: analysis service error=$error');
       debugPrint('AI analysis failed: $error');
       debugPrintStack(stackTrace: stackTrace);
 

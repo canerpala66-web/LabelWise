@@ -4,6 +4,4 @@ abstract final class Env {
   static String get supabaseUrl => dotenv.get('SUPABASE_URL');
 
   static String get supabaseAnonKey => dotenv.get('SUPABASE_ANON_KEY');
-
-  static String get openAiApiKey => dotenv.env['OPENAI_API_KEY'] ?? '';
 }

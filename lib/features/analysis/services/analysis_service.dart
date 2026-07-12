@@ -1,226 +1,74 @@
-import 'dart:convert';
-
 import 'package:flutter/foundation.dart';
-import 'package:http/http.dart' as http;
-import 'package:labelwise/core/config/env.dart';
 import 'package:labelwise/features/analysis/models/analysis_result.dart';
-import 'package:labelwise/features/analysis/services/analysis_prompt_builder.dart';
-import 'package:labelwise/features/analysis/services/analysis_risk_guardrails.dart';
-import 'package:labelwise/features/analysis/services/labelwise_score_engine.dart';
-import 'package:labelwise/features/products/services/product_category_mapper.dart';
 import 'package:labelwise/features/scanner/data/product.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class AnalysisService {
   const AnalysisService();
 
   static const analysisVersion = 'v3';
-  static const _endpoint = 'https://api.openai.com/v1/responses';
-  static const _model = 'gpt-4.1-mini';
+  static const _functionName = 'generate-product-ai-analysis';
 
   Future<AnalysisResult> generateAnalysis(Product product) async {
-    final apiKey = Env.openAiApiKey.trim();
-    if (apiKey.isEmpty) {
-      throw Exception(
-        'OPENAI_API_KEY is missing. Please add it to .env and restart the app.',
-      );
+    final barcode = product.barcode.trim();
+    if (barcode.isEmpty) {
+      throw Exception('Product barcode is missing.');
     }
 
-    final scoreResult = const LabelWiseScoreEngine().calculate(product);
-    const promptBuilder = AnalysisPromptBuilder();
-    final productCategory = _effectiveCategory(product);
-    final dataCompleteness = promptBuilder.calculateDataCompleteness(
-      energyKcal: product.energyKcal,
-      fat: product.fat,
-      saturatedFat: product.saturatedFat,
-      sugars: product.sugars,
-      fiber: product.fiber,
-      protein: product.protein,
-      salt: product.salt,
-    );
-    debugPrint(
-      'AI: score=${scoreResult.score}, category=$productCategory, '
-      'dataCompleteness=$dataCompleteness',
-    );
-    final prompt = promptBuilder.buildPrompt(
-      productName: product.productName,
-      brand: product.brands,
-      ingredients: product.ingredientsText == 'İçindekiler bilgisi bulunamadı'
-          ? ''
-          : product.ingredientsText,
-      labelwiseScore: scoreResult.score,
-      labelwiseCategory: scoreResult.category,
-      productCategory: productCategory,
-      scoreReasons: scoreResult.reasons,
-      nutriscoreGrade: product.nutriscoreGrade,
-      energyKcal: product.energyKcal,
-      fat: product.fat,
-      saturatedFat: product.saturatedFat,
-      sugars: product.sugars,
-      fiber: product.fiber,
-      protein: product.protein,
-      salt: product.salt,
-    );
+    debugPrint('AI Edge Function Flutter: calling function barcode=$barcode');
 
-    debugPrint('AI: calling OpenAI');
-
-    final response = await http.post(
-      Uri.parse(_endpoint),
-      headers: {
-        'Authorization': 'Bearer $apiKey',
-        'Content-Type': 'application/json',
-      },
-      body: jsonEncode({
-        'model': _model,
-        'input': prompt,
-        'temperature': 0.2,
-        'max_output_tokens': 250,
-        'store': false,
-        'text': {
-          'format': {
-            'type': 'json_schema',
-            'name': 'labelwise_analysis',
-            'strict': true,
-            'schema': {
-              'type': 'object',
-              'properties': {
-                'summary': {'type': 'string'},
-                'risk_level': {
-                  'type': 'string',
-                  'enum': ['düşük', 'orta', 'yüksek', 'bilinmiyor'],
-                },
-              },
-              'required': ['summary', 'risk_level'],
-              'additionalProperties': false,
-            },
-          },
-        },
-      }),
-    );
-
-    debugPrint('LabelWise Analysis response received: ${response.statusCode}.');
-
-    if (response.statusCode < 200 || response.statusCode >= 300) {
-      final bodyPreview = response.body.length > 500
-          ? response.body.substring(0, 500)
-          : response.body;
-      debugPrint('OpenAI Responses API error body: $bodyPreview');
-      throw Exception(
-        'OpenAI Responses API request failed (${response.statusCode}).',
-      );
-    }
-
+    dynamic data;
     try {
-      final responseJson = jsonDecode(utf8.decode(response.bodyBytes));
-      final outputText = _extractOutputText(responseJson);
-      return _parseResult(
-        outputText,
-        product: product,
-        labelwiseScore: scoreResult.score,
+      final response = await Supabase.instance.client.functions.invoke(
+        _functionName,
+        body: {'barcode': barcode},
       );
+      data = response.data;
+      debugPrint('AI Edge Function Flutter: function response raw=$data');
     } on Object catch (error, stackTrace) {
-      debugPrint('LabelWise Analysis JSON parsing error: $error');
+      debugPrint('AI Edge Function Flutter error: $error');
       debugPrintStack(stackTrace: stackTrace);
-      throw const FormatException('OpenAI analysis response is invalid.');
-    }
-  }
-
-  static String _extractOutputText(Object? responseJson) {
-    if (responseJson is! Map<String, dynamic>) {
-      throw const FormatException('Invalid Responses API payload.');
+      rethrow;
     }
 
-    final output = responseJson['output'];
-    if (output is! List) {
-      throw const FormatException('Responses API output is missing.');
+    if (data is! Map) {
+      debugPrint('AI Edge Function Flutter: function error=invalid response');
+      throw const FormatException('AI function response is invalid.');
     }
 
-    for (final item in output) {
-      if (item is! Map<String, dynamic> || item['type'] != 'message') {
-        continue;
-      }
-
-      final content = item['content'];
-      if (content is! List) {
-        continue;
-      }
-
-      for (final part in content) {
-        if (part is Map<String, dynamic> && part['type'] == 'output_text') {
-          final text = part['text'];
-          if (text is String && text.isNotEmpty) {
-            return text;
-          }
-        }
-      }
-    }
-
-    throw const FormatException('Responses API output text is missing.');
-  }
-
-  static AnalysisResult _parseResult(
-    String outputText, {
-    required Product product,
-    required int? labelwiseScore,
-  }) {
-    final data = jsonDecode(outputText);
-    if (data is! Map<String, dynamic>) {
-      throw const FormatException('Analysis output is not a JSON object.');
+    final error = data['error'];
+    final step = data['step'];
+    debugPrint('AI Edge Function Flutter: function error=$error');
+    debugPrint('AI Edge Function Flutter: status/details step=$step');
+    if (error is String && error.trim().isNotEmpty) {
+      throw Exception(
+        step is String && step.trim().isNotEmpty
+            ? '${error.trim()} [step=$step]'
+            : error.trim(),
+      );
     }
 
     final summary = data['summary'];
     final riskLevel = data['risk_level'];
 
     if (summary is! String || summary.trim().isEmpty) {
-      throw const FormatException('Analysis summary is invalid.');
-    }
-    final safeRiskLevel = AnalysisRiskGuardrails.apply(
-      riskLevel,
-      product: product,
-      labelwiseScore: labelwiseScore,
-    );
-    debugPrint('AI: normalized riskLevel=$safeRiskLevel');
-
-    final safeSummary = _limitWords(summary.trim(), 55);
-    if (_containsForbiddenLanguage(safeSummary)) {
-      throw const FormatException('Analysis summary contains unsafe wording.');
+      throw const FormatException('AI function summary is invalid.');
     }
 
-    return AnalysisResult(summary: safeSummary, riskLevel: safeRiskLevel);
+    final normalizedRisk = _normalizeRiskLevel(riskLevel);
+    debugPrint('AI: function normalized riskLevel=$normalizedRisk');
+
+    return AnalysisResult(summary: summary.trim(), riskLevel: normalizedRisk);
   }
 
-  static String _limitWords(String text, int maximumWords) {
-    final words = text.split(RegExp(r'\s+'));
-    if (words.length <= maximumWords) {
-      return text;
-    }
-    return '${words.take(maximumWords).join(' ')}…';
-  }
-
-  static bool _containsForbiddenLanguage(String summary) {
-    final normalizedSummary = summary.toLowerCase();
-    return const [
-      'asla tüketmeyin',
-      'kesinlikle tüketmeyin',
-      'kanser yapar',
-      'kanser',
-      'toksik',
-      'zehir',
-      'zehirlidir',
-      'güvenlidir',
-      'zararlıdır',
-      'sağlıklıdır',
-    ].any(normalizedSummary.contains);
-  }
-
-  static String _effectiveCategory(Product product) {
-    final category = product.category?.trim();
-    if (category != null && category.isNotEmpty && category != 'Belirsiz') {
-      return category;
-    }
-    return ProductCategoryMapper.inferCategory(
-      productName: product.productName,
-      brand: product.brands,
-      ingredientsText: product.ingredientsText,
-    );
+  String _normalizeRiskLevel(Object? riskLevel) {
+    final normalized = riskLevel is String
+        ? riskLevel.trim().toLowerCase()
+        : '';
+    return switch (normalized) {
+      'düşük' || 'low' => 'düşük',
+      'yüksek' || 'high' => 'yüksek',
+      _ => 'orta',
+    };
   }
 }
