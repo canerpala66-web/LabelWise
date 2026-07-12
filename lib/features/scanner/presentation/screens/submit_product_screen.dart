@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:labelwise/core/theme/app_tokens.dart';
 import 'package:labelwise/features/products/services/product_category_mapper.dart';
 import 'package:labelwise/features/scanner/data/submitted_product_repository.dart';
 
@@ -152,7 +153,9 @@ class _SubmitProductScreenState extends State<SubmitProductScreen> {
         _isSubmitted = true;
       });
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Ürün inceleme için gönderildi.')),
+        const SnackBar(
+          content: Text('Ürün incelemeye gönderildi. Teşekkürler!'),
+        ),
       );
     } on PhotoUploadException catch (error, stackTrace) {
       debugPrint('SubmitProduct: failed step=image_upload, error=$error');
@@ -208,21 +211,28 @@ class _SubmitProductScreenState extends State<SubmitProductScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
     return Scaffold(
-      backgroundColor: const Color(0xFFF4F7F5),
+      backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: const Color(0xFFF4F7F5),
-        foregroundColor: const Color(0xFF17211B),
+        backgroundColor: AppColors.background,
+        foregroundColor: AppColors.primaryText,
         elevation: 0,
         title: const Text(
           'Ürün Gönder',
-          style: TextStyle(fontWeight: FontWeight.w700),
+          style: TextStyle(fontWeight: FontWeight.w800),
         ),
       ),
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.pagePadding,
+              16,
+              AppSpacing.pagePadding,
+              32,
+            ),
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 560),
               child: Form(
@@ -230,43 +240,59 @@ class _SubmitProductScreenState extends State<SubmitProductScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: Container(
-                        width: 52,
-                        height: 52,
-                        alignment: Alignment.center,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFE2F0E7),
-                          borderRadius: BorderRadius.circular(17),
-                        ),
-                        child: const Icon(
-                          Icons.add_box_outlined,
-                          color: Color(0xFF175C3B),
-                          size: 28,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 22),
-                    Text(
-                      'Ürünü İncelemeye Gönder',
-                      style: Theme.of(context).textTheme.headlineSmall
-                          ?.copyWith(
-                            fontWeight: FontWeight.w800,
-                            color: const Color(0xFF17211B),
+                    Container(
+                      padding: const EdgeInsets.all(AppSpacing.cardPadding),
+                      decoration: BoxDecoration(
+                        color: AppColors.surface,
+                        borderRadius: BorderRadius.circular(AppRadii.hero),
+                        border: Border.all(color: AppColors.border),
+                        boxShadow: const [
+                          BoxShadow(
+                            color: Color(0x0C000000),
+                            blurRadius: 20,
+                            offset: Offset(0, 8),
                           ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Bu ürünün bilgilerini göndererek LabelWise veritabanının gelişmesine yardımcı olabilirsiniz.',
-                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                        height: 1.45,
-                        color: const Color(0xFF637068),
+                        ],
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Container(
+                            width: 56,
+                            height: 56,
+                            alignment: Alignment.center,
+                            decoration: BoxDecoration(
+                              color: AppColors.softSurface,
+                              borderRadius: BorderRadius.circular(18),
+                            ),
+                            child: const Icon(
+                              Icons.add_box_outlined,
+                              color: AppColors.primary,
+                              size: 28,
+                            ),
+                          ),
+                          const SizedBox(height: 18),
+                          Text(
+                            'Ürünü İncelemeye Gönder',
+                            style: theme.textTheme.headlineSmall?.copyWith(
+                              fontWeight: FontWeight.w800,
+                              color: AppColors.primaryText,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Bu ürünü birlikte LabelWise veritabanına ekleyelim. Gönderdiğin bilgiler önce incelenir, ardından ürün sayfasında gösterilir.',
+                            style: theme.textTheme.bodyLarge?.copyWith(
+                              height: 1.5,
+                              color: AppColors.mutedText,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                    const SizedBox(height: 24),
+                    const SizedBox(height: AppSpacing.sectionSpacing),
                     _FormSection(
-                      title: 'Temel Bilgiler',
+                      title: 'Ürün Bilgileri',
                       children: [
                         _SubmissionField(
                           controller: _barcodeController,
@@ -293,9 +319,31 @@ class _SubmitProductScreenState extends State<SubmitProductScreen> {
                             helperText:
                                 'Ürünün hangi gruba ait olduğunu seçebilirsiniz.',
                             filled: true,
-                            fillColor: const Color(0xFFF7F9F7),
+                            fillColor: AppColors.softSurface,
                             border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(16),
+                              borderRadius: BorderRadius.circular(
+                                AppRadii.button,
+                              ),
+                              borderSide: const BorderSide(
+                                color: AppColors.border,
+                              ),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(
+                                AppRadii.button,
+                              ),
+                              borderSide: const BorderSide(
+                                color: AppColors.border,
+                              ),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(
+                                AppRadii.button,
+                              ),
+                              borderSide: const BorderSide(
+                                color: AppColors.primary,
+                                width: 1.5,
+                              ),
                             ),
                           ),
                           items: [
@@ -317,13 +365,13 @@ class _SubmitProductScreenState extends State<SubmitProductScreen> {
                     ),
                     const SizedBox(height: 16),
                     _FormSection(
-                      title: 'Ürün Fotoğrafları',
+                      title: 'Fotoğraflar',
                       helperText:
                           'Fotoğraf eklemek isteğe bağlıdır. Ürünün ön yüzü, beslenme tablosu ve içindekiler fotoğrafı inceleme sürecini hızlandırır.',
                       children: [
                         _PhotoPickerCard(
                           title: 'Ürün Ön Yüzü',
-                          subtitle: 'Ambalajın ön tarafını çekin.',
+                          subtitle: 'Ambalajın ön tarafını ekleyin.',
                           photo: _frontPhoto,
                           onPick: () => _pickPhoto(_PhotoType.front),
                           enabled: !_isSubmitting && !_isSubmitted,
@@ -332,7 +380,7 @@ class _SubmitProductScreenState extends State<SubmitProductScreen> {
                         _PhotoPickerCard(
                           title: 'Beslenme Tablosu',
                           subtitle:
-                              '100 g / 100 ml değerlerinin olduğu tabloyu çekin.',
+                              '100 g / 100 ml değerlerinin olduğu tabloyu ekleyin.',
                           photo: _nutritionPhoto,
                           onPick: () => _pickPhoto(_PhotoType.nutrition),
                           enabled: !_isSubmitting && !_isSubmitted,
@@ -340,7 +388,8 @@ class _SubmitProductScreenState extends State<SubmitProductScreen> {
                         const SizedBox(height: 14),
                         _PhotoPickerCard(
                           title: 'İçindekiler',
-                          subtitle: 'İçindekiler listesini net şekilde çekin.',
+                          subtitle:
+                              'İçindekiler listesini net şekilde ekleyin.',
                           photo: _ingredientsPhoto,
                           onPick: () => _pickPhoto(_PhotoType.ingredients),
                           enabled: !_isSubmitting && !_isSubmitted,
@@ -399,7 +448,8 @@ class _SubmitProductScreenState extends State<SubmitProductScreen> {
                     const SizedBox(height: 16),
                     _FormSection(
                       title: 'İçerik Bilgisi',
-                      helperText: 'İçindekiler alanı isteğe bağlıdır.',
+                      helperText:
+                          'İçindekiler alanı isteğe bağlıdır. Dilersen ürünle ilgili kısa bir not da ekleyebilirsin.',
                       children: [
                         _SubmissionField(
                           controller: _ingredientsController,
@@ -413,21 +463,35 @@ class _SubmitProductScreenState extends State<SubmitProductScreen> {
                       Container(
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFFFF1EF),
-                          borderRadius: BorderRadius.circular(16),
+                          color: const Color(0xFFFFF7F4),
+                          borderRadius: BorderRadius.circular(18),
                           border: Border.all(color: const Color(0xFFF5D4CF)),
                         ),
                         child: Text(
                           message,
-                          style: const TextStyle(color: Color(0xFF81382E)),
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: const Color(0xFF81382E),
+                            height: 1.45,
+                          ),
                         ),
                       ),
                     ],
                     const SizedBox(height: 18),
-                    const Text(
-                      'Gönderilen ürünler kontrol edildikten sonra LabelWise veritabanına eklenir.',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(height: 1.4, color: Color(0xFF637068)),
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: AppColors.softSurface,
+                        borderRadius: BorderRadius.circular(18),
+                        border: Border.all(color: AppColors.border),
+                      ),
+                      child: Text(
+                        'Gönderilen ürünler incelendikten sonra LabelWise veritabanına eklenir.',
+                        textAlign: TextAlign.center,
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          height: 1.45,
+                          color: AppColors.mutedText,
+                        ),
+                      ),
                     ),
                     const SizedBox(height: 16),
                     SizedBox(
@@ -437,13 +501,15 @@ class _SubmitProductScreenState extends State<SubmitProductScreen> {
                             ? null
                             : _submit,
                         style: FilledButton.styleFrom(
-                          backgroundColor: const Color(0xFF175C3B),
+                          backgroundColor: AppColors.primary,
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(17),
+                            borderRadius: BorderRadius.circular(
+                              AppRadii.button,
+                            ),
                           ),
                           textStyle: const TextStyle(
                             fontSize: 17,
-                            fontWeight: FontWeight.w700,
+                            fontWeight: FontWeight.w800,
                           ),
                         ),
                         child: _isSubmitting
@@ -475,13 +541,13 @@ class _SubmitProductScreenState extends State<SubmitProductScreen> {
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
                           color: const Color(0xFFE5F2E9),
-                          borderRadius: BorderRadius.circular(16),
+                          borderRadius: BorderRadius.circular(18),
                           border: Border.all(color: const Color(0xFFC8DFD0)),
                         ),
                         child: Column(
                           children: [
                             const Text(
-                              'Teşekkürler! Ürün inceleme için gönderildi.',
+                              'Ürün incelemeye gönderildi. Teşekkürler!',
                               textAlign: TextAlign.center,
                               style: TextStyle(
                                 fontWeight: FontWeight.w700,
@@ -567,33 +633,48 @@ class _PhotoPickerCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final selectedPhoto = photo;
+    final theme = Theme.of(context);
 
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFFF7F9F7),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0xFFDDE5E0)),
+        color: AppColors.softSurface,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           if (selectedPhoto == null)
             Container(
-              height: 112,
+              height: 120,
               decoration: BoxDecoration(
-                color: const Color(0xFFEAF2ED),
-                borderRadius: BorderRadius.circular(14),
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: AppColors.border),
               ),
-              child: const Icon(
-                Icons.add_photo_alternate_outlined,
-                size: 36,
-                color: Color(0xFF537060),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(
+                    Icons.add_photo_alternate_outlined,
+                    size: 36,
+                    color: AppColors.mutedText,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Fotoğraf ekle',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: AppColors.mutedText,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
               ),
             )
           else
             ClipRRect(
-              borderRadius: BorderRadius.circular(14),
+              borderRadius: BorderRadius.circular(16),
               child: SizedBox(
                 height: 150,
                 child: Image.memory(
@@ -606,29 +687,31 @@ class _PhotoPickerCard extends StatelessWidget {
           const SizedBox(height: 14),
           Text(
             title,
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+            style: theme.textTheme.titleMedium?.copyWith(
               fontWeight: FontWeight.w800,
-              color: const Color(0xFF26342C),
+              color: AppColors.primaryText,
             ),
           ),
           const SizedBox(height: 4),
           Text(
             subtitle,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+            style: theme.textTheme.bodyMedium?.copyWith(
               height: 1.4,
-              color: const Color(0xFF637068),
+              color: AppColors.mutedText,
             ),
           ),
           const SizedBox(height: 12),
           OutlinedButton.icon(
             onPressed: enabled ? onPick : null,
             icon: const Icon(Icons.photo_library_outlined, size: 20),
-            label: const Text('Fotoğraf Seç'),
+            label: Text(
+              selectedPhoto == null ? 'Fotoğraf Seç' : 'Fotoğrafı Değiştir',
+            ),
             style: OutlinedButton.styleFrom(
-              foregroundColor: const Color(0xFF175C3B),
-              side: const BorderSide(color: Color(0xFFAAC0B2)),
+              foregroundColor: AppColors.primary,
+              side: const BorderSide(color: AppColors.border),
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(14),
+                borderRadius: BorderRadius.circular(16),
               ),
               textStyle: const TextStyle(fontWeight: FontWeight.w700),
             ),
@@ -655,14 +738,14 @@ class _FormSection extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: const Color(0xFFE2E8E4)),
+        border: Border.all(color: AppColors.border),
         boxShadow: const [
           BoxShadow(
-            color: Color(0x0F173D2A),
-            blurRadius: 24,
-            offset: Offset(0, 10),
+            color: Color(0x0C000000),
+            blurRadius: 20,
+            offset: Offset(0, 8),
           ),
         ],
       ),
@@ -673,7 +756,7 @@ class _FormSection extends StatelessWidget {
             title,
             style: Theme.of(context).textTheme.titleLarge?.copyWith(
               fontWeight: FontWeight.w800,
-              color: const Color(0xFF17211B),
+              color: AppColors.primaryText,
             ),
           ),
           if (helperText case final text?) ...[
@@ -682,7 +765,7 @@ class _FormSection extends StatelessWidget {
               text,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                 height: 1.4,
-                color: const Color(0xFF637068),
+                color: AppColors.mutedText,
               ),
             ),
           ],
@@ -742,18 +825,18 @@ class _SubmissionField extends StatelessWidget {
         labelText: label,
         alignLabelWithHint: maxLines > 1,
         filled: true,
-        fillColor: const Color(0xFFF7F9F7),
+        fillColor: AppColors.softSurface,
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: const BorderSide(color: Color(0xFFDDE5E0)),
+          borderRadius: BorderRadius.circular(AppRadii.button),
+          borderSide: const BorderSide(color: AppColors.border),
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: const BorderSide(color: Color(0xFFDDE5E0)),
+          borderRadius: BorderRadius.circular(AppRadii.button),
+          borderSide: const BorderSide(color: AppColors.border),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: const BorderSide(color: Color(0xFF1B6B46), width: 1.5),
+          borderRadius: BorderRadius.circular(AppRadii.button),
+          borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
         ),
       ),
     );

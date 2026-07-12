@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:labelwise/core/theme/app_tokens.dart';
 import 'package:labelwise/features/premium/presentation/screens/premium_screen.dart';
 import 'package:labelwise/features/scanner/data/recent_scan.dart';
 
@@ -27,11 +28,20 @@ class RecentScansSection extends StatelessWidget {
         }
 
         if (scans.isEmpty) {
-          return Text(
-            'Henüz ürün taramadınız.',
-            style: Theme.of(
-              context,
-            ).textTheme.bodyMedium?.copyWith(color: const Color(0xFF637068)),
+          return Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(18),
+            decoration: BoxDecoration(
+              color: AppColors.surface,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: AppColors.border),
+            ),
+            child: Text(
+              'Henüz ürün taramadınız.',
+              style: Theme.of(
+                context,
+              ).textTheme.bodyMedium?.copyWith(color: AppColors.mutedText),
+            ),
           );
         }
 
@@ -199,7 +209,10 @@ class _PremiumUpsellCard extends StatelessWidget {
         color: const Color(0xFF173F2D),
         elevation: 1,
         shadowColor: const Color(0x24123828),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(22),
+          side: const BorderSide(color: Color(0x1FFFFFFF)),
+        ),
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: Column(
@@ -243,7 +256,7 @@ class _PremiumUpsellCard extends StatelessWidget {
                     backgroundColor: Colors.white,
                     foregroundColor: const Color(0xFF173F2D),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
+                      borderRadius: BorderRadius.circular(AppRadii.button),
                     ),
                   ),
                   child: const Text('Premium’u Gör'),
@@ -267,8 +280,9 @@ class _RecentScoreBadge extends StatelessWidget {
     final text = score == null ? 'Puan yok' : '$score';
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: const Color(0xFFE5F2E9),
+        color: AppColors.softSurface,
         borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: AppColors.border),
       ),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
@@ -280,7 +294,7 @@ class _RecentScoreBadge extends StatelessWidget {
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: const TextStyle(
-              color: Color(0xFF175C3B),
+              color: AppColors.primary,
               fontWeight: FontWeight.w800,
               fontSize: 12,
             ),

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:labelwise/core/theme/app_tokens.dart';
 import 'package:labelwise/features/scanner/data/open_food_facts_service.dart';
 import 'package:labelwise/features/scanner/data/product.dart';
 import 'package:labelwise/features/scanner/data/product_barcode_validator.dart';
@@ -240,78 +241,182 @@ class _ScannerScreenState extends State<ScannerScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
     return Scaffold(
-      backgroundColor: const Color(0xFFF4F7F5),
+      backgroundColor: AppColors.background,
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.pagePadding,
+              20,
+              AppSpacing.pagePadding,
+              32,
+            ),
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 560),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Row(
-                    children: [
-                      Container(
-                        width: 44,
-                        height: 44,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF175C3B),
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                        child: const Icon(
-                          Icons.eco_outlined,
-                          color: Colors.white,
-                          size: 24,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Text(
-                        'LabelWise',
-                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: -0.5,
-                          color: const Color(0xFF17211B),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 40),
-                  Text(
-                    'Barkod Numarası Gir',
-                    style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: -0.7,
-                      color: const Color(0xFF17211B),
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  Text(
-                    'Ürünün barkod numarasını yazarak hızlıca arama yapabilirsiniz.',
-                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                      height: 1.5,
-                      color: const Color(0xFF637068),
-                    ),
-                  ),
-                  const SizedBox(height: 28),
                   Container(
-                    padding: const EdgeInsets.all(20),
+                    padding: const EdgeInsets.all(AppSpacing.cardPadding),
                     decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(24),
-                      border: Border.all(color: const Color(0xFFE2E8E4)),
+                      color: AppColors.surface,
+                      borderRadius: BorderRadius.circular(AppRadii.hero),
+                      border: Border.all(color: AppColors.border),
                       boxShadow: const [
                         BoxShadow(
-                          color: Color(0x0F173D2A),
+                          color: Color(0x12000000),
                           blurRadius: 24,
                           offset: Offset(0, 10),
                         ),
                       ],
                     ),
                     child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          width: 52,
+                          height: 52,
+                          decoration: BoxDecoration(
+                            color: AppColors.softSurface,
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: const Icon(
+                            Icons.barcode_reader,
+                            color: AppColors.primary,
+                            size: 28,
+                          ),
+                        ),
+                        const SizedBox(height: AppSpacing.sectionSpacing),
+                        Text(
+                          'Barkod Tara',
+                          style: theme.textTheme.headlineMedium?.copyWith(
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: -0.8,
+                            color: AppColors.primaryText,
+                          ),
+                        ),
+                        const SizedBox(height: AppSpacing.smallSpacing),
+                        Text(
+                          'Ürünün barkodunu kamerayla okut veya numarasını elle gir.',
+                          style: theme.textTheme.bodyLarge?.copyWith(
+                            height: 1.5,
+                            color: AppColors.mutedText,
+                          ),
+                        ),
+                        const SizedBox(height: AppSpacing.sectionSpacing),
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(AppSpacing.cardPadding),
+                          decoration: BoxDecoration(
+                            color: AppColors.softSurface,
+                            borderRadius: BorderRadius.circular(AppRadii.card),
+                            border: Border.all(color: AppColors.border),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Container(
+                                    width: 42,
+                                    height: 42,
+                                    decoration: BoxDecoration(
+                                      color: Colors.white,
+                                      borderRadius: BorderRadius.circular(14),
+                                    ),
+                                    child: const Icon(
+                                      Icons.center_focus_strong_rounded,
+                                      color: AppColors.primary,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Text(
+                                      'Kamerayla hızlı başlangıç',
+                                      style: theme.textTheme.titleMedium
+                                          ?.copyWith(
+                                            fontWeight: FontWeight.w800,
+                                            color: AppColors.primaryText,
+                                          ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: AppSpacing.itemSpacing),
+                              Text(
+                                'Barkodu bilmiyorsanız kamerayla hızlıca tarayabilirsiniz.',
+                                style: theme.textTheme.bodyMedium?.copyWith(
+                                  height: 1.45,
+                                  color: AppColors.mutedText,
+                                ),
+                              ),
+                              const SizedBox(height: AppSpacing.sectionSpacing),
+                              SizedBox(
+                                width: double.infinity,
+                                height: 56,
+                                child: FilledButton.icon(
+                                  onPressed: _isLoading ? null : _scanBarcode,
+                                  style: FilledButton.styleFrom(
+                                    backgroundColor: AppColors.primary,
+                                    foregroundColor: Colors.white,
+                                    elevation: 0,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(
+                                        AppRadii.button,
+                                      ),
+                                    ),
+                                    textStyle: const TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
+                                  icon: const Icon(Icons.barcode_reader),
+                                  label: const Text('Barkod Tara'),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.sectionSpacingLarge),
+                  Container(
+                    padding: const EdgeInsets.all(AppSpacing.cardPadding),
+                    decoration: BoxDecoration(
+                      color: AppColors.surface,
+                      borderRadius: BorderRadius.circular(AppRadii.card),
+                      border: Border.all(color: AppColors.border),
+                      boxShadow: const [
+                        BoxShadow(
+                          color: Color(0x0C000000),
+                          blurRadius: 18,
+                          offset: Offset(0, 8),
+                        ),
+                      ],
+                    ),
+                    child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
+                        Text(
+                          'Barkod Numarası Gir',
+                          style: theme.textTheme.titleLarge?.copyWith(
+                            fontWeight: FontWeight.w800,
+                            color: AppColors.primaryText,
+                          ),
+                        ),
+                        const SizedBox(height: AppSpacing.smallSpacing),
+                        Text(
+                          'Barkod numarasını yazarak ürünü hızlıca arayabilirsiniz.',
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            height: 1.45,
+                            color: AppColors.mutedText,
+                          ),
+                        ),
+                        const SizedBox(height: AppSpacing.sectionSpacing),
                         TextField(
                           controller: _barcodeController,
                           keyboardType: TextInputType.number,
@@ -321,23 +426,29 @@ class _ScannerScreenState extends State<ScannerScreen> {
                             hintText: 'Örn. 8690504030012',
                             prefixIcon: const Icon(Icons.numbers_rounded),
                             filled: true,
-                            fillColor: const Color(0xFFF7F9F7),
+                            fillColor: AppColors.softSurface,
                             border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(16),
+                              borderRadius: BorderRadius.circular(
+                                AppRadii.button,
+                              ),
                               borderSide: const BorderSide(
-                                color: Color(0xFFDDE5E0),
+                                color: AppColors.border,
                               ),
                             ),
                             enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(16),
+                              borderRadius: BorderRadius.circular(
+                                AppRadii.button,
+                              ),
                               borderSide: const BorderSide(
-                                color: Color(0xFFDDE5E0),
+                                color: AppColors.border,
                               ),
                             ),
                             focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(16),
+                              borderRadius: BorderRadius.circular(
+                                AppRadii.button,
+                              ),
                               borderSide: const BorderSide(
-                                color: Color(0xFF1B6B46),
+                                color: AppColors.primary,
                                 width: 1.5,
                               ),
                             ),
@@ -345,20 +456,22 @@ class _ScannerScreenState extends State<ScannerScreen> {
                           onSubmitted: (_) =>
                               _isLoading ? null : _searchProduct(),
                         ),
-                        const SizedBox(height: 16),
+                        const SizedBox(height: AppSpacing.itemSpacing),
                         SizedBox(
                           height: 58,
                           child: FilledButton(
                             onPressed: _isLoading ? null : _searchProduct,
                             style: FilledButton.styleFrom(
-                              backgroundColor: const Color(0xFF175C3B),
+                              backgroundColor: AppColors.primary,
                               foregroundColor: Colors.white,
                               shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(17),
+                                borderRadius: BorderRadius.circular(
+                                  AppRadii.button,
+                                ),
                               ),
                               textStyle: const TextStyle(
                                 fontSize: 17,
-                                fontWeight: FontWeight.w700,
+                                fontWeight: FontWeight.w800,
                               ),
                             ),
                             child: const Text('Ürünü Ara'),
@@ -368,30 +481,31 @@ class _ScannerScreenState extends State<ScannerScreen> {
                     ),
                   ),
                   if (_isLoading) ...[
-                    const SizedBox(height: 16),
+                    const SizedBox(height: AppSpacing.itemSpacing),
                     Container(
                       padding: const EdgeInsets.all(18),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFE8F2EC),
+                        color: AppColors.softSurface,
                         borderRadius: BorderRadius.circular(18),
+                        border: Border.all(color: AppColors.border),
                       ),
-                      child: const Row(
+                      child: Row(
                         children: [
-                          SizedBox(
+                          const SizedBox(
                             width: 22,
                             height: 22,
                             child: CircularProgressIndicator(
                               strokeWidth: 2.5,
-                              color: Color(0xFF175C3B),
+                              color: AppColors.primary,
                             ),
                           ),
-                          SizedBox(width: 14),
+                          const SizedBox(width: 14),
                           Expanded(
                             child: Text(
                               'Ürün aranıyor...',
-                              style: TextStyle(
+                              style: theme.textTheme.bodyMedium?.copyWith(
                                 fontWeight: FontWeight.w600,
-                                color: Color(0xFF315743),
+                                color: AppColors.primaryText,
                               ),
                             ),
                           ),
@@ -400,46 +514,52 @@ class _ScannerScreenState extends State<ScannerScreen> {
                     ),
                   ],
                   if (_missingBarcode case final barcode?) ...[
-                    const SizedBox(height: 16),
+                    const SizedBox(height: AppSpacing.itemSpacing),
                     Container(
-                      padding: const EdgeInsets.all(22),
+                      padding: const EdgeInsets.all(24),
                       decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(22),
-                        border: Border.all(color: const Color(0xFFE2E8E4)),
+                        color: AppColors.surface,
+                        borderRadius: BorderRadius.circular(24),
+                        border: Border.all(color: AppColors.border),
+                        boxShadow: const [
+                          BoxShadow(
+                            color: Color(0x0A000000),
+                            blurRadius: 18,
+                            offset: Offset(0, 8),
+                          ),
+                        ],
                       ),
                       child: Column(
                         children: [
                           Container(
-                            width: 52,
-                            height: 52,
-                            decoration: const BoxDecoration(
-                              color: Color(0xFFE8F2EC),
-                              shape: BoxShape.circle,
+                            width: 64,
+                            height: 64,
+                            decoration: BoxDecoration(
+                              color: AppColors.softSurface,
+                              borderRadius: BorderRadius.circular(20),
                             ),
                             child: const Icon(
-                              Icons.search_off_rounded,
-                              color: Color(0xFF175C3B),
-                              size: 28,
+                              Icons.inventory_2_outlined,
+                              color: AppColors.primary,
+                              size: 30,
                             ),
                           ),
                           const SizedBox(height: 16),
                           Text(
-                            'Ürün bulunamadı',
+                            'Bu ürünü henüz tanımıyoruz',
                             textAlign: TextAlign.center,
-                            style: Theme.of(context).textTheme.titleLarge
-                                ?.copyWith(
-                                  fontWeight: FontWeight.w800,
-                                  color: const Color(0xFF17211B),
-                                ),
+                            style: theme.textTheme.titleLarge?.copyWith(
+                              fontWeight: FontWeight.w800,
+                              color: AppColors.primaryText,
+                            ),
                           ),
                           const SizedBox(height: 8),
-                          const Text(
-                            'Bu ürün henüz LabelWise veritabanında yok. Bilgilerini göndererek incelememize yardımcı olabilirsiniz.',
+                          Text(
+                            'Barkod veritabanımızda bulunamadı. Ürünü incelemeye göndererek LabelWise’ın Türkiye ürün veritabanının gelişmesine yardımcı olabilirsin.',
                             textAlign: TextAlign.center,
-                            style: TextStyle(
+                            style: theme.textTheme.bodyMedium?.copyWith(
                               height: 1.5,
-                              color: Color(0xFF637068),
+                              color: AppColors.mutedText,
                             ),
                           ),
                           const SizedBox(height: 18),
@@ -449,29 +569,43 @@ class _ScannerScreenState extends State<ScannerScreen> {
                             child: FilledButton.icon(
                               onPressed: () => _openSubmission(barcode),
                               style: FilledButton.styleFrom(
-                                backgroundColor: const Color(0xFF175C3B),
+                                backgroundColor: AppColors.primary,
                                 shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(16),
+                                  borderRadius: BorderRadius.circular(
+                                    AppRadii.button,
+                                  ),
                                 ),
                                 textStyle: const TextStyle(
                                   fontSize: 16,
-                                  fontWeight: FontWeight.w700,
+                                  fontWeight: FontWeight.w800,
                                 ),
                               ),
                               icon: const Icon(Icons.add_rounded),
-                              label: const Text('İncelemeye Gönder'),
+                              label: const Text('Ürünü İncelemeye Gönder'),
                             ),
+                          ),
+                          const SizedBox(height: 10),
+                          TextButton.icon(
+                            onPressed: _isLoading ? null : _scanBarcode,
+                            style: TextButton.styleFrom(
+                              foregroundColor: AppColors.primary,
+                              textStyle: const TextStyle(
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            icon: const Icon(Icons.refresh_rounded, size: 18),
+                            label: const Text('Tekrar Tara'),
                           ),
                         ],
                       ),
                     ),
                   ],
                   if (_errorMessage case final message?) ...[
-                    const SizedBox(height: 16),
+                    const SizedBox(height: AppSpacing.itemSpacing),
                     Container(
                       padding: const EdgeInsets.all(18),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFFFF1EF),
+                        color: const Color(0xFFFFF7F4),
                         borderRadius: BorderRadius.circular(18),
                         border: Border.all(color: const Color(0xFFF5D4CF)),
                       ),
@@ -495,19 +629,18 @@ class _ScannerScreenState extends State<ScannerScreen> {
                             Text(
                               'Ürün yüklenemedi',
                               textAlign: TextAlign.center,
-                              style: Theme.of(context).textTheme.titleLarge
-                                  ?.copyWith(
-                                    fontWeight: FontWeight.w800,
-                                    color: const Color(0xFF6E3028),
-                                  ),
+                              style: theme.textTheme.titleLarge?.copyWith(
+                                fontWeight: FontWeight.w800,
+                                color: const Color(0xFF6E3028),
+                              ),
                             ),
                             const SizedBox(height: 8),
-                            const Text(
+                            Text(
                               'Bu ürünü şu anda otomatik olarak bulamadık. İsterseniz bilgilerini göndererek incelemeye alabiliriz.',
                               textAlign: TextAlign.center,
-                              style: TextStyle(
+                              style: theme.textTheme.bodyMedium?.copyWith(
                                 height: 1.5,
-                                color: Color(0xFF81382E),
+                                color: const Color(0xFF81382E),
                               ),
                             ),
                             const SizedBox(height: 18),
@@ -522,7 +655,9 @@ class _ScannerScreenState extends State<ScannerScreen> {
                                     color: Color(0xFFD9A69E),
                                   ),
                                   shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(14),
+                                    borderRadius: BorderRadius.circular(
+                                      AppRadii.button,
+                                    ),
                                   ),
                                   textStyle: const TextStyle(
                                     fontWeight: FontWeight.w700,
@@ -543,9 +678,9 @@ class _ScannerScreenState extends State<ScannerScreen> {
                                 Expanded(
                                   child: Text(
                                     message,
-                                    style: const TextStyle(
+                                    style: theme.textTheme.bodyMedium?.copyWith(
                                       height: 1.4,
-                                      color: Color(0xFF81382E),
+                                      color: const Color(0xFF81382E),
                                     ),
                                   ),
                                 ),
@@ -555,36 +690,7 @@ class _ScannerScreenState extends State<ScannerScreen> {
                       ),
                     ),
                   ],
-                  const SizedBox(height: 32),
-                  Text(
-                    'Barkodu bilmiyorsanız kamerayla tarama yapabilirsiniz.',
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      height: 1.45,
-                      color: const Color(0xFF637068),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  SizedBox(
-                    height: 52,
-                    child: OutlinedButton.icon(
-                      onPressed: _isLoading ? null : _scanBarcode,
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: const Color(0xFF175C3B),
-                        side: const BorderSide(color: Color(0xFFB9CCC0)),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        textStyle: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      icon: const Icon(Icons.barcode_reader),
-                      label: const Text('Barkod Tara'),
-                    ),
-                  ),
-                  const SizedBox(height: 28),
+                  const SizedBox(height: AppSpacing.sectionSpacingLarge),
                   RecentScansSection(
                     recentScans: _recentScans,
                     onTap: _openRecentScan,

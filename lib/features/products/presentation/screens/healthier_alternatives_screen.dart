@@ -660,6 +660,7 @@ class _LoadingState extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: const Color(0xFFE5E9E5)),
       ),
       child: const Column(
         children: [
@@ -673,7 +674,7 @@ class _LoadingState extends StatelessWidget {
           ),
           SizedBox(height: 16),
           Text(
-            'Daha dengeli seçenekler aranıyor…',
+            'Alternatifler aranıyor...',
             textAlign: TextAlign.center,
             style: TextStyle(color: _mutedColor, fontWeight: FontWeight.w700),
           ),
@@ -709,7 +710,7 @@ class _ErrorState extends StatelessWidget {
       iconBackground: Color(0xFFFFECE8),
       iconColor: Color(0xFFA94D40),
       title: 'Bir sorun oluştu',
-      description: 'Alternatifler yüklenemedi. Lütfen tekrar deneyin.',
+      description: 'Bağlantı sorunu olabilir. Birazdan tekrar deneyin.',
     );
   }
 }

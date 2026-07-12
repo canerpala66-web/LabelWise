@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:labelwise/core/theme/app_tokens.dart';
 import 'package:labelwise/features/analysis/models/analysis_result.dart';
 import 'package:labelwise/features/analysis/models/labelwise_score_result.dart';
 import 'package:labelwise/features/analysis/models/processing_profile_result.dart';
@@ -107,10 +108,10 @@ class _ProductResultScreenState extends State<ProductResultScreen>
     final processingProfile = const ProcessingProfileEngine().evaluate(product);
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF4F6F5),
+      backgroundColor: AppColors.background,
       appBar: AppBar(
         title: const Text('Ürün Detayı'),
-        backgroundColor: const Color(0xFFF4F6F5),
+        backgroundColor: AppColors.background,
         surfaceTintColor: Colors.transparent,
       ),
       body: SafeArea(
@@ -125,83 +126,28 @@ class _ProductResultScreenState extends State<ProductResultScreen>
                   _StaggeredSection(
                     animation: _entranceController,
                     start: 0,
-                    child: _ProductImageCard(
+                    child: _ProductIdentityCard(
                       imageUrl: product.imageUrl,
                       signedFrontImageUrl: _signedFrontImageUrl,
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                  _StaggeredSection(
-                    animation: _entranceController,
-                    start: 0.06,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          displayName,
-                          maxLines: 3,
-                          overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.headlineMedium
-                              ?.copyWith(
-                                fontWeight: FontWeight.w800,
-                                letterSpacing: -0.6,
-                                color: const Color(0xFF17211B),
-                              ),
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          'Marka: $brand',
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.titleMedium
-                              ?.copyWith(color: const Color(0xFF657069)),
-                        ),
-                        if (showCategory) ...[
-                          const SizedBox(height: 10),
-                          DecoratedBox(
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFE8F1EB),
-                              borderRadius: BorderRadius.circular(999),
-                            ),
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 11,
-                                vertical: 6,
-                              ),
-                              child: ConstrainedBox(
-                                constraints: const BoxConstraints(
-                                  maxWidth: 260,
-                                ),
-                                child: Text(
-                                  'Kategori: $category',
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                    color: Color(0xFF42614F),
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ],
+                      displayName: displayName,
+                      brand: brand,
+                      category: showCategory ? category : null,
+                      source: product.source,
                     ),
                   ),
                   const SizedBox(height: _sectionSpacing),
                   _StaggeredSection(
                     animation: _entranceController,
-                    start: 0.12,
+                    start: 0.08,
                     child: _LabelWiseScoreCard(
                       result: scoreResult,
                       animation: _entranceController,
                     ),
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 14),
                   _StaggeredSection(
                     animation: _entranceController,
-                    start: 0.18,
+                    start: 0.14,
                     child: Align(
                       alignment: Alignment.centerLeft,
                       child: _NutriScoreBadge(grade: product.nutriscoreGrade),
@@ -210,7 +156,7 @@ class _ProductResultScreenState extends State<ProductResultScreen>
                   const SizedBox(height: 16),
                   _StaggeredSection(
                     animation: _entranceController,
-                    start: 0.21,
+                    start: 0.18,
                     child: _DataTrustCard(
                       product: product,
                       hasIncompleteNutrition: hasIncompleteNutrition,
@@ -231,32 +177,55 @@ class _ProductResultScreenState extends State<ProductResultScreen>
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                'Beslenme Değerleri',
-                                style: Theme.of(context).textTheme.titleLarge
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(18),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(24),
+                            border: Border.all(color: AppColors.border),
+                            boxShadow: const [
+                              BoxShadow(
+                                color: Color(0x0B000000),
+                                blurRadius: 18,
+                                offset: Offset(0, 8),
+                              ),
+                            ],
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      'Beslenme Değerleri',
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .titleLarge
+                                          ?.copyWith(
+                                            fontWeight: FontWeight.w800,
+                                            color: AppColors.primaryText,
+                                          ),
+                                    ),
+                                  ),
+                                  if (hasInsufficientNutrition) ...[
+                                    const SizedBox(width: 10),
+                                    const _MissingDataBadge(),
+                                  ],
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                'Besin değerleri 100 g / 100 ml üzerinden değerlendirilir. Bu sayede farklı paket boyutları adil şekilde karşılaştırılır.',
+                                style: Theme.of(context).textTheme.bodySmall
                                     ?.copyWith(
-                                      fontWeight: FontWeight.w800,
-                                      color: const Color(0xFF17211B),
+                                      height: 1.45,
+                                      color: AppColors.mutedText,
                                     ),
                               ),
-                            ),
-                            if (hasInsufficientNutrition) ...[
-                              const SizedBox(width: 10),
-                              const _MissingDataBadge(),
                             ],
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Besin değerleri 100 g / 100 ml üzerinden değerlendirilir. Bu sayede farklı paket boyutları adil şekilde karşılaştırılır.',
-                          style: Theme.of(context).textTheme.bodySmall
-                              ?.copyWith(
-                                height: 1.45,
-                                color: const Color(0xFF637068),
-                              ),
+                          ),
                         ),
                         const SizedBox(height: 14),
                         _NutrientGrid(product: product),
@@ -395,9 +364,9 @@ class _MissingNutritionHelperCard extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: const Color(0xFFF0F4F1),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0xFFDCE4DF)),
+        color: AppColors.softSurface,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: AppColors.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -406,7 +375,7 @@ class _MissingNutritionHelperCard extends StatelessWidget {
             'Bu ürünü geliştirmemize yardımcı olun',
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
               fontWeight: FontWeight.w800,
-              color: const Color(0xFF26342C),
+              color: AppColors.primaryText,
             ),
           ),
           const SizedBox(height: 7),
@@ -414,7 +383,7 @@ class _MissingNutritionHelperCard extends StatelessWidget {
             'Beslenme bilgileri eksik olan ürünleri inceleyerek LabelWise veritabanını geliştirebilirsiniz.',
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
               height: 1.45,
-              color: const Color(0xFF657069),
+              color: AppColors.mutedText,
             ),
           ),
           const SizedBox(height: 14),
@@ -428,10 +397,10 @@ class _MissingNutritionHelperCard extends StatelessWidget {
               );
             },
             style: OutlinedButton.styleFrom(
-              foregroundColor: const Color(0xFF175C3B),
-              side: const BorderSide(color: Color(0xFFAAC0B2)),
+              foregroundColor: AppColors.primary,
+              side: const BorderSide(color: AppColors.border),
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(14),
+                borderRadius: BorderRadius.circular(16),
               ),
               textStyle: const TextStyle(fontWeight: FontWeight.w700),
             ),
@@ -537,31 +506,34 @@ class _NutrientCard extends StatelessWidget {
 
     return Card(
       margin: EdgeInsets.zero,
-      elevation: 1,
-      shadowColor: const Color(0x12000000),
+      elevation: 0.5,
+      shadowColor: const Color(0x10000000),
       color: Colors.white,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(24),
+        side: const BorderSide(color: AppColors.border),
+      ),
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(18),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
                 Container(
-                  width: 34,
-                  height: 34,
+                  width: 38,
+                  height: 38,
                   decoration: BoxDecoration(
-                    color: const Color(0xFFEAF2ED),
-                    borderRadius: BorderRadius.circular(11),
+                    color: AppColors.softSurface,
+                    borderRadius: BorderRadius.circular(12),
                   ),
                   child: Icon(
                     nutrient.icon,
                     size: 19,
-                    color: const Color(0xFF236443),
+                    color: AppColors.primary,
                   ),
                 ),
-                const SizedBox(width: 10),
+                const SizedBox(width: 12),
                 Expanded(
                   child: Text(
                     nutrient.label,
@@ -569,7 +541,7 @@ class _NutrientCard extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                     style: Theme.of(context).textTheme.labelLarge?.copyWith(
                       color: const Color(0xFF59635D),
-                      fontWeight: FontWeight.w600,
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
                 ),
@@ -577,19 +549,17 @@ class _NutrientCard extends StatelessWidget {
             ),
             const Spacer(),
             if (nutrient.amount case final amount?)
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.baseline,
-                textBaseline: TextBaseline.alphabetic,
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     _formatNumber(amount),
                     style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                      color: const Color(0xFF17211B),
+                      color: AppColors.primaryText,
                       fontWeight: FontWeight.w800,
-                      letterSpacing: -0.5,
+                      letterSpacing: -0.6,
                     ),
                   ),
-                  const SizedBox(width: 5),
                   Text(
                     nutrient.unit,
                     style: Theme.of(context).textTheme.labelMedium?.copyWith(
@@ -601,7 +571,7 @@ class _NutrientCard extends StatelessWidget {
               )
             else
               Text(
-                'Veri Yok',
+                'Veri yok',
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
                   color: const Color(0xFF8A928D),
                   fontWeight: FontWeight.w600,
@@ -646,17 +616,28 @@ class _ScoreReasonsCard extends StatelessWidget {
     if (!product.hasNutritionData) {
       return Card(
         margin: EdgeInsets.zero,
-        elevation: 1,
-        shadowColor: const Color(0x14000000),
+        elevation: 0.5,
+        shadowColor: const Color(0x12000000),
         color: Colors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(24),
+          side: const BorderSide(color: AppColors.border),
+        ),
         child: Padding(
           padding: const EdgeInsets.all(20),
-          child: Text(
-            'Beslenme verileri eksik olduğu için değerlendirme yapılamadı.',
-            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-              height: 1.5,
-              color: const Color(0xFF657069),
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: AppColors.softSurface,
+              borderRadius: BorderRadius.circular(18),
+            ),
+            child: Text(
+              'Beslenme verileri eksik olduğu için değerlendirme yapılamadı.',
+              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                height: 1.5,
+                color: AppColors.mutedText,
+              ),
             ),
           ),
         ),
@@ -667,10 +648,13 @@ class _ScoreReasonsCard extends StatelessWidget {
 
     return Card(
       margin: EdgeInsets.zero,
-      elevation: 1,
-      shadowColor: const Color(0x14000000),
+      elevation: 0.5,
+      shadowColor: const Color(0x12000000),
       color: Colors.white,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(24),
+        side: const BorderSide(color: AppColors.border),
+      ),
       child: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
@@ -680,7 +664,7 @@ class _ScoreReasonsCard extends StatelessWidget {
               children: [
                 const Icon(
                   Icons.lightbulb_outline_rounded,
-                  color: Color(0xFF236443),
+                  color: AppColors.primary,
                 ),
                 const SizedBox(width: 10),
                 Text(
@@ -693,10 +677,12 @@ class _ScoreReasonsCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 16),
-            for (var index = 0; index < reasons.length; index++) ...[
-              _ReasonRow(reason: reasons[index]),
-              if (index != reasons.length - 1) const SizedBox(height: 13),
-            ],
+            ...reasons.map(
+              (reason) => Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: _ReasonRow(reason: reason),
+              ),
+            ),
           ],
         ),
       ),
@@ -790,30 +776,39 @@ class _ReasonRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Container(
-          width: 28,
-          height: 28,
-          decoration: BoxDecoration(
-            color: reason.color.withValues(alpha: 0.12),
-            shape: BoxShape.circle,
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+      decoration: BoxDecoration(
+        color: reason.color.withValues(alpha: 0.07),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: reason.color.withValues(alpha: 0.12)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 28,
+            height: 28,
+            decoration: BoxDecoration(
+              color: reason.color.withValues(alpha: 0.12),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(reason.icon, size: 15, color: reason.color),
           ),
-          child: Icon(reason.icon, size: 15, color: reason.color),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Text(
-            reason.text,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              height: 1.45,
-              fontWeight: FontWeight.w600,
-              color: const Color(0xFF4B5750),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              reason.text,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                height: 1.45,
+                fontWeight: FontWeight.w600,
+                color: const Color(0xFF4B5750),
+              ),
             ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
@@ -843,10 +838,13 @@ class _ProcessingProfileCard extends StatelessWidget {
 
     return Card(
       margin: EdgeInsets.zero,
-      elevation: 1,
-      shadowColor: const Color(0x14000000),
+      elevation: 0.5,
+      shadowColor: const Color(0x12000000),
       color: Colors.white,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(24),
+        side: const BorderSide(color: AppColors.border),
+      ),
       child: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
@@ -856,10 +854,10 @@ class _ProcessingProfileCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Container(
-                  width: 42,
-                  height: 42,
+                  width: 44,
+                  height: 44,
                   decoration: BoxDecoration(
-                    color: color.withValues(alpha: 0.12),
+                    color: color.withValues(alpha: 0.10),
                     borderRadius: BorderRadius.circular(14),
                   ),
                   child: Icon(Icons.eco_outlined, color: color, size: 22),
@@ -873,7 +871,7 @@ class _ProcessingProfileCard extends StatelessWidget {
                         'İçerik Profili',
                         style: Theme.of(context).textTheme.titleLarge?.copyWith(
                           fontWeight: FontWeight.w800,
-                          color: const Color(0xFF17211B),
+                          color: AppColors.primaryText,
                         ),
                       ),
                       const SizedBox(height: 4),
@@ -881,7 +879,7 @@ class _ProcessingProfileCard extends StatelessWidget {
                         'İçindekiler listesine göre genel bir işlenmişlik değerlendirmesi.',
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
                           height: 1.35,
-                          color: const Color(0xFF657069),
+                          color: AppColors.mutedText,
                         ),
                       ),
                     ],
@@ -890,8 +888,9 @@ class _ProcessingProfileCard extends StatelessWidget {
                 const SizedBox(width: 10),
                 DecoratedBox(
                   decoration: BoxDecoration(
-                    color: color.withValues(alpha: 0.12),
+                    color: color.withValues(alpha: 0.10),
                     borderRadius: BorderRadius.circular(999),
+                    border: Border.all(color: color.withValues(alpha: 0.12)),
                   ),
                   child: Padding(
                     padding: const EdgeInsets.symmetric(
@@ -914,7 +913,7 @@ class _ProcessingProfileCard extends StatelessWidget {
             Text(
               result.label,
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                color: const Color(0xFF26342C),
+                color: AppColors.primaryText,
                 fontWeight: FontWeight.w800,
               ),
             ),
@@ -942,9 +941,9 @@ class _ProcessingProfileCard extends StatelessWidget {
               width: double.infinity,
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
-                color: const Color(0xFFF4F7F5),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: const Color(0xFFDCE4DF)),
+                color: AppColors.softSurface,
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: AppColors.border),
               ),
               child: const Text(
                 ProcessingProfileResult.helperText,
@@ -988,31 +987,40 @@ class _ProcessingReasonRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Container(
-          width: 22,
-          height: 22,
-          margin: const EdgeInsets.only(top: 1),
-          decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.12),
-            shape: BoxShape.circle,
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: color.withValues(alpha: 0.12)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 24,
+            height: 24,
+            margin: const EdgeInsets.only(top: 1),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.12),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(Icons.check_rounded, size: 14, color: color),
           ),
-          child: Icon(Icons.check_rounded, size: 14, color: color),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Text(
-            reason,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              height: 1.35,
-              fontWeight: FontWeight.w600,
-              color: const Color(0xFF4B5750),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              reason,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                height: 1.4,
+                fontWeight: FontWeight.w600,
+                color: const Color(0xFF4B5750),
+              ),
             ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
@@ -1158,45 +1166,83 @@ class _LabelWiseScoreCard extends StatelessWidget {
                   ),
                 ],
               )
-            : Row(
+            : Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _AnimatedScoreRing(
-                    score: score,
-                    color: visualColor,
-                    animation: animation,
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      _AnimatedScoreRing(
+                        score: score,
+                        color: visualColor,
+                        animation: animation,
+                      ),
+                      const SizedBox(width: 20),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 6,
+                              ),
+                              decoration: BoxDecoration(
+                                color: visualColor.withValues(alpha: 0.12),
+                                borderRadius: BorderRadius.circular(
+                                  AppRadii.chip,
+                                ),
+                              ),
+                              child: Text(
+                                'LabelWise Score',
+                                style: Theme.of(context).textTheme.labelMedium
+                                    ?.copyWith(
+                                      color: visualColor,
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            Text(
+                              result.category,
+                              style: Theme.of(context).textTheme.headlineSmall
+                                  ?.copyWith(
+                                    color: const Color(0xFF17211B),
+                                    fontWeight: FontWeight.w800,
+                                    height: 1.1,
+                                    letterSpacing: -0.4,
+                                  ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              _verdictText(score),
+                              style: Theme.of(context).textTheme.bodyMedium
+                                  ?.copyWith(
+                                    color: const Color(0xFF425048),
+                                    fontWeight: FontWeight.w700,
+                                    height: 1.35,
+                                  ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: 20),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'LabelWise Score',
-                          style: TextStyle(
-                            color: Color(0xFF657069),
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          result.category,
-                          style: Theme.of(context).textTheme.titleLarge
-                              ?.copyWith(
-                                color: const Color(0xFF17211B),
-                                fontWeight: FontWeight.w800,
-                                height: 1.15,
-                              ),
-                        ),
-                        const SizedBox(height: 7),
-                        Text(
-                          _helperText(score),
-                          style: Theme.of(context).textTheme.bodySmall
-                              ?.copyWith(
-                                color: const Color(0xFF59635D),
-                                height: 1.35,
-                              ),
-                        ),
-                      ],
+                  const SizedBox(height: 18),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.62),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: const Color(0xFFE1E7E3)),
+                    ),
+                    child: Text(
+                      'Bu skor besin değerleri ve kategoriye göre hesaplanır.',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: const Color(0xFF5C6761),
+                        height: 1.4,
+                      ),
                     ),
                   ),
                 ],
@@ -1205,20 +1251,17 @@ class _LabelWiseScoreCard extends StatelessWidget {
     );
   }
 
-  String _helperText(int score) {
-    if (score >= 90) return 'Besin değerleri açısından güçlü bir seçenek.';
-    if (score >= 80) return 'Genel olarak dengeli bir seçenek.';
-    if (score >= 70) return 'Uygun porsiyonla dengeli değerlendirilebilir.';
-    if (score >= 60) {
-      return 'Bazı değerler nedeniyle dikkatli tüketim daha uygundur.';
-    }
-    if (score >= 45) {
-      return 'Sık tüketim yerine ara sıra tercih edilmesi daha uygundur.';
-    }
-    if (score >= 25) {
-      return 'Besin profili nedeniyle nadir tüketim daha uygun olabilir.';
-    }
-    return 'Beslenme profili zayıf olduğu için dikkatli değerlendirilmelidir.';
+  String _verdictText(int score) {
+    if (score >= 90)
+      return 'Günlük seçimler içinde oldukça güçlü bir profil sunar.';
+    if (score >= 80) return 'Genel tablo dengeli görünüyor.';
+    if (score >= 70) return 'Çoğu kullanıcı için dengeli bir seçim olabilir.';
+    if (score >= 60)
+      return 'Bazı değerler nedeniyle daha dikkatli değerlendirilebilir.';
+    if (score >= 45) return 'Daha kontrollü tüketim daha uygun olabilir.';
+    if (score >= 25)
+      return 'Daha iyi alternatiflerle karşılaştırmak faydalı olabilir.';
+    return 'Bu ürün için daha dikkatli bir değerlendirme yapmak iyi olabilir.';
   }
 }
 
@@ -1283,6 +1326,160 @@ Color _scoreRingColor(int score) {
   return const Color(0xFFC33F39);
 }
 
+class _ProductIdentityCard extends StatelessWidget {
+  const _ProductIdentityCard({
+    required this.imageUrl,
+    required this.signedFrontImageUrl,
+    required this.displayName,
+    required this.brand,
+    required this.category,
+    required this.source,
+  });
+
+  final String? imageUrl;
+  final Future<String?>? signedFrontImageUrl;
+  final String displayName;
+  final String brand;
+  final String? category;
+  final String source;
+
+  @override
+  Widget build(BuildContext context) {
+    final chips = <Widget>[
+      _IdentityChip(
+        icon: Icons.sell_outlined,
+        text: category ?? 'Kategori yok',
+        isMuted: category == null,
+      ),
+      _IdentityChip(
+        icon: Icons.verified_outlined,
+        text: _sourceLabel(source),
+        isMuted: false,
+      ),
+    ];
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(28),
+        border: Border.all(color: const Color(0xFFE3E7E2)),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x0D000000),
+            blurRadius: 22,
+            offset: Offset(0, 10),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      displayName,
+                      maxLines: 3,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.headlineSmall
+                          ?.copyWith(
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: -0.6,
+                            color: const Color(0xFF17211B),
+                            height: 1.12,
+                          ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      brand,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        color: const Color(0xFF657069),
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 16),
+              _ProductImageCard(
+                imageUrl: imageUrl,
+                signedFrontImageUrl: signedFrontImageUrl,
+              ),
+            ],
+          ),
+          const SizedBox(height: 18),
+          Wrap(spacing: 8, runSpacing: 8, children: chips),
+        ],
+      ),
+    );
+  }
+
+  String _sourceLabel(String source) {
+    return source.trim().toLowerCase() == 'user_submission'
+        ? 'LabelWise verisi'
+        : 'Topluluk verisi';
+  }
+}
+
+class _IdentityChip extends StatelessWidget {
+  const _IdentityChip({
+    required this.icon,
+    required this.text,
+    required this.isMuted,
+  });
+
+  final IconData icon;
+  final String text;
+  final bool isMuted;
+
+  @override
+  Widget build(BuildContext context) {
+    final backgroundColor = isMuted
+        ? const Color(0xFFF0F2F0)
+        : const Color(0xFFEAF2ED);
+    final foregroundColor = isMuted
+        ? const Color(0xFF6C756F)
+        : const Color(0xFF42614F);
+
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: backgroundColor,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 14, color: foregroundColor),
+            const SizedBox(width: 6),
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 220),
+              child: Text(
+                text,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                  color: foregroundColor,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _ProductImageCard extends StatelessWidget {
   const _ProductImageCard({
     required this.imageUrl,
@@ -1296,35 +1493,34 @@ class _ProductImageCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final url = imageUrl?.trim();
 
-    return Card(
-      margin: EdgeInsets.zero,
-      elevation: 0,
-      color: Colors.white,
-      clipBehavior: Clip.antiAlias,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-      child: SizedBox(
-        width: double.infinity,
-        height: 280,
-        child: url != null && url.isNotEmpty
-            ? _ProductNetworkImage(url: url)
-            : signedFrontImageUrl == null
-            ? const _ImagePlaceholder()
-            : FutureBuilder<String?>(
-                future: signedFrontImageUrl,
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const ColoredBox(
-                      color: Color(0xFFF2F5F3),
-                      child: Center(child: CircularProgressIndicator()),
-                    );
-                  }
-                  final signedUrl = snapshot.data;
-                  return signedUrl == null || signedUrl.isEmpty
-                      ? const _ImagePlaceholder()
-                      : _ProductNetworkImage(url: signedUrl);
-                },
-              ),
+    return Container(
+      width: 116,
+      height: 116,
+      decoration: BoxDecoration(
+        color: const Color(0xFFF3F6F4),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: const Color(0xFFE3E7E2)),
       ),
+      clipBehavior: Clip.antiAlias,
+      child: url != null && url.isNotEmpty
+          ? _ProductNetworkImage(url: url)
+          : signedFrontImageUrl == null
+          ? const _ImagePlaceholder(compact: true)
+          : FutureBuilder<String?>(
+              future: signedFrontImageUrl,
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const ColoredBox(
+                    color: Color(0xFFF2F5F3),
+                    child: Center(child: CircularProgressIndicator()),
+                  );
+                }
+                final signedUrl = snapshot.data;
+                return signedUrl == null || signedUrl.isEmpty
+                    ? const _ImagePlaceholder(compact: true)
+                    : _ProductNetworkImage(url: signedUrl);
+              },
+            ),
     );
   }
 }
@@ -1347,25 +1543,31 @@ class _ProductNetworkImage extends StatelessWidget {
 }
 
 class _ImagePlaceholder extends StatelessWidget {
-  const _ImagePlaceholder();
+  const _ImagePlaceholder({this.compact = false});
+
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
-    return const ColoredBox(
-      color: Color(0xFFE9EEEB),
+    return ColoredBox(
+      color: const Color(0xFFE9EEEB),
       child: Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(
               Icons.image_not_supported_outlined,
-              size: 44,
-              color: Color(0xFF78847C),
+              size: compact ? 30 : 44,
+              color: const Color(0xFF78847C),
             ),
-            SizedBox(height: 8),
+            SizedBox(height: compact ? 6 : 8),
             Text(
-              'Görsel bulunamadı',
-              style: TextStyle(color: Color(0xFF657069)),
+              compact ? 'Görsel yok' : 'Görsel bulunamadı',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: const Color(0xFF657069),
+                fontSize: compact ? 12 : 14,
+              ),
             ),
           ],
         ),
@@ -1486,29 +1688,71 @@ class _DataTrustCard extends StatelessWidget {
 
     return Card(
       margin: EdgeInsets.zero,
-      elevation: 1,
+      elevation: 0.5,
       shadowColor: const Color(0x12000000),
       color: Colors.white,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(24),
+        side: const BorderSide(color: AppColors.border),
+      ),
       child: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Veri Güvenilirliği',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w800,
-                color: const Color(0xFF17211B),
-              ),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color: AppColors.softSurface,
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: const Icon(
+                    Icons.verified_user_outlined,
+                    color: AppColors.primary,
+                    size: 21,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Veri Güvenilirliği',
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.primaryText,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Bu bilgiler mevcut ürün verilerine göre gösterilir.',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          height: 1.35,
+                          color: AppColors.mutedText,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 16),
             DecoratedBox(
               decoration: BoxDecoration(
                 color: isLabelWiseData
                     ? const Color(0xFFE7F3EB)
                     : const Color(0xFFF0F2F1),
                 borderRadius: BorderRadius.circular(999),
+                border: Border.all(
+                  color: isLabelWiseData
+                      ? const Color(0xFFD2E5D8)
+                      : const Color(0xFFE2E6E3),
+                ),
               ),
               child: Padding(
                 padding: const EdgeInsets.symmetric(
@@ -1527,48 +1771,83 @@ class _DataTrustCard extends StatelessWidget {
                 ),
               ),
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 12),
             Text(
               description,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                height: 1.45,
-                color: const Color(0xFF657069),
+                height: 1.5,
+                color: AppColors.mutedText,
               ),
             ),
             if (hasIncompleteNutrition) ...[
-              const SizedBox(height: 10),
-              const Text(
-                'Beslenme verileri eksik veya sınırlı olabilir.',
-                style: TextStyle(
-                  height: 1.4,
-                  color: Color(0xFF78827C),
-                  fontSize: 13,
+              const SizedBox(height: 12),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppColors.softSurface,
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: const Text(
+                  'Beslenme verileri eksik veya sınırlı olabilir.',
+                  style: TextStyle(
+                    height: 1.4,
+                    color: Color(0xFF78827C),
+                    fontSize: 13,
+                  ),
                 ),
               ),
             ],
-            const SizedBox(height: 16),
-            const Divider(height: 1, color: Color(0xFFE8ECE9)),
-            const SizedBox(height: 10),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              children: [
-                ConstrainedBox(
-                  constraints: const BoxConstraints(minWidth: 180),
-                  child: const Text(
-                    'Bu bilgiler doğru değil mi?',
-                    style: TextStyle(
-                      color: Color(0xFF4B5750),
-                      fontWeight: FontWeight.w600,
+            const SizedBox(height: 18),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: AppColors.softSurface,
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: AppColors.border),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Bilgilerde hata mı var?',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.primaryText,
                     ),
                   ),
-                ),
-                TextButton(
-                  onPressed: onCorrection,
-                  child: const Text('Düzeltme Bildir'),
-                ),
-              ],
+                  const SizedBox(height: 6),
+                  Text(
+                    'Üründeki eksik veya hatalı bilgileri bize bildirebilirsin. İnceleyip güncelleyelim.',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      height: 1.45,
+                      color: AppColors.mutedText,
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: OutlinedButton.icon(
+                      onPressed: onCorrection,
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppColors.primary,
+                        side: const BorderSide(color: AppColors.border),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 12,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        textStyle: const TextStyle(fontWeight: FontWeight.w700),
+                      ),
+                      icon: const Icon(Icons.edit_note_rounded, size: 18),
+                      label: const Text('Düzeltme Bildir'),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ],
         ),
@@ -1812,10 +2091,13 @@ class _AnalysisCardState extends State<_AnalysisCard> {
 
     return Card(
       margin: EdgeInsets.zero,
-      elevation: 1,
+      elevation: 0.5,
       shadowColor: const Color(0x12000000),
       color: Colors.white,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(24),
+        side: const BorderSide(color: AppColors.border),
+      ),
       child: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
@@ -1827,12 +2109,12 @@ class _AnalysisCardState extends State<_AnalysisCard> {
                   width: 42,
                   height: 42,
                   decoration: BoxDecoration(
-                    color: const Color(0xFFE5F2E9),
+                    color: AppColors.softSurface,
                     borderRadius: BorderRadius.circular(14),
                   ),
                   child: const Icon(
                     Icons.auto_awesome_outlined,
-                    color: Color(0xFF175C3B),
+                    color: AppColors.primary,
                     size: 21,
                   ),
                 ),
@@ -1841,8 +2123,8 @@ class _AnalysisCardState extends State<_AnalysisCard> {
                   child: Text(
                     'Yapay Zeka Yorumu',
                     style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w700,
-                      color: const Color(0xFF17211B),
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.primaryText,
                     ),
                   ),
                 ),
@@ -1850,10 +2132,17 @@ class _AnalysisCardState extends State<_AnalysisCard> {
             ),
             const SizedBox(height: 16),
             if (_isLoading)
-              const Center(
-                child: Column(
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: AppColors.softSurface,
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(color: AppColors.border),
+                ),
+                child: const Column(
                   children: [
-                    CircularProgressIndicator(color: Color(0xFF175C3B)),
+                    CircularProgressIndicator(color: AppColors.primary),
                     SizedBox(height: 12),
                     Text(
                       'Güvenli yorum hazırlanıyor...',
@@ -1863,11 +2152,19 @@ class _AnalysisCardState extends State<_AnalysisCard> {
                 ),
               )
             else if (result != null) ...[
-              Text(
-                result.summary,
-                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                  height: 1.5,
-                  color: const Color(0xFF3D4841),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: AppColors.softSurface,
+                  borderRadius: BorderRadius.circular(18),
+                ),
+                child: Text(
+                  result.summary,
+                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                    height: 1.6,
+                    color: const Color(0xFF3D4841),
+                  ),
                 ),
               ),
               const SizedBox(height: 16),
@@ -1882,6 +2179,11 @@ class _AnalysisCardState extends State<_AnalysisCard> {
                         result.riskLevel,
                       ).withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(999),
+                      border: Border.all(
+                        color: _riskColor(
+                          result.riskLevel,
+                        ).withValues(alpha: 0.12),
+                      ),
                     ),
                     child: Padding(
                       padding: const EdgeInsets.symmetric(
@@ -1902,9 +2204,19 @@ class _AnalysisCardState extends State<_AnalysisCard> {
               ),
               if (_isCached) ...[
                 const SizedBox(height: 10),
-                const Text(
-                  'Önceden oluşturulmuş yorum',
-                  style: TextStyle(fontSize: 12, color: Color(0xFF78847C)),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF1F3F2),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: const Text(
+                    'Önceden oluşturulmuş yorum',
+                    style: TextStyle(fontSize: 12, color: Color(0xFF78847C)),
+                  ),
                 ),
               ],
             ] else ...[
@@ -1912,12 +2224,24 @@ class _AnalysisCardState extends State<_AnalysisCard> {
                 'Beslenme değerlerine göre kısa ve anlaşılır bir yorum oluşturabilirsiniz.',
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                   height: 1.45,
-                  color: const Color(0xFF657069),
+                  color: AppColors.mutedText,
                 ),
               ),
               if (_errorMessage case final message?) ...[
                 const SizedBox(height: 12),
-                Text(message, style: const TextStyle(color: Color(0xFFB3261E))),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFF7F4),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: const Color(0xFFF0D3CB)),
+                  ),
+                  child: Text(
+                    message,
+                    style: const TextStyle(color: Color(0xFFB3261E)),
+                  ),
+                ),
               ],
               const SizedBox(height: 14),
               Align(
@@ -1925,7 +2249,7 @@ class _AnalysisCardState extends State<_AnalysisCard> {
                 child: FilledButton.icon(
                   onPressed: _handleAnalysisButtonTap,
                   style: FilledButton.styleFrom(
-                    backgroundColor: const Color(0xFF175C3B),
+                    backgroundColor: AppColors.primary,
                     foregroundColor: Colors.white,
                     minimumSize: const Size(190, 50),
                     padding: const EdgeInsets.symmetric(
@@ -1933,11 +2257,11 @@ class _AnalysisCardState extends State<_AnalysisCard> {
                       vertical: 14,
                     ),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
+                      borderRadius: BorderRadius.circular(AppRadii.button),
                     ),
                     textStyle: const TextStyle(
                       fontSize: 15,
-                      fontWeight: FontWeight.w700,
+                      fontWeight: FontWeight.w800,
                     ),
                   ),
                   icon: const Icon(Icons.auto_awesome_outlined, size: 19),
@@ -2064,72 +2388,115 @@ class _PremiumAlternativesCard extends StatelessWidget {
           borderRadius: BorderRadius.circular(24),
           child: Padding(
             padding: const EdgeInsets.all(22),
-            child: Row(
+            child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Container(
-                  width: 46,
-                  height: 46,
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(15),
-                  ),
-                  child: const Icon(
-                    Icons.workspace_premium_outlined,
-                    color: Color(0xFFFFD782),
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        crossAxisAlignment: WrapCrossAlignment.center,
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: 46,
+                      height: 46,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(15),
+                      ),
+                      child: const Icon(
+                        Icons.workspace_premium_outlined,
+                        color: Color(0xFFFFD782),
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            'Daha Sağlıklı Alternatifler',
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: Theme.of(context).textTheme.titleMedium
-                                ?.copyWith(
-                                  fontWeight: FontWeight.w800,
-                                  color: Colors.white,
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            crossAxisAlignment: WrapCrossAlignment.center,
+                            children: [
+                              Text(
+                                'Daha Sağlıklı Alternatifler',
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: Theme.of(context).textTheme.titleMedium
+                                    ?.copyWith(
+                                      fontWeight: FontWeight.w800,
+                                      color: Colors.white,
+                                    ),
+                              ),
+                              DecoratedBox(
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFFFD782),
+                                  borderRadius: BorderRadius.circular(999),
                                 ),
+                                child: const Padding(
+                                  padding: EdgeInsets.symmetric(
+                                    horizontal: 9,
+                                    vertical: 4,
+                                  ),
+                                  child: Text(
+                                    'Premium',
+                                    style: TextStyle(
+                                      color: Color(0xFF3D2B08),
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
-                          DecoratedBox(
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFFFD782),
-                              borderRadius: BorderRadius.circular(999),
-                            ),
-                            child: const Padding(
-                              padding: EdgeInsets.symmetric(
-                                horizontal: 9,
-                                vertical: 4,
-                              ),
-                              child: Text(
-                                'Premium',
-                                style: TextStyle(
-                                  color: Color(0xFF3D2B08),
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w800,
+                          const SizedBox(height: 8),
+                          Text(
+                            'Benzer ürünler arasında daha dengeli seçenekleri keşfet.',
+                            style: Theme.of(context).textTheme.bodyMedium
+                                ?.copyWith(
+                                  color: const Color(0xFFD4E3DA),
+                                  height: 1.45,
                                 ),
-                              ),
-                            ),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Benzer ürünler arasında daha iyi seçenekleri keşfedin.',
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: const Color(0xFFD4E3DA),
-                          height: 1.4,
-                        ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 18),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.10),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.10),
                       ),
-                    ],
+                    ),
+                    child: const Padding(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            'Alternatifleri Gör',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                          SizedBox(width: 8),
+                          Icon(
+                            Icons.arrow_forward_rounded,
+                            color: Colors.white,
+                            size: 18,
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
                 ),
               ],
