@@ -14,6 +14,8 @@ class LabelWiseApp extends StatelessWidget {
       theme: AppTheme.light(),
       home: const HomeScreen(),
       routes: {
+        // Admin panel is debug-only for now.
+        // Production admin will move to a separate authenticated admin app.
         if (kDebugMode) '/admin-review': (context) => const AdminReviewScreen(),
       },
     );

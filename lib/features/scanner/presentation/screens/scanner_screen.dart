@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:labelwise/core/theme/app_tokens.dart';
-import 'package:labelwise/features/scanner/data/open_food_facts_service.dart';
 import 'package:labelwise/features/scanner/data/product.dart';
 import 'package:labelwise/features/scanner/data/product_barcode_validator.dart';
 import 'package:labelwise/features/scanner/data/product_repository.dart';
@@ -23,7 +22,6 @@ class ScannerScreen extends StatefulWidget {
 
 class _ScannerScreenState extends State<ScannerScreen> {
   final TextEditingController _barcodeController = TextEditingController();
-  final OpenFoodFactsService _service = OpenFoodFactsService();
   final ProductRepository _productRepository = ProductRepository();
   final RecentScansRepository _recentScansRepository =
       const RecentScansRepository();
@@ -149,29 +147,33 @@ class _ScannerScreenState extends State<ScannerScreen> {
       var product = await _productRepository.getProductByBarcode(barcode);
 
       if (product == null) {
-        debugPrint('Cache miss: fetching from OpenFoodFacts');
-        product = await _service.fetchProduct(barcode);
-
-        if (product != null) {
-          await _productRepository.saveProduct(product);
-        }
+        debugPrint('Cache miss: fetching from cache-openfoodfacts-product');
+        product = await _productRepository.cacheOpenFoodFactsProductFromFunction(
+          barcode: barcode,
+        );
       } else if (!product.hasNutritionData) {
         debugPrint(
-          'Cache hit: incomplete nutrition, refreshing from OpenFoodFacts',
+          'Cache hit: incomplete nutrition, refreshing from cache-openfoodfacts-product',
         );
-        product = await _service.fetchProduct(barcode);
-
-        if (product != null) {
-          await _productRepository.saveProduct(product);
+        final refreshedProduct = await _productRepository
+            .cacheOpenFoodFactsProductFromFunction(
+              barcode: barcode,
+              forceRefresh: true,
+            );
+        if (refreshedProduct != null) {
+          product = refreshedProduct;
         }
       } else if (_needsCategoryRefresh(product)) {
         debugPrint(
-          'Cache hit: category missing, refreshing from OpenFoodFacts',
+          'Cache hit: category missing, refreshing from cache-openfoodfacts-product',
         );
         final cachedProduct = product;
-        final refreshedProduct = await _service.fetchProduct(barcode);
+        final refreshedProduct = await _productRepository
+            .cacheOpenFoodFactsProductFromFunction(
+              barcode: barcode,
+              forceRefresh: true,
+            );
         if (refreshedProduct != null) {
-          await _productRepository.saveProduct(refreshedProduct);
           product = refreshedProduct;
         } else {
           product = cachedProduct;
@@ -235,7 +237,6 @@ class _ScannerScreenState extends State<ScannerScreen> {
   @override
   void dispose() {
     _barcodeController.dispose();
-    _service.dispose();
     super.dispose();
   }
 

@@ -8,6 +8,7 @@ class ProductRepository {
     : _client = client ?? Supabase.instance.client;
 
   final SupabaseClient _client;
+  static const _cacheOpenFoodFactsFunction = 'cache-openfoodfacts-product';
 
   static const _baseFields =
       'barcode, name, brand, image_url, ingredients_text, '
@@ -34,6 +35,70 @@ class ProductRepository {
     }
 
     return _productFromData(data, fallbackBarcode: barcode);
+  }
+
+  Future<Product?> cacheOpenFoodFactsProductFromFunction({
+    required String barcode,
+    bool forceRefresh = false,
+  }) async {
+    final trimmedBarcode = barcode.trim();
+    if (trimmedBarcode.isEmpty) {
+      throw ArgumentError.value(barcode, 'barcode', 'Cannot be empty');
+    }
+
+    debugPrint(
+      'Cache OFF Function Flutter: calling function '
+      'barcode=$trimmedBarcode forceRefresh=$forceRefresh',
+    );
+
+    dynamic data;
+    try {
+      final response = await _client.functions.invoke(
+        _cacheOpenFoodFactsFunction,
+        body: {'barcode': trimmedBarcode, 'force_refresh': forceRefresh},
+      );
+      data = response.data;
+    } on Object catch (error, stackTrace) {
+      debugPrint('Cache OFF Function Flutter error=$error');
+      debugPrintStack(stackTrace: stackTrace);
+      rethrow;
+    }
+
+    if (data is! Map) {
+      debugPrint('Cache OFF Function Flutter error=invalid response');
+      throw const FormatException('Cache function response is invalid.');
+    }
+
+    final cached = data['cached'] == true;
+    final productData = data['product'];
+    final error = data['error'];
+    final step = data['step'];
+
+    debugPrint('Cache OFF Function Flutter: cached=$cached');
+    debugPrint(
+      'Cache OFF Function Flutter: product returned=${productData is Map}',
+    );
+
+    if (error is String && error.trim().isNotEmpty) {
+      debugPrint('Cache OFF Function Flutter error=$error step=$step');
+      if (step == 'openfoodfacts_not_found') {
+        return null;
+      }
+      throw Exception(
+        step is String && step.trim().isNotEmpty
+            ? '${error.trim()} [step=$step]'
+            : error.trim(),
+      );
+    }
+
+    if (productData is! Map) {
+      return null;
+    }
+
+    return _productFromData(
+      Map<String, dynamic>.from(productData),
+      fallbackBarcode: trimmedBarcode,
+    );
   }
 
   Future<List<Product>> fetchProductsByCategory(String category) async {
