@@ -184,6 +184,9 @@ class ProductRepository {
   }
 
   Future<void> saveProduct(Product product) async {
+    // Normal public lookup no longer writes products directly from Flutter.
+    // Public cache miss/refresh flows should use cache-openfoodfacts-product.
+    // This direct upsert path is kept temporarily for legacy/admin-safe migrations.
     if (product.barcode.isEmpty) {
       throw ArgumentError.value(product.barcode, 'barcode', 'Cannot be empty');
     }
