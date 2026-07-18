@@ -18,8 +18,10 @@ dependencies:
   mobile_scanner: ^7.2.0
   shared_preferences: ^2.5.5
   supabase_flutter: ^2.15.0
+  google_sign_in: ^7.2.0
 
 dev_dependencies:
+  flutter_native_splash: ^2.4.6
   flutter_launcher_icons: ^0.14.4
   flutter_test:
     sdk: flutter
@@ -35,3 +37,10 @@ flutter_launcher_icons:
   image_path: assets/app_icon/labelwise_icon.png
   adaptive_icon_background: "#1B5E4A"
   adaptive_icon_foreground: assets/app_icon/labelwise_icon.png
+
+flutter_native_splash:
+  color: "#1B5E4A"
+  image: assets/app_icon/labelwise_icon.png
+  android: true
+  ios: false
+  web: false

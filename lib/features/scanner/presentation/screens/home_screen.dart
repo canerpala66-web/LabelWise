@@ -108,6 +108,10 @@ class _HomeScreenState extends State<HomeScreen> {
     _refreshRecentScans();
   }
 
+  Future<void> _openAccountEntry() async {
+    await Navigator.of(context).pushNamed('/profile');
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -144,21 +148,57 @@ class _HomeScreenState extends State<HomeScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Container(
-                          width: 56,
-                          height: 56,
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.12),
-                            borderRadius: BorderRadius.circular(18),
-                            border: Border.all(
-                              color: Colors.white.withValues(alpha: 0.08),
+                        Row(
+                          children: [
+                            Container(
+                              width: 56,
+                              height: 56,
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.12),
+                                borderRadius: BorderRadius.circular(18),
+                                border: Border.all(
+                                  color: Colors.white.withValues(alpha: 0.08),
+                                ),
+                              ),
+                              child: const Icon(
+                                Icons.eco_outlined,
+                                color: Colors.white,
+                                size: 30,
+                              ),
                             ),
-                          ),
-                          child: const Icon(
-                            Icons.eco_outlined,
-                            color: Colors.white,
-                            size: 30,
-                          ),
+                            const Spacer(),
+                            Semantics(
+                              label: 'Profil',
+                              button: true,
+                              child: Tooltip(
+                                message: 'Profil',
+                                child: Material(
+                                  color: Colors.white.withValues(alpha: 0.12),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(18),
+                                    side: BorderSide(
+                                      color: Colors.white.withValues(
+                                        alpha: 0.08,
+                                      ),
+                                    ),
+                                  ),
+                                  child: InkWell(
+                                    onTap: _openAccountEntry,
+                                    borderRadius: BorderRadius.circular(18),
+                                    child: const SizedBox(
+                                      width: 48,
+                                      height: 48,
+                                      child: Icon(
+                                        Icons.person_outline_rounded,
+                                        color: Colors.white,
+                                        size: 24,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                         const SizedBox(height: AppSpacing.sectionSpacing),
                         Text(
