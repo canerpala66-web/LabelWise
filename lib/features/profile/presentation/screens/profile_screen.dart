@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:labelwise/core/theme/app_tokens.dart';
 import 'package:labelwise/features/auth/data/auth_repository.dart';
 import 'package:labelwise/features/auth/data/auth_user.dart';
+import 'package:labelwise/features/profile/data/profile_repository.dart';
+import 'package:labelwise/features/profile/data/user_profile.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -12,7 +14,11 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   final AuthRepository _authRepository = AuthRepository();
+  final ProfileRepository _profileRepository = ProfileRepository();
   bool _isSigningOut = false;
+  bool _isUpdatingDisplayName = false;
+  String? _profileErrorMessage;
+  Future<UserProfile?>? _profileFuture;
 
   Future<void> _openAuthScreen() async {
     final result = await Navigator.of(context).pushNamed('/auth');
@@ -23,6 +29,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
         SnackBar(content: Text(message)),
       );
     }
+
+    _reloadProfile();
   }
 
   Future<void> _signOut() async {
@@ -34,6 +42,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     try {
       await _authRepository.signOut();
+      if (!mounted) return;
+      setState(() {
+        _profileFuture = null;
+        _profileErrorMessage = null;
+      });
     } on AuthRepositoryException {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -45,6 +58,148 @@ class _ProfileScreenState extends State<ProfileScreen> {
       if (mounted) {
         setState(() {
           _isSigningOut = false;
+        });
+      }
+    }
+  }
+
+  void _reloadProfile() {
+    if (!mounted) return;
+    setState(() {
+      _profileErrorMessage = null;
+      _profileFuture = _profileRepository.getCurrentProfile();
+    });
+  }
+
+  Future<void> _editDisplayName(UserProfile? profile) async {
+    final controller = TextEditingController(text: profile?.displayName ?? '');
+    final formKey = GlobalKey<FormState>();
+
+    final result = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        final theme = Theme.of(context);
+
+        return Padding(
+          padding: EdgeInsets.fromLTRB(
+            16,
+            0,
+            16,
+            MediaQuery.of(context).viewInsets.bottom + 16,
+          ),
+          child: Container(
+            padding: const EdgeInsets.all(AppSpacing.cardPadding),
+            decoration: BoxDecoration(
+              color: AppColors.surface,
+              borderRadius: BorderRadius.circular(AppRadii.hero),
+              border: Border.all(color: AppColors.border),
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x14000000),
+                  blurRadius: 24,
+                  offset: Offset(0, 10),
+                ),
+              ],
+            ),
+            child: Form(
+              key: formKey,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    'Profil adını düzenle',
+                    style: theme.textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.smallSpacing),
+                  Text(
+                    'İstersen burada görünen adını ekleyebilirsin.',
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: AppColors.mutedText,
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.sectionSpacing),
+                  TextFormField(
+                    controller: controller,
+                    autofocus: true,
+                    maxLength: 40,
+                    decoration: const InputDecoration(
+                      labelText: 'Profil adı',
+                      hintText: 'Adın',
+                    ),
+                    validator: (value) {
+                      final text = value?.trim() ?? '';
+                      if (text.length > 40) {
+                        return 'Profil adı 40 karakterden uzun olamaz.';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: AppSpacing.itemSpacing),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () => Navigator.of(context).pop(),
+                          child: const Text('Vazgeç'),
+                        ),
+                      ),
+                      const SizedBox(width: AppSpacing.itemSpacing),
+                      Expanded(
+                        child: FilledButton(
+                          onPressed: () {
+                            if (!(formKey.currentState?.validate() ?? false)) {
+                              return;
+                            }
+                            Navigator.of(context).pop(controller.text.trim());
+                          },
+                          child: const Text('Kaydet'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+
+    controller.dispose();
+
+    if (!mounted || result == null || _isUpdatingDisplayName) {
+      return;
+    }
+
+    setState(() {
+      _isUpdatingDisplayName = true;
+      _profileErrorMessage = null;
+    });
+
+    try {
+      await _profileRepository.updateDisplayName(result);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Profil adı güncellendi.')),
+      );
+      _reloadProfile();
+    } on ProfileRepositoryException catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _profileErrorMessage = error.message;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error.message)),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isUpdatingDisplayName = false;
         });
       }
     }
@@ -67,6 +222,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
         initialData: _authRepository.currentUser,
         builder: (context, snapshot) {
           final user = snapshot.data;
+          final profileFuture = user == null
+              ? null
+              : _profileFuture ?? _profileRepository.getCurrentProfile();
+
+          if (user != null && !identical(_profileFuture, profileFuture)) {
+            _profileFuture = profileFuture;
+          }
 
           return SafeArea(
             child: Center(
@@ -84,11 +246,36 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           onAuthTap: _openAuthScreen,
                           theme: theme,
                         )
-                      : _LoggedInProfileView(
-                          user: user,
-                          theme: theme,
-                          isSigningOut: _isSigningOut,
-                          onSignOut: _signOut,
+                      : FutureBuilder<UserProfile?>(
+                          future: profileFuture,
+                          builder: (context, profileSnapshot) {
+                            if (profileSnapshot.connectionState ==
+                                ConnectionState.waiting) {
+                              return const _ProfileLoadingView();
+                            }
+
+                            final profile = profileSnapshot.data;
+                            final errorMessage = profileSnapshot.hasError
+                                ? profileSnapshot.error
+                                      is ProfileRepositoryException
+                                  ? (profileSnapshot.error
+                                          as ProfileRepositoryException)
+                                      .message
+                                  : 'Profil bilgileri yüklenemedi.'
+                                : _profileErrorMessage;
+
+                            return _LoggedInProfileView(
+                              user: user,
+                              profile: profile,
+                              theme: theme,
+                              isSigningOut: _isSigningOut,
+                              isUpdatingDisplayName: _isUpdatingDisplayName,
+                              errorMessage: errorMessage,
+                              onEditDisplayName: () =>
+                                  _editDisplayName(profile),
+                              onSignOut: _signOut,
+                            );
+                          },
                         ),
                 ),
               ),
@@ -221,19 +408,32 @@ class _LoggedOutProfileView extends StatelessWidget {
 class _LoggedInProfileView extends StatelessWidget {
   const _LoggedInProfileView({
     required this.user,
+    required this.profile,
     required this.theme,
     required this.isSigningOut,
+    required this.isUpdatingDisplayName,
+    required this.errorMessage,
+    required this.onEditDisplayName,
     required this.onSignOut,
   });
 
   final AuthUser user;
+  final UserProfile? profile;
   final ThemeData theme;
   final bool isSigningOut;
+  final bool isUpdatingDisplayName;
+  final String? errorMessage;
+  final Future<void> Function() onEditDisplayName;
   final Future<void> Function() onSignOut;
 
   @override
   Widget build(BuildContext context) {
-    final emailText = user.email.isEmpty ? 'Giriş yapılmış hesap' : user.email;
+    final emailText = profile?.email.isNotEmpty == true
+        ? profile!.email
+        : (user.email.isEmpty ? 'Giriş yapılmış hesap' : user.email);
+    final displayName = profile?.displayName?.trim();
+    final displayNameText =
+        displayName == null || displayName.isEmpty ? 'Ad eklenmedi' : displayName;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -291,6 +491,56 @@ class _LoggedInProfileView extends StatelessWidget {
                   ],
                 ),
               ),
+            ],
+          ),
+        ),
+        const SizedBox(height: AppSpacing.sectionSpacing),
+        _InfoCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Görünen ad',
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                  TextButton.icon(
+                    onPressed: isUpdatingDisplayName ? null : onEditDisplayName,
+                    icon: isUpdatingDisplayName
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.edit_outlined, size: 18),
+                    label: Text(
+                      isUpdatingDisplayName ? 'Kaydediliyor...' : 'Düzenle',
+                    ),
+                  ),
+                ],
+              ),
+              Text(
+                displayNameText,
+                style: theme.textTheme.bodyLarge?.copyWith(
+                  color: AppColors.primaryText,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              if (errorMessage case final message?) ...[
+                const SizedBox(height: AppSpacing.itemSpacing),
+                Text(
+                  message,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: AppColors.caution,
+                    height: 1.4,
+                  ),
+                ),
+              ],
             ],
           ),
         ),
@@ -397,6 +647,34 @@ class _LoggedInProfileView extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _ProfileLoadingView extends StatelessWidget {
+  const _ProfileLoadingView();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return _InfoCard(
+      child: Column(
+        children: [
+          const SizedBox(
+            width: 28,
+            height: 28,
+            child: CircularProgressIndicator(strokeWidth: 2.5),
+          ),
+          const SizedBox(height: AppSpacing.itemSpacing),
+          Text(
+            'Profil bilgileri yükleniyor...',
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: AppColors.mutedText,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
