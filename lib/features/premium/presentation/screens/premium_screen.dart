@@ -3,6 +3,7 @@ import 'package:labelwise/core/analytics/analytics_service.dart';
 import 'package:labelwise/core/crashlytics/crashlytics_service.dart';
 import 'package:labelwise/core/theme/app_tokens.dart';
 import 'package:labelwise/features/auth/data/auth_repository.dart';
+import 'package:labelwise/features/premium/data/billing_repository.dart';
 import 'package:labelwise/features/premium/data/entitlement_repository.dart';
 import 'package:labelwise/features/premium/data/user_entitlement.dart';
 
@@ -19,9 +20,11 @@ class PremiumScreen extends StatefulWidget {
 
 class _PremiumScreenState extends State<PremiumScreen> {
   final AuthRepository _authRepository = AuthRepository();
+  final BillingRepository _billingRepository = BillingRepository();
   final EntitlementRepository _entitlementRepository = EntitlementRepository();
   late Future<UserEntitlement?> _entitlementFuture;
   _PremiumPlan _selectedPlan = _PremiumPlan.yearly;
+  bool _isStartingPurchase = false;
 
   @override
   void initState() {
@@ -36,13 +39,25 @@ class _PremiumScreenState extends State<PremiumScreen> {
     });
   }
 
-  String get _selectedPlanActivationText {
+  String get _selectedProductId {
     return _selectedPlan == _PremiumPlan.yearly
-        ? 'Yıllık plan yakında aktif olacak'
-        : 'Aylık plan yakında aktif olacak';
+        ? 'labelwise_premium_yearly'
+        : 'labelwise_premium_monthly';
+  }
+
+  String get _selectedPlanButtonText {
+    if (_isStartingPurchase) {
+      return 'Satın alma başlatılıyor...';
+    }
+
+    return _selectedPlan == _PremiumPlan.yearly
+        ? 'Yıllık planı seç'
+        : 'Aylık planı seç';
   }
 
   Future<void> _handlePremiumCtaTap() async {
+    if (_isStartingPurchase) return;
+
     final currentUser = _authRepository.currentUser;
 
     if (currentUser == null) {
@@ -61,10 +76,26 @@ class _PremiumScreenState extends State<PremiumScreen> {
       return;
     }
 
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(_selectedPlanActivationText)),
-    );
+    setState(() {
+      _isStartingPurchase = true;
+    });
+
+    try {
+      await _billingRepository.startSubscriptionPurchase(
+        productId: _selectedProductId,
+      );
+    } on BillingRepositoryException catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.message)));
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isStartingPurchase = false;
+        });
+      }
+    }
   }
 
   @override
@@ -186,7 +217,9 @@ class _PremiumScreenState extends State<PremiumScreen> {
                           width: double.infinity,
                           height: 56,
                           child: FilledButton(
-                            onPressed: _handlePremiumCtaTap,
+                            onPressed: _isStartingPurchase
+                                ? null
+                                : _handlePremiumCtaTap,
                             style: FilledButton.styleFrom(
                               backgroundColor: AppColors.primary,
                               foregroundColor: Colors.white,
@@ -200,7 +233,7 @@ class _PremiumScreenState extends State<PremiumScreen> {
                                 fontSize: 15,
                               ),
                             ),
-                            child: Text(_selectedPlanActivationText),
+                            child: Text(_selectedPlanButtonText),
                           ),
                         ),
                         const SizedBox(height: 10),
