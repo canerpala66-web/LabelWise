@@ -3,12 +3,17 @@ import 'dart:async';
 import 'package:in_app_purchase/in_app_purchase.dart';
 
 import 'package:labelwise/features/premium/data/billing_repository.dart';
+import 'package:labelwise/features/premium/data/subscription_verification_repository.dart';
+import 'package:labelwise/features/premium/data/subscription_verification_result.dart';
 
 enum PurchaseCoordinatorState {
   idle,
   pending,
-  purchased,
-  restored,
+  purchasedNeedsVerification,
+  restoredNeedsVerification,
+  verifying,
+  verificationSucceeded,
+  verificationFailed,
   canceled,
   error,
 }
@@ -17,10 +22,12 @@ class PurchaseCoordinatorStatus {
   const PurchaseCoordinatorStatus({
     required this.state,
     this.message,
+    this.verificationResult,
   });
 
   final PurchaseCoordinatorState state;
   final String? message;
+  final SubscriptionVerificationResult? verificationResult;
 
   static const idle = PurchaseCoordinatorStatus(
     state: PurchaseCoordinatorState.idle,
@@ -28,10 +35,15 @@ class PurchaseCoordinatorStatus {
 }
 
 class PurchaseCoordinator {
-  PurchaseCoordinator({BillingRepository? billingRepository})
-    : _billingRepository = billingRepository ?? BillingRepository();
+  PurchaseCoordinator({
+    BillingRepository? billingRepository,
+    SubscriptionVerificationRepository? verificationRepository,
+  }) : _billingRepository = billingRepository ?? BillingRepository(),
+       _verificationRepository =
+           verificationRepository ?? SubscriptionVerificationRepository();
 
   final BillingRepository _billingRepository;
+  final SubscriptionVerificationRepository _verificationRepository;
   final StreamController<PurchaseCoordinatorStatus> _statusController =
       StreamController<PurchaseCoordinatorStatus>.broadcast();
 
@@ -86,20 +98,16 @@ class PurchaseCoordinator {
           );
           break;
         case PurchaseStatus.purchased:
-          _emitStatus(
-            const PurchaseCoordinatorStatus(
-              state: PurchaseCoordinatorState.purchased,
-              message: 'Satın alma alındı. Doğrulama daha sonra eklenecek.',
-            ),
-          );
+          unawaited(_handleVerificationRequiredPurchase(
+            purchase,
+            restored: false,
+          ));
           break;
         case PurchaseStatus.restored:
-          _emitStatus(
-            const PurchaseCoordinatorStatus(
-              state: PurchaseCoordinatorState.restored,
-              message: 'Satın alma kaydı alındı. Doğrulama daha sonra eklenecek.',
-            ),
-          );
+          unawaited(_handleVerificationRequiredPurchase(
+            purchase,
+            restored: true,
+          ));
           break;
         case PurchaseStatus.canceled:
           _emitStatus(
@@ -118,6 +126,82 @@ class PurchaseCoordinator {
           );
           break;
       }
+    }
+  }
+
+  Future<void> _handleVerificationRequiredPurchase(
+    PurchaseDetails purchase, {
+    required bool restored,
+  }) async {
+    _emitStatus(
+      PurchaseCoordinatorStatus(
+        state: restored
+            ? PurchaseCoordinatorState.restoredNeedsVerification
+            : PurchaseCoordinatorState.purchasedNeedsVerification,
+        message: restored
+            ? 'Satın alma kaydı alındı. Doğrulama hazırlanıyor.'
+            : 'Satın alma alındı. Doğrulama hazırlanıyor.',
+      ),
+    );
+
+    final productId = purchase.productID.trim();
+    final purchaseToken = purchase.verificationData.serverVerificationData.trim();
+
+    if (productId.isEmpty || purchaseToken.isEmpty) {
+      _emitStatus(
+        const PurchaseCoordinatorStatus(
+          state: PurchaseCoordinatorState.verificationFailed,
+          message: 'Satın alma doğrulaması için gerekli bilgi alınamadı.',
+        ),
+      );
+      return;
+    }
+
+    _emitStatus(
+      const PurchaseCoordinatorStatus(
+        state: PurchaseCoordinatorState.verifying,
+        message: 'Abonelik doğrulaması kontrol ediliyor.',
+      ),
+    );
+
+    try {
+      final result = await _verificationRepository.verifyGooglePlaySubscription(
+        productId: productId,
+        purchaseToken: purchaseToken,
+      );
+
+      if (result.success && result.isPremium) {
+        _emitStatus(
+          PurchaseCoordinatorStatus(
+            state: PurchaseCoordinatorState.verificationSucceeded,
+            message: result.message,
+            verificationResult: result,
+          ),
+        );
+        return;
+      }
+
+      _emitStatus(
+        PurchaseCoordinatorStatus(
+          state: PurchaseCoordinatorState.verificationFailed,
+          message: result.message,
+          verificationResult: result,
+        ),
+      );
+    } on SubscriptionVerificationRepositoryException catch (error) {
+      _emitStatus(
+        PurchaseCoordinatorStatus(
+          state: PurchaseCoordinatorState.verificationFailed,
+          message: error.message,
+        ),
+      );
+    } on Object {
+      _emitStatus(
+        const PurchaseCoordinatorStatus(
+          state: PurchaseCoordinatorState.verificationFailed,
+          message: 'Abonelik doğrulanamadı.',
+        ),
+      );
     }
   }
 
