@@ -15,9 +15,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
   bool _isSigningOut = false;
 
   Future<void> _openAuthScreen() async {
-    await Navigator.of(context).pushNamed('/auth');
-    if (mounted) {
-      setState(() {});
+    final result = await Navigator.of(context).pushNamed('/auth');
+    if (!mounted) return;
+
+    if (result case final String message when message.isNotEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message)),
+      );
     }
   }
 

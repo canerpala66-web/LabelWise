@@ -24,6 +24,24 @@ class _AuthScreenState extends State<AuthScreen> {
 
   bool get _isSignIn => _mode == _AuthMode.signIn;
 
+  void _handleAuthSuccess({required bool createdAccount}) {
+    final successMessage = createdAccount
+        ? 'Hesap oluşturuldu.'
+        : 'Giriş yapıldı.';
+
+    if (Navigator.of(context).canPop()) {
+      Navigator.of(context).pop(successMessage);
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(successMessage)),
+    );
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute<void>(builder: (_) => const HomeScreen()),
+    );
+  }
+
   @override
   void dispose() {
     _emailController.dispose();
@@ -57,14 +75,7 @@ class _AuthScreenState extends State<AuthScreen> {
       }
 
       if (!mounted) return;
-
-      if (Navigator.of(context).canPop()) {
-        Navigator.of(context).pop();
-      } else {
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute<void>(builder: (_) => const HomeScreen()),
-        );
-      }
+      _handleAuthSuccess(createdAccount: !_isSignIn);
     } on AuthRepositoryException catch (error) {
       if (!mounted) return;
       setState(() {
@@ -95,14 +106,7 @@ class _AuthScreenState extends State<AuthScreen> {
       await _authRepository.signInWithGoogle();
 
       if (!mounted) return;
-
-      if (Navigator.of(context).canPop()) {
-        Navigator.of(context).pop();
-      } else {
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute<void>(builder: (_) => const HomeScreen()),
-        );
-      }
+      _handleAuthSuccess(createdAccount: false);
     } on AuthRepositoryException catch (error) {
       if (!mounted) return;
       setState(() {
