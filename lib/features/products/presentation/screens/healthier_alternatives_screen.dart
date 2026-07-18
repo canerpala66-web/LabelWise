@@ -695,7 +695,7 @@ class _EmptyState extends StatelessWidget {
       iconColor: _greenColor,
       title: 'Henüz yeterli alternatif yok',
       description:
-          'Bu kategori için daha iyi seçenekler veritabanımızda arttıkça burada görünecek.',
+          'Bu kategori için daha iyi seçenekler veritabanımıza eklendikçe burada görünecek.',
     );
   }
 }
@@ -710,7 +710,7 @@ class _ErrorState extends StatelessWidget {
       iconBackground: Color(0xFFFFECE8),
       iconColor: Color(0xFFA94D40),
       title: 'Bir sorun oluştu',
-      description: 'Bağlantı sorunu olabilir. Birazdan tekrar deneyin.',
+      description: 'Bağlantı kurulamadı. İnternetini kontrol edip tekrar dene.',
     );
   }
 }

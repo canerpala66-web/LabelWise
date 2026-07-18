@@ -143,7 +143,7 @@ class _CorrectionReportScreenState extends State<CorrectionReportScreen> {
       setState(() {
         _isSubmitting = false;
         _errorMessage =
-            'Düzeltme bildirimi gönderilemedi. Lütfen tekrar deneyin.';
+            'Bildirimin şu anda gönderilemedi. İnternetini kontrol edip tekrar dene.';
       });
     }
   }
@@ -367,7 +367,7 @@ class _CorrectionReportScreenState extends State<CorrectionReportScreen> {
                           borderRadius: BorderRadius.circular(16),
                         ),
                         child: const Text(
-                          'Bildiriminiz gönderildi, teşekkürler.',
+                          'Bildirimin alındı. Ürün bilgilerini kontrol edip gerekli düzenlemeyi yapacağız.',
                           textAlign: TextAlign.center,
                           style: TextStyle(
                             color: Color(0xFF175C3B),

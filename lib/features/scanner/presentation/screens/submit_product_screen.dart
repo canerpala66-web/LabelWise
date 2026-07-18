@@ -80,7 +80,8 @@ class _SubmitProductScreenState extends State<SubmitProductScreen> {
         return;
       }
       setState(() {
-        _errorMessage = 'Fotoğraf seçilemedi. Lütfen tekrar deneyin.';
+        _errorMessage =
+            'Fotoğraf seçilemedi. İstersen tekrar deneyebilir ya da bu alanı şimdilik boş bırakabilirsin.';
       });
     }
   }
@@ -154,7 +155,9 @@ class _SubmitProductScreenState extends State<SubmitProductScreen> {
       });
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Ürün incelemeye gönderildi. Teşekkürler!'),
+          content: Text(
+            'Ürün gönderildi. Ekibimiz bilgileri kontrol ettikten sonra veritabanına ekleyecek.',
+          ),
         ),
       );
     } on PhotoUploadException catch (error, stackTrace) {
@@ -167,7 +170,8 @@ class _SubmitProductScreenState extends State<SubmitProductScreen> {
 
       setState(() {
         _isSubmitting = false;
-        _errorMessage = 'Fotoğraf yüklenemedi. Lütfen tekrar deneyin.';
+        _errorMessage =
+            'Fotoğraflar yüklenemedi. Daha net bir bağlantıyla tekrar deneyebilirsin.';
       });
     } on SubmissionInsertException catch (error, stackTrace) {
       debugPrint('SubmitProduct: failed step=database_insert, error=$error');
@@ -176,7 +180,8 @@ class _SubmitProductScreenState extends State<SubmitProductScreen> {
       if (!mounted) return;
       setState(() {
         _isSubmitting = false;
-        _errorMessage = 'Ürün bilgileri kaydedilemedi. Lütfen tekrar deneyin.';
+        _errorMessage =
+            'Ürün bilgileri şu anda kaydedilemedi. Lütfen biraz sonra tekrar dene.';
       });
     } on Exception catch (error, stackTrace) {
       debugPrint('SubmitProduct: failed step=unexpected, error=$error');
@@ -188,7 +193,8 @@ class _SubmitProductScreenState extends State<SubmitProductScreen> {
 
       setState(() {
         _isSubmitting = false;
-        _errorMessage = 'Ürün gönderilemedi. Lütfen tekrar deneyin.';
+        _errorMessage =
+            'Ürün şu anda gönderilemedi. İnternetini kontrol edip tekrar dene.';
       });
     }
   }
@@ -547,7 +553,7 @@ class _SubmitProductScreenState extends State<SubmitProductScreen> {
                         child: Column(
                           children: [
                             const Text(
-                              'Ürün incelemeye gönderildi. Teşekkürler!',
+                              'Ürün gönderildi. Ekibimiz bilgileri kontrol ettikten sonra veritabanına ekleyecek.',
                               textAlign: TextAlign.center,
                               style: TextStyle(
                                 fontWeight: FontWeight.w700,
@@ -557,7 +563,7 @@ class _SubmitProductScreenState extends State<SubmitProductScreen> {
                             if (_hasSelectedPhotos) ...[
                               const SizedBox(height: 7),
                               const Text(
-                                'Eklediğiniz fotoğraflar inceleme sürecinde kullanılacaktır.',
+                                'Eklediğin fotoğraflar inceleme sürecini hızlandırmaya yardımcı olacak.',
                                 textAlign: TextAlign.center,
                                 style: TextStyle(
                                   height: 1.4,

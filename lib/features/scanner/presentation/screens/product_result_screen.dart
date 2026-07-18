@@ -2048,7 +2048,7 @@ class _AnalysisCardState extends State<_AnalysisCard> {
       setState(() {
         _isLoading = false;
         _errorMessage =
-            'Yapay zeka yorumu oluşturulamadı. Lütfen tekrar deneyin.';
+            'AI yorumu şu anda oluşturulamadı. Biraz sonra tekrar deneyebilirsin.';
       });
     }
   }
@@ -2103,7 +2103,7 @@ class _AnalysisCardState extends State<_AnalysisCard> {
       setState(() {
         _isLoading = false;
         _errorMessage =
-            'Yapay zeka yorumu oluşturulamadı. Lütfen tekrar deneyin.';
+            'AI yorumu şu anda oluşturulamadı. Biraz sonra tekrar deneyebilirsin.';
       });
     }
   }

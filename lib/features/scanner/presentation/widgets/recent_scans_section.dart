@@ -37,7 +37,7 @@ class RecentScansSection extends StatelessWidget {
               border: Border.all(color: AppColors.border),
             ),
             child: Text(
-              'Henüz ürün taramadınız.',
+              'Henüz tarama geçmişin yok. İlk ürünü okut ve sonuçları burada gör.',
               style: Theme.of(
                 context,
               ).textTheme.bodyMedium?.copyWith(color: AppColors.mutedText),

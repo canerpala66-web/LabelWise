@@ -68,7 +68,11 @@ class _HomeScreenState extends State<HomeScreen> {
       if (!context.mounted) return;
       if (product == null) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Ürün bilgileri yüklenemedi.')),
+          const SnackBar(
+            content: Text(
+              'Ürün bilgileri şu anda açılamadı. İnternetini kontrol edip tekrar dene.',
+            ),
+          ),
         );
         return;
       }
@@ -84,7 +88,9 @@ class _HomeScreenState extends State<HomeScreen> {
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Ürün yüklenemedi. Lütfen tekrar deneyin.'),
+          content: Text(
+            'Ürün bilgileri şu anda açılamadı. İnternetini kontrol edip tekrar dene.',
+          ),
         ),
       );
     }

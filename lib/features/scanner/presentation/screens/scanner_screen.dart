@@ -88,7 +88,11 @@ class _ScannerScreenState extends State<ScannerScreen> {
       if (!mounted) return;
       if (product == null) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Ürün bilgileri yüklenemedi.')),
+          const SnackBar(
+            content: Text(
+              'Ürün bilgileri şu anda açılamadı. İnternetini kontrol edip tekrar dene.',
+            ),
+          ),
         );
         return;
       }
@@ -104,7 +108,9 @@ class _ScannerScreenState extends State<ScannerScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Ürün yüklenemedi. Lütfen tekrar deneyin.'),
+          content: Text(
+            'Ürün bilgileri şu anda açılamadı. İnternetini kontrol edip tekrar dene.',
+          ),
         ),
       );
     }
@@ -220,7 +226,8 @@ class _ScannerScreenState extends State<ScannerScreen> {
 
       setState(() {
         _isLoading = false;
-        _errorMessage = 'Ürün yüklenemedi. Lütfen tekrar deneyin.';
+        _errorMessage =
+            'Bağlantı kurulamadı ya da ürün bilgileri şu anda alınamadı. İnternetini kontrol edip tekrar dene.';
         _missingBarcode = null;
         _failedBarcode = barcode;
       });
