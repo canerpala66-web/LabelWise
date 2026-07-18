@@ -2,6 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:labelwise/core/analytics/analytics_service.dart';
 import 'package:labelwise/core/crashlytics/crashlytics_service.dart';
 import 'package:labelwise/core/theme/app_tokens.dart';
+import 'package:labelwise/features/premium/data/entitlement_repository.dart';
+import 'package:labelwise/features/premium/data/user_entitlement.dart';
+
+enum _PremiumPlan { monthly, yearly }
 
 class PremiumScreen extends StatefulWidget {
   const PremiumScreen({super.key, this.sourceScreen});
@@ -13,9 +17,14 @@ class PremiumScreen extends StatefulWidget {
 }
 
 class _PremiumScreenState extends State<PremiumScreen> {
+  final EntitlementRepository _entitlementRepository = EntitlementRepository();
+  late Future<UserEntitlement?> _entitlementFuture;
+  _PremiumPlan _selectedPlan = _PremiumPlan.yearly;
+
   @override
   void initState() {
     super.initState();
+    _entitlementFuture = _entitlementRepository.getCurrentEntitlement();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       CrashlyticsService.instance.setCurrentScreen('premium');
       CrashlyticsService.instance.setCurrentFlow('premium');
@@ -29,34 +38,29 @@ class _PremiumScreenState extends State<PremiumScreen> {
   Widget build(BuildContext context) {
     const benefits = [
       _PremiumBenefit(
-        icon: Icons.auto_awesome_mosaic_outlined,
-        title: 'Daha sağlıklı alternatifleri gör',
-        description: 'Benzer ürünler arasında daha dengeli seçenekleri keşfet.',
-      ),
-      _PremiumBenefit(
-        icon: Icons.history_rounded,
-        title: 'Daha uzun tarama geçmişi',
-        description: 'Son 5 üründen fazlasına eriş.',
-      ),
-      _PremiumBenefit(
-        icon: Icons.keyboard_alt_rounded,
-        title: 'Manuel barkod arama',
-        description: 'Barkodu kamerayla okutamadığında numarayı elle gir.',
-      ),
-      _PremiumBenefit(
-        icon: Icons.compare_arrows_rounded,
-        title: '2 ürünü karşılaştır',
-        description: 'İki ürünü yan yana görerek daha bilinçli seçim yap.',
-      ),
-      _PremiumBenefit(
         icon: Icons.do_not_disturb_on_outlined,
         title: 'Reklamsız deneyim',
         description: 'Daha sade ve kesintisiz kullanım.',
       ),
       _PremiumBenefit(
+        icon: Icons.auto_awesome_mosaic_outlined,
+        title: 'Daha sağlıklı alternatifler',
+        description: 'Benzer ürünler arasında daha dengeli seçenekleri keşfet.',
+      ),
+      _PremiumBenefit(
         icon: Icons.auto_awesome_outlined,
-        title: 'Gelişmiş yapay zekâ yorumları',
-        description: 'Ürünleri daha detaylı ve anlaşılır şekilde değerlendir.',
+        title: 'Daha detaylı AI yorumları',
+        description: 'Ürünleri daha kapsamlı ve anlaşılır şekilde değerlendir.',
+      ),
+      _PremiumBenefit(
+        icon: Icons.history_rounded,
+        title: 'Daha uzun tarama geçmişi',
+        description: 'Eski ürün sonuçlarına daha uzun süre eriş.',
+      ),
+      _PremiumBenefit(
+        icon: Icons.cloud_off_outlined,
+        title: 'Offline veritabanı yakında',
+        description: 'Bağlantı olmadığında da temel ürün bilgilerine eriş.',
       ),
     ];
 
@@ -68,84 +72,162 @@ class _PremiumScreenState extends State<PremiumScreen> {
         surfaceTintColor: Colors.transparent,
       ),
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(AppSpacing.pagePadding),
-          child: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 620),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const _PremiumHeroCard(),
-                  const SizedBox(height: AppSpacing.sectionSpacingLarge),
-                  Text(
-                    'Premium ile neler açılacak?',
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w800,
-                      color: AppColors.primaryText,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'LabelWise Premium, alışveriş sırasında daha net karşılaştırmalar ve daha uzun süreli takip için hazırlanıyor.',
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      height: 1.5,
-                      color: AppColors.mutedText,
-                    ),
-                  ),
-                  const SizedBox(height: AppSpacing.sectionSpacing),
-                  for (final benefit in benefits) ...[
-                    _PremiumBenefitCard(benefit: benefit),
-                    const SizedBox(height: 12),
-                  ],
-                  const SizedBox(height: 8),
-                  const _ComparisonHighlightCard(),
-                  const SizedBox(height: AppSpacing.sectionSpacingLarge),
-                  SizedBox(
-                    width: double.infinity,
-                    height: 56,
-                    child: FilledButton(
-                      onPressed: null,
-                      style: FilledButton.styleFrom(
-                        disabledBackgroundColor: const Color(0xFFB7CEC0),
-                        disabledForegroundColor: const Color(0xFF355445),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(AppRadii.button),
+        child: FutureBuilder<UserEntitlement?>(
+          future: _entitlementFuture,
+          builder: (context, snapshot) {
+            final entitlement = snapshot.data;
+            final premiumActive = entitlement?.hasActivePremium == true;
+            final entitlementError = snapshot.hasError
+                ? 'Premium durumu yüklenemedi.'
+                : null;
+
+            return SingleChildScrollView(
+              padding: const EdgeInsets.all(AppSpacing.pagePadding),
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 620),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _PremiumHeroCard(premiumActive: premiumActive),
+                      const SizedBox(height: AppSpacing.sectionSpacingLarge),
+                      if (premiumActive) ...[
+                        _ActivePremiumCard(entitlement: entitlement!),
+                        const SizedBox(height: AppSpacing.sectionSpacingLarge),
+                      ] else ...[
+                        Text(
+                          'Planını seç',
+                          style: Theme.of(context).textTheme.titleLarge
+                              ?.copyWith(
+                                fontWeight: FontWeight.w800,
+                                color: AppColors.primaryText,
+                              ),
                         ),
-                        textStyle: const TextStyle(
+                        const SizedBox(height: 8),
+                        Text(
+                          'Premium özellikler yakında aktif olacak. Şimdilik hangi planı tercih edeceğini seçebilirsin.',
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(
+                                height: 1.5,
+                                color: AppColors.mutedText,
+                              ),
+                        ),
+                        const SizedBox(height: AppSpacing.sectionSpacing),
+                        _PlanCard(
+                          title: 'Aylık Premium',
+                          price: '69,99 TL / ay',
+                          description: 'Esnek kullanım',
+                          selected: _selectedPlan == _PremiumPlan.monthly,
+                          onTap: () {
+                            setState(() {
+                              _selectedPlan = _PremiumPlan.monthly;
+                            });
+                          },
+                        ),
+                        const SizedBox(height: AppSpacing.itemSpacing),
+                        _PlanCard(
+                          title: 'Yıllık Premium',
+                          price: '299,99 TL / yıl',
+                          description: 'Ayda yaklaşık 25 TL',
+                          badge: 'En avantajlı',
+                          selected: _selectedPlan == _PremiumPlan.yearly,
+                          onTap: () {
+                            setState(() {
+                              _selectedPlan = _PremiumPlan.yearly;
+                            });
+                          },
+                        ),
+                        if (entitlementError case final message?) ...[
+                          const SizedBox(height: AppSpacing.itemSpacing),
+                          Text(
+                            message,
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(
+                                  color: AppColors.caution,
+                                  height: 1.4,
+                                ),
+                          ),
+                        ],
+                        const SizedBox(height: AppSpacing.sectionSpacingLarge),
+                        SizedBox(
+                          width: double.infinity,
+                          height: 56,
+                          child: FilledButton(
+                            onPressed: null,
+                            style: FilledButton.styleFrom(
+                              disabledBackgroundColor: const Color(0xFFB7CEC0),
+                              disabledForegroundColor: const Color(0xFF355445),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(
+                                  AppRadii.button,
+                                ),
+                              ),
+                              textStyle: const TextStyle(
+                                fontWeight: FontWeight.w800,
+                                fontSize: 15,
+                              ),
+                            ),
+                            child: Text(
+                              _selectedPlan == _PremiumPlan.yearly
+                                  ? 'Yıllık plan yakında aktif olacak'
+                                  : 'Aylık plan yakında aktif olacak',
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        Center(
+                          child: Text(
+                            'Satın alma akışı hazır olduğunda bu ekrandan güvenle devam edebileceksin.',
+                            textAlign: TextAlign.center,
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(
+                                  color: AppColors.mutedText,
+                                  height: 1.4,
+                                ),
+                          ),
+                        ),
+                        const SizedBox(height: AppSpacing.sectionSpacingLarge),
+                      ],
+                      Text(
+                        'Premium ile neler açılacak?',
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
                           fontWeight: FontWeight.w800,
-                          fontSize: 15,
+                          color: AppColors.primaryText,
                         ),
                       ),
-                      child: const Text('Yakında Aktif Olacak'),
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  Center(
-                    child: Text(
-                      'Premium hazır olduğunda buradan aktif edilebilecek.',
-                      textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: AppColors.mutedText,
-                        height: 1.4,
+                      const SizedBox(height: 8),
+                      Text(
+                        'LabelWise Premium, alışveriş sırasında daha net karşılaştırmalar ve daha uzun süreli takip için hazırlanıyor.',
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          height: 1.5,
+                          color: AppColors.mutedText,
+                        ),
                       ),
-                    ),
-                  ),
-                  const SizedBox(height: AppSpacing.sectionSpacingLarge),
-                  Center(
-                    child: Text(
-                      'LabelWise tıbbi tavsiye vermez. Ürün analizleri bilgilendirme amaçlıdır.',
-                      textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: AppColors.mutedText,
-                        height: 1.45,
+                      const SizedBox(height: AppSpacing.sectionSpacing),
+                      for (final benefit in benefits) ...[
+                        _PremiumBenefitCard(benefit: benefit),
+                        const SizedBox(height: 12),
+                      ],
+                      const SizedBox(height: 8),
+                      const _ComparisonHighlightCard(),
+                      const SizedBox(height: AppSpacing.sectionSpacingLarge),
+                      Center(
+                        child: Text(
+                          'LabelWise tıbbi tavsiye vermez. Ürün analizleri bilgilendirme amaçlıdır.',
+                          textAlign: TextAlign.center,
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(
+                                color: AppColors.mutedText,
+                                height: 1.45,
+                              ),
+                        ),
                       ),
-                    ),
+                    ],
                   ),
-                ],
+                ),
               ),
-            ),
-          ),
+            );
+          },
         ),
       ),
     );
@@ -153,7 +235,9 @@ class _PremiumScreenState extends State<PremiumScreen> {
 }
 
 class _PremiumHeroCard extends StatelessWidget {
-  const _PremiumHeroCard();
+  const _PremiumHeroCard({required this.premiumActive});
+
+  final bool premiumActive;
 
   @override
   Widget build(BuildContext context) {
@@ -194,7 +278,7 @@ class _PremiumHeroCard extends StatelessWidget {
           ),
           const SizedBox(height: 18),
           Text(
-            'LabelWise Premium',
+            premiumActive ? 'Premium aktif' : 'LabelWise Premium',
             style: Theme.of(context).textTheme.headlineSmall?.copyWith(
               fontWeight: FontWeight.w800,
               color: Colors.white,
@@ -202,7 +286,9 @@ class _PremiumHeroCard extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            'Market alışverişinde daha bilinçli seçim yap.',
+            premiumActive
+                ? 'Premium ayrıcalıkların hesabında görünmeye başladı.'
+                : 'Market alışverişinde daha bilinçli seçim yap.',
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
               height: 1.45,
               color: const Color(0xFFDCEBE2),
@@ -210,52 +296,225 @@ class _PremiumHeroCard extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           Text(
-            'Daha uzun geçmiş, ürün karşılaştırma ve gelişmiş analizlerle markette daha iyi kararlar ver.',
+            premiumActive
+                ? 'Üyelik durumun doğrulanmış premium kaydına göre gösterilir.'
+                : 'Daha uzun geçmiş, ürün karşılaştırma ve gelişmiş analizlerle markette daha iyi kararlar ver.',
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
               height: 1.5,
               color: const Color(0xFFD4E3DA),
             ),
           ),
-          const SizedBox(height: 20),
+        ],
+      ),
+    );
+  }
+}
+
+class _ActivePremiumCard extends StatelessWidget {
+  const _ActivePremiumCard({required this.entitlement});
+
+  final UserEntitlement entitlement;
+
+  @override
+  Widget build(BuildContext context) {
+    final validUntil = entitlement.validUntil;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(AppRadii.card),
+        border: Border.all(color: const Color(0xFFE4D5A8)),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x12000000),
+            blurRadius: 20,
+            offset: Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
           Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.08),
-              borderRadius: BorderRadius.circular(18),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.10)),
+              color: const Color(0xFFFFF6DE),
+              borderRadius: BorderRadius.circular(AppRadii.chip),
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Planlanan fiyat',
-                  style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                    color: const Color(0xFFDCEBE2),
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  '69,99 TL / ay',
-                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: -0.5,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Premium özellikler yakında aktif olacak.',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: const Color(0xFFDCEBE2),
-                    height: 1.35,
-                  ),
-                ),
-              ],
+            child: Text(
+              entitlement.planLabel,
+              style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                color: AppColors.warning,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+          const SizedBox(height: AppSpacing.itemSpacing),
+          Text(
+            'Premium aktif',
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+              fontWeight: FontWeight.w800,
+              color: AppColors.primaryText,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            validUntil == null
+                ? 'Üyeliğin şu anda aktif görünüyor.'
+                : 'Geçerlilik: ${_formatDate(validUntil)}',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: AppColors.mutedText,
+              height: 1.45,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.sectionSpacing),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton(
+              onPressed: null,
+              child: const Text('Aboneliği Yönet'),
+            ),
+          ),
+          const SizedBox(height: AppSpacing.itemSpacing),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton(
+              onPressed: null,
+              child: const Text('Satın Alımları Geri Yükle'),
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _PlanCard extends StatelessWidget {
+  const _PlanCard({
+    required this.title,
+    required this.price,
+    required this.description,
+    required this.selected,
+    required this.onTap,
+    this.badge,
+  });
+
+  final String title;
+  final String price;
+  final String description;
+  final bool selected;
+  final VoidCallback onTap;
+  final String? badge;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(24),
+        child: Ink(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(
+              color: selected ? const Color(0xFFC8A96B) : AppColors.border,
+              width: selected ? 1.6 : 1,
+            ),
+            boxShadow: selected
+                ? const [
+                    BoxShadow(
+                      color: Color(0x12C8A96B),
+                      blurRadius: 20,
+                      offset: Offset(0, 8),
+                    ),
+                  ]
+                : const [
+                    BoxShadow(
+                      color: Color(0x10000000),
+                      blurRadius: 16,
+                      offset: Offset(0, 6),
+                    ),
+                  ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      title,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.primaryText,
+                      ),
+                    ),
+                  ),
+                  if (badge case final text?)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFFF6DE),
+                        borderRadius: BorderRadius.circular(AppRadii.chip),
+                      ),
+                      child: Text(
+                        text,
+                        style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                          color: AppColors.warning,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+              const SizedBox(height: AppSpacing.itemSpacing),
+              Text(
+                price,
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.primaryText,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                description,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: AppColors.mutedText,
+                  height: 1.4,
+                ),
+              ),
+              const SizedBox(height: AppSpacing.itemSpacing),
+              Row(
+                children: [
+                  Icon(
+                    selected
+                        ? Icons.radio_button_checked_rounded
+                        : Icons.radio_button_off_rounded,
+                    color: selected
+                        ? AppColors.secondaryAccent
+                        : AppColors.mutedText,
+                    size: 20,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    selected ? 'Seçili plan' : 'Seçmek için dokun',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: AppColors.mutedText,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -361,7 +620,7 @@ class _ComparisonHighlightCard extends StatelessWidget {
           const SizedBox(height: 14),
           Text(
             'Ürün Karşılaştırma',
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
               fontWeight: FontWeight.w800,
               color: AppColors.primaryText,
             ),
@@ -369,9 +628,9 @@ class _ComparisonHighlightCard extends StatelessWidget {
           const SizedBox(height: 8),
           Text(
             'İki ürünü yan yana karşılaştırarak hangisinin daha dengeli bir seçim olduğunu kolayca gör.',
-            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: AppColors.mutedText,
               height: 1.45,
-              color: const Color(0xFF5A675F),
             ),
           ),
         ],
@@ -390,4 +649,11 @@ class _PremiumBenefit {
   final IconData icon;
   final String title;
   final String description;
+}
+
+String _formatDate(DateTime date) {
+  final day = date.day.toString().padLeft(2, '0');
+  final month = date.month.toString().padLeft(2, '0');
+  final year = date.year.toString();
+  return '$day.$month.$year';
 }
