@@ -29,12 +29,14 @@ class PurchaseCoordinatorStatus {
     this.message,
     this.verificationResult,
     this.entitlement,
+    this.purchase,
   });
 
   final PurchaseCoordinatorState state;
   final String? message;
   final SubscriptionVerificationResult? verificationResult;
   final UserEntitlement? entitlement;
+  final PurchaseDetails? purchase;
 
   static const idle = PurchaseCoordinatorStatus(
     state: PurchaseCoordinatorState.idle,
@@ -193,80 +195,102 @@ class PurchaseCoordinator {
           final entitlement = await _entitlementRepository.getCurrentEntitlement();
           if (entitlement?.hasActivePremium == true) {
             _emitStatus(
-              PurchaseCoordinatorStatus(
-                state: PurchaseCoordinatorState.entitlementActive,
-                message: result.message,
-                verificationResult: result,
-                entitlement: entitlement,
-              ),
-            );
-            return;
-          }
+          PurchaseCoordinatorStatus(
+            state: PurchaseCoordinatorState.entitlementActive,
+            message: result.message,
+            verificationResult: result,
+            entitlement: entitlement,
+            purchase: purchase,
+          ),
+        );
 
-          _emitStatus(
-            PurchaseCoordinatorStatus(
-              state: PurchaseCoordinatorState.entitlementRefreshFailed,
-              message: 'Abonelik doğrulandı ancak Premium durumu henüz güncellenemedi.',
-              verificationResult: result,
-              entitlement: entitlement,
-            ),
-          );
-          return;
-        } on EntitlementRepositoryException catch (error) {
+        try {
+          await _billingRepository.completePurchaseIfNeeded(purchase);
+        } on BillingRepositoryException catch (error) {
           _emitStatus(
             PurchaseCoordinatorStatus(
               state: PurchaseCoordinatorState.entitlementRefreshFailed,
               message: error.message,
               verificationResult: result,
+              entitlement: entitlement,
+              purchase: purchase,
             ),
           );
-          return;
-        } on Object {
-          _emitStatus(
-            PurchaseCoordinatorStatus(
-              state: PurchaseCoordinatorState.entitlementRefreshFailed,
-              message: 'Abonelik doğrulandı ancak Premium durumu henüz güncellenemedi.',
-              verificationResult: result,
-            ),
-          );
-          return;
         }
-      }
-
-      if (result.success) {
-        _emitStatus(
-          PurchaseCoordinatorStatus(
-            state: PurchaseCoordinatorState.verificationFailed,
-            message: result.message,
-            verificationResult: result,
-          ),
-        );
         return;
       }
 
       _emitStatus(
         PurchaseCoordinatorStatus(
+          state: PurchaseCoordinatorState.entitlementRefreshFailed,
+          message: 'Abonelik doğrulandı ancak Premium durumu henüz güncellenemedi.',
+          verificationResult: result,
+          entitlement: entitlement,
+          purchase: purchase,
+        ),
+      );
+      return;
+    } on EntitlementRepositoryException catch (error) {
+      _emitStatus(
+        PurchaseCoordinatorStatus(
+          state: PurchaseCoordinatorState.entitlementRefreshFailed,
+          message: error.message,
+          verificationResult: result,
+          purchase: purchase,
+        ),
+      );
+      return;
+    } on Object {
+      _emitStatus(
+        PurchaseCoordinatorStatus(
+          state: PurchaseCoordinatorState.entitlementRefreshFailed,
+          message: 'Abonelik doğrulandı ancak Premium durumu henüz güncellenemedi.',
+          verificationResult: result,
+          purchase: purchase,
+        ),
+      );
+      return;
+    }
+      }
+
+      if (result.success) {
+        _emitStatus(
+        PurchaseCoordinatorStatus(
           state: PurchaseCoordinatorState.verificationFailed,
           message: result.message,
           verificationResult: result,
+          purchase: purchase,
         ),
       );
-    } on SubscriptionVerificationRepositoryException catch (error) {
-      _emitStatus(
-        PurchaseCoordinatorStatus(
-          state: PurchaseCoordinatorState.verificationFailed,
-          message: error.message,
-        ),
-      );
-    } on Object {
-      _emitStatus(
-        const PurchaseCoordinatorStatus(
-          state: PurchaseCoordinatorState.verificationFailed,
-          message: 'Abonelik doğrulanamadı.',
-        ),
-      );
+      return;
     }
+
+    _emitStatus(
+      PurchaseCoordinatorStatus(
+        state: PurchaseCoordinatorState.verificationFailed,
+        message: result.message,
+        verificationResult: result,
+        purchase: purchase,
+      ),
+    );
+  } on SubscriptionVerificationRepositoryException catch (error) {
+    _emitStatus(
+      PurchaseCoordinatorStatus(
+        state: PurchaseCoordinatorState.verificationFailed,
+        message: error.message,
+        purchase: purchase,
+      ),
+    );
+  } on Object {
+    _emitStatus(
+      PurchaseCoordinatorStatus(
+        state: PurchaseCoordinatorState.verificationFailed,
+        message: 'Abonelik doğrulanamadı.',
+        purchase: purchase,
+      ),
+    );
   }
+}
 
   void _emitStatus(PurchaseCoordinatorStatus status) {
     _latestStatus = status;

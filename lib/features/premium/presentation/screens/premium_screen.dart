@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:labelwise/core/analytics/analytics_service.dart';
 import 'package:labelwise/core/crashlytics/crashlytics_service.dart';
@@ -5,6 +7,7 @@ import 'package:labelwise/core/theme/app_tokens.dart';
 import 'package:labelwise/features/auth/data/auth_repository.dart';
 import 'package:labelwise/features/premium/data/billing_repository.dart';
 import 'package:labelwise/features/premium/data/entitlement_repository.dart';
+import 'package:labelwise/features/premium/data/purchase_coordinator.dart';
 import 'package:labelwise/features/premium/data/user_entitlement.dart';
 
 enum _PremiumPlan { monthly, yearly }
@@ -22,13 +25,25 @@ class _PremiumScreenState extends State<PremiumScreen> {
   final AuthRepository _authRepository = AuthRepository();
   final BillingRepository _billingRepository = BillingRepository();
   final EntitlementRepository _entitlementRepository = EntitlementRepository();
+  late final PurchaseCoordinator _purchaseCoordinator;
   late Future<UserEntitlement?> _entitlementFuture;
+  StreamSubscription<PurchaseCoordinatorStatus>? _purchaseStatusSubscription;
   _PremiumPlan _selectedPlan = _PremiumPlan.yearly;
   bool _isStartingPurchase = false;
+  bool _isRestoringPurchases = false;
+  PurchaseCoordinatorStatus _purchaseStatus = PurchaseCoordinatorStatus.idle;
 
   @override
   void initState() {
     super.initState();
+    _purchaseCoordinator = PurchaseCoordinator(
+      billingRepository: _billingRepository,
+      entitlementRepository: _entitlementRepository,
+    );
+    _purchaseCoordinator.startListening();
+    _purchaseStatusSubscription = _purchaseCoordinator.statusStream.listen(
+      _handlePurchaseStatusChanged,
+    );
     _entitlementFuture = _entitlementRepository.getCurrentEntitlement();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       CrashlyticsService.instance.setCurrentScreen('premium');
@@ -37,6 +52,13 @@ class _PremiumScreenState extends State<PremiumScreen> {
         source: widget.sourceScreen ?? 'unknown',
       );
     });
+  }
+
+  @override
+  void dispose() {
+    _purchaseStatusSubscription?.cancel();
+    _purchaseCoordinator.dispose();
+    super.dispose();
   }
 
   String get _selectedProductId {
@@ -50,13 +72,75 @@ class _PremiumScreenState extends State<PremiumScreen> {
       return 'Satın alma başlatılıyor...';
     }
 
+    if (_isPurchaseBusy) {
+      return _purchaseStatusMessage ?? 'Satın alma doğrulanıyor...';
+    }
+
     return _selectedPlan == _PremiumPlan.yearly
         ? 'Yıllık planı seç'
         : 'Aylık planı seç';
   }
 
+  bool get _isPurchaseBusy {
+    return _purchaseStatus.state == PurchaseCoordinatorState.pending ||
+        _purchaseStatus.state == PurchaseCoordinatorState.verifying ||
+        _purchaseStatus.state ==
+            PurchaseCoordinatorState.refreshingEntitlement;
+  }
+
+  String? get _purchaseStatusMessage {
+    switch (_purchaseStatus.state) {
+      case PurchaseCoordinatorState.pending:
+        return 'Satın alma beklemede...';
+      case PurchaseCoordinatorState.verifying:
+        return 'Satın alma doğrulanıyor...';
+      case PurchaseCoordinatorState.refreshingEntitlement:
+        return 'Premium durumu güncelleniyor...';
+      case PurchaseCoordinatorState.verificationFailed:
+      case PurchaseCoordinatorState.entitlementRefreshFailed:
+      case PurchaseCoordinatorState.error:
+      case PurchaseCoordinatorState.canceled:
+      case PurchaseCoordinatorState.entitlementActive:
+        return _purchaseStatus.message;
+      case PurchaseCoordinatorState.idle:
+      case PurchaseCoordinatorState.purchasedNeedsVerification:
+      case PurchaseCoordinatorState.restoredNeedsVerification:
+      case PurchaseCoordinatorState.verificationSucceeded:
+        return null;
+    }
+  }
+
+  void _handlePurchaseStatusChanged(PurchaseCoordinatorStatus status) {
+    if (!mounted) return;
+
+    setState(() {
+      _purchaseStatus = status;
+      if (status.state == PurchaseCoordinatorState.entitlementActive) {
+        _entitlementFuture = _entitlementRepository.getCurrentEntitlement();
+      }
+    });
+
+    final messenger = ScaffoldMessenger.of(context);
+    final message = status.message;
+    final shouldShowMessage =
+        message != null &&
+        message.isNotEmpty &&
+        (status.state == PurchaseCoordinatorState.verificationFailed ||
+            status.state ==
+                PurchaseCoordinatorState.entitlementRefreshFailed ||
+            status.state == PurchaseCoordinatorState.error ||
+            status.state == PurchaseCoordinatorState.canceled ||
+            status.state == PurchaseCoordinatorState.entitlementActive);
+
+    if (shouldShowMessage) {
+      messenger
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(content: Text(message)));
+    }
+  }
+
   Future<void> _handlePremiumCtaTap() async {
-    if (_isStartingPurchase) return;
+    if (_isStartingPurchase || _isPurchaseBusy) return;
 
     final currentUser = _authRepository.currentUser;
 
@@ -93,6 +177,53 @@ class _PremiumScreenState extends State<PremiumScreen> {
       if (mounted) {
         setState(() {
           _isStartingPurchase = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _handleRestorePurchasesTap() async {
+    if (_isRestoringPurchases) return;
+
+    final currentUser = _authRepository.currentUser;
+
+    if (currentUser == null) {
+      final result = await Navigator.of(context).pushNamed('/auth');
+      if (!mounted) return;
+
+      if (result case final String message when message.isNotEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(message)),
+        );
+      }
+
+      setState(() {
+        _entitlementFuture = _entitlementRepository.getCurrentEntitlement();
+      });
+      return;
+    }
+
+    setState(() {
+      _isRestoringPurchases = true;
+    });
+
+    try {
+      await _billingRepository.restorePurchases();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Satın alımlar kontrol ediliyor...'),
+        ),
+      );
+    } on BillingRepositoryException catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.message)));
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isRestoringPurchases = false;
         });
       }
     }
@@ -156,7 +287,11 @@ class _PremiumScreenState extends State<PremiumScreen> {
                       _PremiumHeroCard(premiumActive: premiumActive),
                       const SizedBox(height: AppSpacing.sectionSpacingLarge),
                       if (premiumActive) ...[
-                        _ActivePremiumCard(entitlement: entitlement!),
+                        _ActivePremiumCard(
+                          entitlement: entitlement!,
+                          isRestoringPurchases: _isRestoringPurchases,
+                          onRestorePurchases: _handleRestorePurchasesTap,
+                        ),
                         const SizedBox(height: AppSpacing.sectionSpacingLarge),
                       ] else ...[
                         Text(
@@ -217,7 +352,7 @@ class _PremiumScreenState extends State<PremiumScreen> {
                           width: double.infinity,
                           height: 56,
                           child: FilledButton(
-                            onPressed: _isStartingPurchase
+                            onPressed: _isStartingPurchase || _isPurchaseBusy
                                 ? null
                                 : _handlePremiumCtaTap,
                             style: FilledButton.styleFrom(
@@ -236,6 +371,45 @@ class _PremiumScreenState extends State<PremiumScreen> {
                             child: Text(_selectedPlanButtonText),
                           ),
                         ),
+                        const SizedBox(height: AppSpacing.itemSpacing),
+                        SizedBox(
+                          width: double.infinity,
+                          child: OutlinedButton(
+                            onPressed: _isRestoringPurchases || _isPurchaseBusy
+                                ? null
+                                : _handleRestorePurchasesTap,
+                            child: Text(
+                              _isRestoringPurchases
+                                  ? 'Satın alımlar kontrol ediliyor...'
+                                  : 'Satın Alımları Geri Yükle',
+                            ),
+                          ),
+                        ),
+                        if (_purchaseStatusMessage case final statusMessage?) ...[
+                          const SizedBox(height: AppSpacing.itemSpacing),
+                          Center(
+                            child: Text(
+                              statusMessage,
+                              textAlign: TextAlign.center,
+                              style: Theme.of(context).textTheme.bodySmall
+                                  ?.copyWith(
+                                    color:
+                                        _purchaseStatus.state ==
+                                                    PurchaseCoordinatorState
+                                                        .verificationFailed ||
+                                                _purchaseStatus.state ==
+                                                    PurchaseCoordinatorState
+                                                        .entitlementRefreshFailed ||
+                                                _purchaseStatus.state ==
+                                                    PurchaseCoordinatorState
+                                                        .error
+                                            ? AppColors.caution
+                                            : AppColors.mutedText,
+                                    height: 1.4,
+                                  ),
+                            ),
+                          ),
+                        ],
                         const SizedBox(height: 10),
                         Center(
                           child: Text(
@@ -373,9 +547,15 @@ class _PremiumHeroCard extends StatelessWidget {
 }
 
 class _ActivePremiumCard extends StatelessWidget {
-  const _ActivePremiumCard({required this.entitlement});
+  const _ActivePremiumCard({
+    required this.entitlement,
+    required this.isRestoringPurchases,
+    required this.onRestorePurchases,
+  });
 
   final UserEntitlement entitlement;
+  final bool isRestoringPurchases;
+  final Future<void> Function() onRestorePurchases;
 
   @override
   Widget build(BuildContext context) {
@@ -443,8 +623,12 @@ class _ActivePremiumCard extends StatelessWidget {
           SizedBox(
             width: double.infinity,
             child: OutlinedButton(
-              onPressed: null,
-              child: const Text('Satın Alımları Geri Yükle'),
+              onPressed: isRestoringPurchases ? null : onRestorePurchases,
+              child: Text(
+                isRestoringPurchases
+                    ? 'Satın alımlar kontrol ediliyor...'
+                    : 'Satın Alımları Geri Yükle',
+              ),
             ),
           ),
         ],

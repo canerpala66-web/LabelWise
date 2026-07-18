@@ -102,6 +102,45 @@ class BillingRepository {
     }
   }
 
+  Future<void> restorePurchases() async {
+    if (!_supportsBillingOnCurrentPlatform) {
+      throw const BillingRepositoryException(
+        'Bu cihazda satın alma servisi şu anda kullanılamıyor.',
+      );
+    }
+
+    final available = await isBillingAvailable();
+    if (!available) {
+      throw const BillingRepositoryException(
+        'Google Play satın alma servisine bağlanılamadı.',
+      );
+    }
+
+    try {
+      await _inAppPurchase.restorePurchases();
+    } on BillingRepositoryException {
+      rethrow;
+    } on Object {
+      throw const BillingRepositoryException(
+        'Satın alımlar geri yüklenemedi.',
+      );
+    }
+  }
+
+  Future<void> completePurchaseIfNeeded(PurchaseDetails purchase) async {
+    if (!purchase.pendingCompletePurchase) {
+      return;
+    }
+
+    try {
+      await _inAppPurchase.completePurchase(purchase);
+    } on Object {
+      throw const BillingRepositoryException(
+        'Satın alma işlemi son adımda tamamlanamadı.',
+      );
+    }
+  }
+
   Future<ProductDetailsResponse> _querySubscriptionProductDetails() async {
     if (!_supportsBillingOnCurrentPlatform) {
       throw const BillingRepositoryException(
