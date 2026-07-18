@@ -4,6 +4,8 @@ import 'package:labelwise/features/auth/data/auth_repository.dart';
 import 'package:labelwise/features/auth/data/auth_user.dart';
 import 'package:labelwise/features/profile/data/profile_repository.dart';
 import 'package:labelwise/features/profile/data/user_profile.dart';
+import 'package:labelwise/features/premium/data/entitlement_repository.dart';
+import 'package:labelwise/features/premium/data/user_entitlement.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -15,10 +17,13 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen> {
   final AuthRepository _authRepository = AuthRepository();
   final ProfileRepository _profileRepository = ProfileRepository();
+  final EntitlementRepository _entitlementRepository = EntitlementRepository();
   bool _isSigningOut = false;
   bool _isUpdatingDisplayName = false;
   String? _profileErrorMessage;
   Future<UserProfile?>? _profileFuture;
+  String? _entitlementErrorMessage;
+  Future<UserEntitlement?>? _entitlementFuture;
 
   Future<void> _openAuthScreen() async {
     final result = await Navigator.of(context).pushNamed('/auth');
@@ -45,7 +50,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
       if (!mounted) return;
       setState(() {
         _profileFuture = null;
+        _entitlementFuture = null;
         _profileErrorMessage = null;
+        _entitlementErrorMessage = null;
       });
     } on AuthRepositoryException {
       if (!mounted) return;
@@ -67,7 +74,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (!mounted) return;
     setState(() {
       _profileErrorMessage = null;
+      _entitlementErrorMessage = null;
       _profileFuture = _profileRepository.getCurrentProfile();
+      _entitlementFuture = _entitlementRepository.getCurrentEntitlement();
     });
   }
 
@@ -225,9 +234,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
           final profileFuture = user == null
               ? null
               : _profileFuture ?? _profileRepository.getCurrentProfile();
+          final entitlementFuture = user == null
+              ? null
+              : _entitlementFuture ??
+                    _entitlementRepository.getCurrentEntitlement();
 
           if (user != null && !identical(_profileFuture, profileFuture)) {
             _profileFuture = profileFuture;
+          }
+          if (user != null &&
+              !identical(_entitlementFuture, entitlementFuture)) {
+            _entitlementFuture = entitlementFuture;
           }
 
           return SafeArea(
@@ -264,16 +281,35 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                   : 'Profil bilgileri yüklenemedi.'
                                 : _profileErrorMessage;
 
-                            return _LoggedInProfileView(
-                              user: user,
-                              profile: profile,
-                              theme: theme,
-                              isSigningOut: _isSigningOut,
-                              isUpdatingDisplayName: _isUpdatingDisplayName,
-                              errorMessage: errorMessage,
-                              onEditDisplayName: () =>
-                                  _editDisplayName(profile),
-                              onSignOut: _signOut,
+                            return FutureBuilder<UserEntitlement?>(
+                              future: entitlementFuture,
+                              builder: (context, entitlementSnapshot) {
+                                final entitlement = entitlementSnapshot.data;
+                                final entitlementErrorMessage =
+                                    entitlementSnapshot.hasError
+                                    ? entitlementSnapshot.error
+                                              is EntitlementRepositoryException
+                                          ? (entitlementSnapshot.error
+                                                  as EntitlementRepositoryException)
+                                              .message
+                                          : 'Premium durumu yüklenemedi.'
+                                    : _entitlementErrorMessage;
+
+                                return _LoggedInProfileView(
+                                  user: user,
+                                  profile: profile,
+                                  entitlement: entitlement,
+                                  theme: theme,
+                                  isSigningOut: _isSigningOut,
+                                  isUpdatingDisplayName: _isUpdatingDisplayName,
+                                  errorMessage: errorMessage,
+                                  entitlementErrorMessage:
+                                      entitlementErrorMessage,
+                                  onEditDisplayName: () =>
+                                      _editDisplayName(profile),
+                                  onSignOut: _signOut,
+                                );
+                              },
                             );
                           },
                         ),
@@ -409,20 +445,24 @@ class _LoggedInProfileView extends StatelessWidget {
   const _LoggedInProfileView({
     required this.user,
     required this.profile,
+    required this.entitlement,
     required this.theme,
     required this.isSigningOut,
     required this.isUpdatingDisplayName,
     required this.errorMessage,
+    required this.entitlementErrorMessage,
     required this.onEditDisplayName,
     required this.onSignOut,
   });
 
   final AuthUser user;
   final UserProfile? profile;
+  final UserEntitlement? entitlement;
   final ThemeData theme;
   final bool isSigningOut;
   final bool isUpdatingDisplayName;
   final String? errorMessage;
+  final String? entitlementErrorMessage;
   final Future<void> Function() onEditDisplayName;
   final Future<void> Function() onSignOut;
 
@@ -434,6 +474,14 @@ class _LoggedInProfileView extends StatelessWidget {
     final displayName = profile?.displayName?.trim();
     final displayNameText =
         displayName == null || displayName.isEmpty ? 'Ad eklenmedi' : displayName;
+    final hasPremium = entitlement?.hasActivePremium == true;
+    final planTitle = hasPremium ? 'Premium aktif' : 'Ücretsiz plan';
+    final premiumChipLabel = hasPremium ? entitlement!.planLabel : 'Premium yakında';
+    final premiumDescription = hasPremium
+        ? entitlement?.validUntil != null
+              ? 'Geçerlilik: ${_formatDate(entitlement!.validUntil!)}'
+              : '${entitlement?.planLabel ?? 'Premium'} planın şu anda aktif.'
+        : 'Premium özellikler henüz aktif değil.';
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -566,19 +614,29 @@ class _LoggedInProfileView extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Ücretsiz plan',
+                      planTitle,
                       style: theme.textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.w700,
                       ),
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'Tüm temel tarama ve ürün inceleme özelliklerini kullanmaya devam edebilirsin.',
+                      premiumDescription,
                       style: theme.textTheme.bodyMedium?.copyWith(
                         color: AppColors.mutedText,
                         height: 1.45,
                       ),
                     ),
+                    if (entitlementErrorMessage case final message?) ...[
+                      const SizedBox(height: AppSpacing.smallSpacing),
+                      Text(
+                        message,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: AppColors.caution,
+                          height: 1.4,
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -597,7 +655,7 @@ class _LoggedInProfileView extends StatelessWidget {
                   borderRadius: BorderRadius.circular(AppRadii.chip),
                 ),
                 child: Text(
-                  'Premium yakında',
+                  premiumChipLabel,
                   style: theme.textTheme.labelLarge?.copyWith(
                     color: AppColors.primary,
                     fontWeight: FontWeight.w700,
@@ -606,7 +664,9 @@ class _LoggedInProfileView extends StatelessWidget {
               ),
               const SizedBox(height: AppSpacing.itemSpacing),
               Text(
-                'Aylık ve yıllık paketler yakında aktif olacak.',
+                hasPremium
+                    ? 'Premium ayrıcalıkların doğrulanmış üyelik durumuna göre gösterilir.'
+                    : 'Aylık ve yıllık paketler yakında aktif olacak.',
                 style: theme.textTheme.bodyMedium?.copyWith(
                   color: AppColors.mutedText,
                   height: 1.5,
@@ -649,6 +709,13 @@ class _LoggedInProfileView extends StatelessWidget {
       ],
     );
   }
+}
+
+String _formatDate(DateTime date) {
+  final day = date.day.toString().padLeft(2, '0');
+  final month = date.month.toString().padLeft(2, '0');
+  final year = date.year.toString();
+  return '$day.$month.$year';
 }
 
 class _ProfileLoadingView extends StatelessWidget {
