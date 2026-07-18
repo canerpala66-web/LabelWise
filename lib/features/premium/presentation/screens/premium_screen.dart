@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:labelwise/core/analytics/analytics_service.dart';
 import 'package:labelwise/core/crashlytics/crashlytics_service.dart';
 import 'package:labelwise/core/theme/app_tokens.dart';
+import 'package:labelwise/features/auth/data/auth_repository.dart';
 import 'package:labelwise/features/premium/data/entitlement_repository.dart';
 import 'package:labelwise/features/premium/data/user_entitlement.dart';
 
@@ -17,6 +18,7 @@ class PremiumScreen extends StatefulWidget {
 }
 
 class _PremiumScreenState extends State<PremiumScreen> {
+  final AuthRepository _authRepository = AuthRepository();
   final EntitlementRepository _entitlementRepository = EntitlementRepository();
   late Future<UserEntitlement?> _entitlementFuture;
   _PremiumPlan _selectedPlan = _PremiumPlan.yearly;
@@ -32,6 +34,37 @@ class _PremiumScreenState extends State<PremiumScreen> {
         source: widget.sourceScreen ?? 'unknown',
       );
     });
+  }
+
+  String get _selectedPlanActivationText {
+    return _selectedPlan == _PremiumPlan.yearly
+        ? 'Yıllık plan yakında aktif olacak'
+        : 'Aylık plan yakında aktif olacak';
+  }
+
+  Future<void> _handlePremiumCtaTap() async {
+    final currentUser = _authRepository.currentUser;
+
+    if (currentUser == null) {
+      final result = await Navigator.of(context).pushNamed('/auth');
+      if (!mounted) return;
+
+      if (result case final String message when message.isNotEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(message)),
+        );
+      }
+
+      setState(() {
+        _entitlementFuture = _entitlementRepository.getCurrentEntitlement();
+      });
+      return;
+    }
+
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(_selectedPlanActivationText)),
+    );
   }
 
   @override
@@ -153,10 +186,10 @@ class _PremiumScreenState extends State<PremiumScreen> {
                           width: double.infinity,
                           height: 56,
                           child: FilledButton(
-                            onPressed: null,
+                            onPressed: _handlePremiumCtaTap,
                             style: FilledButton.styleFrom(
-                              disabledBackgroundColor: const Color(0xFFB7CEC0),
-                              disabledForegroundColor: const Color(0xFF355445),
+                              backgroundColor: AppColors.primary,
+                              foregroundColor: Colors.white,
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(
                                   AppRadii.button,
@@ -167,11 +200,7 @@ class _PremiumScreenState extends State<PremiumScreen> {
                                 fontSize: 15,
                               ),
                             ),
-                            child: Text(
-                              _selectedPlan == _PremiumPlan.yearly
-                                  ? 'Yıllık plan yakında aktif olacak'
-                                  : 'Aylık plan yakında aktif olacak',
-                            ),
+                            child: Text(_selectedPlanActivationText),
                           ),
                         ),
                         const SizedBox(height: 10),
