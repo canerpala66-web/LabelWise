@@ -3,8 +3,10 @@ import 'dart:async';
 import 'package:in_app_purchase/in_app_purchase.dart';
 
 import 'package:labelwise/features/premium/data/billing_repository.dart';
+import 'package:labelwise/features/premium/data/entitlement_repository.dart';
 import 'package:labelwise/features/premium/data/subscription_verification_repository.dart';
 import 'package:labelwise/features/premium/data/subscription_verification_result.dart';
+import 'package:labelwise/features/premium/data/user_entitlement.dart';
 
 enum PurchaseCoordinatorState {
   idle,
@@ -12,7 +14,10 @@ enum PurchaseCoordinatorState {
   purchasedNeedsVerification,
   restoredNeedsVerification,
   verifying,
+  refreshingEntitlement,
   verificationSucceeded,
+  entitlementActive,
+  entitlementRefreshFailed,
   verificationFailed,
   canceled,
   error,
@@ -23,11 +28,13 @@ class PurchaseCoordinatorStatus {
     required this.state,
     this.message,
     this.verificationResult,
+    this.entitlement,
   });
 
   final PurchaseCoordinatorState state;
   final String? message;
   final SubscriptionVerificationResult? verificationResult;
+  final UserEntitlement? entitlement;
 
   static const idle = PurchaseCoordinatorStatus(
     state: PurchaseCoordinatorState.idle,
@@ -38,12 +45,15 @@ class PurchaseCoordinator {
   PurchaseCoordinator({
     BillingRepository? billingRepository,
     SubscriptionVerificationRepository? verificationRepository,
+    EntitlementRepository? entitlementRepository,
   }) : _billingRepository = billingRepository ?? BillingRepository(),
        _verificationRepository =
-           verificationRepository ?? SubscriptionVerificationRepository();
+           verificationRepository ?? SubscriptionVerificationRepository(),
+       _entitlementRepository = entitlementRepository ?? EntitlementRepository();
 
   final BillingRepository _billingRepository;
   final SubscriptionVerificationRepository _verificationRepository;
+  final EntitlementRepository _entitlementRepository;
   final StreamController<PurchaseCoordinatorStatus> _statusController =
       StreamController<PurchaseCoordinatorStatus>.broadcast();
 
@@ -173,7 +183,60 @@ class PurchaseCoordinator {
       if (result.success && result.isPremium) {
         _emitStatus(
           PurchaseCoordinatorStatus(
-            state: PurchaseCoordinatorState.verificationSucceeded,
+            state: PurchaseCoordinatorState.refreshingEntitlement,
+            message: 'Premium durumu güncelleniyor.',
+            verificationResult: result,
+          ),
+        );
+
+        try {
+          final entitlement = await _entitlementRepository.getCurrentEntitlement();
+          if (entitlement?.hasActivePremium == true) {
+            _emitStatus(
+              PurchaseCoordinatorStatus(
+                state: PurchaseCoordinatorState.entitlementActive,
+                message: result.message,
+                verificationResult: result,
+                entitlement: entitlement,
+              ),
+            );
+            return;
+          }
+
+          _emitStatus(
+            PurchaseCoordinatorStatus(
+              state: PurchaseCoordinatorState.entitlementRefreshFailed,
+              message: 'Abonelik doğrulandı ancak Premium durumu henüz güncellenemedi.',
+              verificationResult: result,
+              entitlement: entitlement,
+            ),
+          );
+          return;
+        } on EntitlementRepositoryException catch (error) {
+          _emitStatus(
+            PurchaseCoordinatorStatus(
+              state: PurchaseCoordinatorState.entitlementRefreshFailed,
+              message: error.message,
+              verificationResult: result,
+            ),
+          );
+          return;
+        } on Object {
+          _emitStatus(
+            PurchaseCoordinatorStatus(
+              state: PurchaseCoordinatorState.entitlementRefreshFailed,
+              message: 'Abonelik doğrulandı ancak Premium durumu henüz güncellenemedi.',
+              verificationResult: result,
+            ),
+          );
+          return;
+        }
+      }
+
+      if (result.success) {
+        _emitStatus(
+          PurchaseCoordinatorStatus(
+            state: PurchaseCoordinatorState.verificationFailed,
             message: result.message,
             verificationResult: result,
           ),

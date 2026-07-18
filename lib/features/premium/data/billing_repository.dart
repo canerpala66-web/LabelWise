@@ -46,6 +46,63 @@ class BillingRepository {
   }
 
   Future<List<BillingProduct>> loadSubscriptionProducts() async {
+    final response = await _querySubscriptionProductDetails();
+
+    final products = response.productDetails
+        .map(BillingProduct.fromProductDetails)
+        .where((product) => product.planCode != 'unknown')
+        .toList()
+      ..sort((a, b) => a.rawPrice.compareTo(b.rawPrice));
+
+    return products;
+  }
+
+  Future<void> startSubscriptionPurchase({
+    required String productId,
+  }) async {
+    final normalizedProductId = productId.trim();
+
+    if (!_productIds.contains(normalizedProductId)) {
+      throw const BillingRepositoryException(
+        'Abonelik ürünü şu anda bulunamadı.',
+      );
+    }
+
+    final response = await _querySubscriptionProductDetails();
+    final matchingProduct = response.productDetails
+        .where((product) => product.id == normalizedProductId)
+        .cast<ProductDetails?>()
+        .firstWhere(
+          (product) => product != null,
+          orElse: () => null,
+        );
+
+    if (matchingProduct == null) {
+      throw const BillingRepositoryException(
+        'Abonelik ürünü şu anda bulunamadı.',
+      );
+    }
+
+    try {
+      final purchaseStarted = await _inAppPurchase.buyNonConsumable(
+        purchaseParam: PurchaseParam(productDetails: matchingProduct),
+      );
+
+      if (!purchaseStarted) {
+        throw const BillingRepositoryException(
+          'Satın alma başlatılamadı. Lütfen tekrar dene.',
+        );
+      }
+    } on BillingRepositoryException {
+      rethrow;
+    } on Object {
+      throw const BillingRepositoryException(
+        'Satın alma başlatılamadı. Lütfen tekrar dene.',
+      );
+    }
+  }
+
+  Future<ProductDetailsResponse> _querySubscriptionProductDetails() async {
     if (!_supportsBillingOnCurrentPlatform) {
       throw const BillingRepositoryException(
         'Bu cihazda satın alma servisi şu anda kullanılamıyor.',
@@ -66,14 +123,7 @@ class BillingRepository {
           'Abonelik ürünleri şu anda yüklenemedi.',
         );
       }
-
-      final products = response.productDetails
-          .map(BillingProduct.fromProductDetails)
-          .where((product) => product.planCode != 'unknown')
-          .toList()
-        ..sort((a, b) => a.rawPrice.compareTo(b.rawPrice));
-
-      return products;
+      return response;
     } on BillingRepositoryException {
       rethrow;
     } on Object {
