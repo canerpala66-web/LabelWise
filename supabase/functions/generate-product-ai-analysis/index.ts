@@ -8,7 +8,7 @@ const corsHeaders = {
   "Content-Type": "application/json",
 } as const;
 
-const analysisVersion = "v3";
+const analysisVersion = "v4";
 const openAiEndpoint = "https://api.openai.com/v1/responses";
 const openAiModel = "gpt-4.1-mini";
 const productSelectFields =
@@ -113,19 +113,19 @@ function buildPrompt(barcode: string, product: ProductRecord | null): string {
   if (product == null) {
     return `
 You are LabelWise.
-Write a short, calm, neutral Turkish food product note.
+Write a short, calm, practical Turkish food decision note.
 
 Only barcode is available right now, so do not invent nutrition facts.
 Clearly say that product details are limited.
 Do not make medical claims.
 Do not use fear language.
-Never use "zararlı", "sağlıklıdır", "tüketmeyin", "kanser", "toksik", or "zehir".
+Never use "zararlı", "sağlıklıdır", "tüketmeyin", "kesinlikle tüketmeyin", "kanser", "toksik", or "zehir".
 
 Barcode: ${barcode}
 
 Return JSON only:
 {
-  "summary": "Kısa Türkçe açıklama",
+  "summary": "Kısa Türkçe karar odaklı açıklama",
   "risk_level": "düşük | orta | yüksek"
 }
 `.trim();
@@ -137,16 +137,49 @@ Return JSON only:
 
   return `
 You are LabelWise.
-You help Turkish consumers understand packaged foods in a simple, calm, neutral way.
+You help Turkish consumers make faster and better food choices.
+You are not only summarizing the label. You are helping the user decide.
 
-Write a short Turkish interpretation based only on the available product data below.
-Do not invent missing facts.
-Do not make medical claims.
-Do not attack or promote brands.
-Do not use fear language.
-Never use "zararlı", "sağlıklıdır", "tüketmeyin", "kanser", "toksik", or "zehir".
-Keep the answer understandable and practical.
-Keep the summary under 55 words if possible.
+Write a short Turkish decision-oriented interpretation based only on the available product data below.
+The summary must:
+- start with a practical recommendation
+- explain the main reason
+- say whether the product is more suitable for frequent use or occasional use
+- mention who should be more careful only if relevant
+- suggest looking for a better alternative if needed
+
+Important style rules:
+- Write in simple, calm, practical Turkish.
+- Use 2 to 4 short sentences.
+- Do not just repeat nutrition values.
+- Do not list the nutrition table.
+- Use only the strongest 1 or 2 reasons.
+- Keep the answer useful, not generic.
+
+Risk level guidance:
+- düşük: generally a reasonable choice within its category; can fit more comfortably into a balanced diet, without calling it absolutely healthy.
+- orta: okay occasionally; portion control or frequency control is more suitable because of some concerns such as sugar, salt, saturated fat, additives, or processing.
+- yüksek: not ideal for frequent use; a better alternative should be considered because of stronger concerns such as very high sugar, very high salt, very high saturated fat, weak nutrition profile, or highly processed structure.
+
+Category awareness:
+- Water should not be judged like chips.
+- Plain milk should not be judged like soda.
+- Chips, biscuits, desserts, chocolate spreads, soft drinks, and similar snack products should not be framed as strong daily-use choices.
+- Protein products should be judged by their overall balance, not by protein alone.
+
+Safety rules:
+- Do not invent missing facts.
+- Do not make medical claims.
+- Do not diagnose users.
+- Do not attack or promote brands.
+- Do not use fear language.
+- Never use "zararlı", "tehlikeli", "sağlıklıdır", "kesinlikle tüketmeyin", "asla tüketmeyin", "kanser", "toksik", "zehir", or "güvenlidir".
+- Prefer wording such as:
+  - "günlük kullanım için güçlü bir tercih gibi görünmüyor"
+  - "dikkatli tüketmek daha mantıklı olabilir"
+  - "ara sıra tüketmek daha uygun olabilir"
+  - "daha sade içerikli alternatiflere bakılabilir"
+  - "özellikle şeker/tuz/yağ alımına dikkat edenler için"
 
 Product barcode: ${barcode}
 Product name: ${textValue(product.name)}
@@ -165,7 +198,7 @@ Salt: ${toNumber(product.salt) ?? "Bilinmiyor"} g
 
 Return JSON only:
 {
-  "summary": "Kısa Türkçe açıklama",
+  "summary": "Karar odaklı kısa Türkçe açıklama",
   "risk_level": "düşük | orta | yüksek"
 }
 `.trim();

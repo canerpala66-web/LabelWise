@@ -6,7 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 class AnalysisService {
   const AnalysisService();
 
-  static const analysisVersion = 'v3';
+  static const analysisVersion = 'v4';
   static const _functionName = 'generate-product-ai-analysis';
 
   Future<AnalysisResult> generateAnalysis(Product product) async {
