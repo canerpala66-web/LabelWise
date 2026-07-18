@@ -1,4 +1,4 @@
-package com.example.labelwise
+package com.labelwise.app
 
 import io.flutter.embedding.android.FlutterActivity
 

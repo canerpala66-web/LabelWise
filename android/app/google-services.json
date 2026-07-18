@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "560216394743",
+    "project_id": "labelwise-android",
+    "storage_bucket": "labelwise-android.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:560216394743:android:c19af855f488283ceffcf2",
+        "android_client_info": {
+          "package_name": "com.labelwise.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA3ak2hNI5qtzGjfPX8suw5sc4HOYGY3WY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
