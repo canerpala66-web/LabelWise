@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:labelwise/core/analytics/analytics_service.dart';
+import 'package:labelwise/core/crashlytics/crashlytics_service.dart';
 import 'package:labelwise/core/theme/app_tokens.dart';
 import 'package:labelwise/features/analysis/models/analysis_result.dart';
 import 'package:labelwise/features/analysis/models/labelwise_score_result.dart';
@@ -49,6 +51,15 @@ class _ProductResultScreenState extends State<ProductResultScreen>
             frontImagePath,
           )
         : null;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      CrashlyticsService.instance.setCurrentScreen('product_result');
+      CrashlyticsService.instance.setCurrentFlow('product_result');
+      AnalyticsService.instance.logProductResultViewed(
+        category: _analyticsCategory(widget.product.category),
+        scoreBand: _scoreBandFromProduct(widget.product),
+        source: _analyticsProductSource(widget.product),
+      );
+    });
     _saveRecentScan();
   }
 
@@ -260,9 +271,14 @@ class _ProductResultScreenState extends State<ProductResultScreen>
                     start: 0.46,
                     child: _PremiumAlternativesCard(
                       onTap: () {
+                        AnalyticsService.instance.logPremiumCtaClicked(
+                          source: 'product_result_screen',
+                        );
                         Navigator.of(context).push(
                           MaterialPageRoute<void>(
-                            builder: (_) => const PremiumScreen(),
+                            builder: (_) => const PremiumScreen(
+                              sourceScreen: 'product_result_screen',
+                            ),
                           ),
                         );
                       },
@@ -293,6 +309,36 @@ class _ProductResultScreenState extends State<ProductResultScreen>
 
   String _normalizeForComparison(String value) {
     return value.replaceAll('İ', 'I').toLowerCase();
+  }
+
+  String _analyticsCategory(String? category) {
+    final trimmed = category?.trim();
+    if (trimmed == null || trimmed.isEmpty) {
+      return 'unknown';
+    }
+    return trimmed.length <= 100 ? trimmed : trimmed.substring(0, 100);
+  }
+
+  String _scoreBandFromProduct(Product product) {
+    final score = const LabelWiseScoreEngine().calculate(product).score;
+    if (score == null) return 'unknown';
+    if (score <= 24) return '0_24';
+    if (score <= 44) return '25_44';
+    if (score <= 59) return '45_59';
+    if (score <= 69) return '60_69';
+    if (score <= 79) return '70_79';
+    if (score <= 89) return '80_89';
+    return '90_100';
+  }
+
+  String _analyticsProductSource(Product product) {
+    final normalizedSource = product.source.trim().toLowerCase();
+    return switch (normalizedSource) {
+      'user_submission' => 'user_submission',
+      'openfoodfacts' => 'openfoodfacts_function',
+      '' => 'unknown',
+      _ => 'products_cache',
+    };
   }
 }
 
@@ -1867,6 +1913,8 @@ class _AnalysisCard extends StatefulWidget {
 
 class _AnalysisCardState extends State<_AnalysisCard> {
   final AnalysisService _analysisService = const AnalysisService();
+  final AnalyticsService _analyticsService = AnalyticsService.instance;
+  final CrashlyticsService _crashlyticsService = CrashlyticsService.instance;
   final ProductRepository _productRepository = ProductRepository();
 
   AnalysisResult? _result;
@@ -1995,13 +2043,30 @@ class _AnalysisCardState extends State<_AnalysisCard> {
 
     debugPrint('AI Button: tapped');
     debugPrint('AI Button: product barcode=${widget.product.barcode}');
+    await _crashlyticsService.setCurrentScreen('product_result');
+    await _crashlyticsService.setCurrentFlow('ai_analysis');
+    await _crashlyticsService.setSafeContext(
+      'analysis_version',
+      widget.product.aiAnalysisVersion ?? AnalysisService.analysisVersion,
+    );
 
     final localCachedResult = _cachedResult;
     final hasCachedAi = localCachedResult != null;
     debugPrint('AI Button: hasCachedAi=$hasCachedAi');
+    await _analyticsService.logAiAnalysisRequestedWithVersion(
+      hasCachedAi: hasCachedAi,
+      analysisVersion:
+          widget.product.aiAnalysisVersion ?? AnalysisService.analysisVersion,
+    );
 
     if (localCachedResult != null) {
       debugPrint('AI Button: showing cached result');
+      await _analyticsService.logAiAnalysisSuccess(
+        riskLevel: _normalizeRiskLevel(localCachedResult.riskLevel),
+        cached: true,
+        analysisVersion:
+            widget.product.aiAnalysisVersion ?? AnalysisService.analysisVersion,
+      );
       if (!mounted) return;
       setState(() {
         _result = localCachedResult;
@@ -2028,6 +2093,13 @@ class _AnalysisCardState extends State<_AnalysisCard> {
       if (cachedResult != null) {
         debugPrint('AI Card Button Tap: action=show_cached');
         debugPrint('AI Button: showing cached result');
+        await _analyticsService.logAiAnalysisSuccess(
+          riskLevel: _normalizeRiskLevel(cachedResult.riskLevel),
+          cached: true,
+          analysisVersion:
+              widget.product.aiAnalysisVersion ??
+              AnalysisService.analysisVersion,
+        );
         if (!mounted) return;
         setState(() {
           _result = cachedResult;
@@ -2044,6 +2116,19 @@ class _AnalysisCardState extends State<_AnalysisCard> {
     } on Object catch (error, stackTrace) {
       debugPrint('AI Button: analysis service error=$error');
       debugPrintStack(stackTrace: stackTrace);
+      await _crashlyticsService.recordNonFatal(
+        error,
+        stackTrace,
+        reason: 'ai_analysis_failed',
+        context: {
+          'analysis_version':
+              widget.product.aiAnalysisVersion ?? AnalysisService.analysisVersion,
+          'error_type': _safeAiFailureStep(error),
+        },
+      );
+      await _analyticsService.logAiAnalysisFailed(
+        failureStep: _safeAiFailureStep(error),
+      );
       if (!mounted) return;
       setState(() {
         _isLoading = false;
@@ -2085,6 +2170,11 @@ class _AnalysisCardState extends State<_AnalysisCard> {
       }
 
       debugPrint('AI Button: analysis service success');
+      await _analyticsService.logAiAnalysisSuccess(
+        riskLevel: _normalizeRiskLevel(result.riskLevel),
+        cached: false,
+        analysisVersion: AnalysisService.analysisVersion,
+      );
       setState(() {
         _result = result;
         _cachedResult = result;
@@ -2095,6 +2185,18 @@ class _AnalysisCardState extends State<_AnalysisCard> {
       debugPrint('AI Button: analysis service error=$error');
       debugPrint('AI analysis failed: $error');
       debugPrintStack(stackTrace: stackTrace);
+      await _crashlyticsService.recordNonFatal(
+        error,
+        stackTrace,
+        reason: 'ai_analysis_failed',
+        context: {
+          'analysis_version': AnalysisService.analysisVersion,
+          'error_type': _safeAiFailureStep(error),
+        },
+      );
+      await _analyticsService.logAiAnalysisFailed(
+        failureStep: _safeAiFailureStep(error),
+      );
 
       if (!mounted) {
         return;
@@ -2377,6 +2479,18 @@ class _AnalysisCardState extends State<_AnalysisCard> {
       'high' || 'yüksek' => 'yüksek',
       _ => 'bilinmiyor',
     };
+  }
+
+  String _safeAiFailureStep(Object error) {
+    final message = error.toString();
+    final match = RegExp(r'\[step=([a-zA-Z0-9_\-]+)\]').firstMatch(message);
+    if (match != null) {
+      return match.group(1) ?? 'unknown';
+    }
+    if (error is FormatException) {
+      return 'parse';
+    }
+    return 'unknown';
   }
 }
 

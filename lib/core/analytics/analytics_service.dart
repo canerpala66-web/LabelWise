@@ -74,6 +74,7 @@ class AnalyticsService {
     return logEvent(
       AnalyticsEventNames.manualBarcodeSearch,
       parameters: {
+        'search_type': 'manual',
         if (barcodeLength != null) 'barcode_length': barcodeLength,
       },
     );
@@ -141,7 +142,20 @@ class AnalyticsService {
     return logEvent(
       AnalyticsEventNames.aiAnalysisRequested,
       parameters: {
-        if (cached != null) 'cached': cached ? 1 : 0,
+        if (cached != null) 'has_cached_ai': cached ? 1 : 0,
+      },
+    );
+  }
+
+  Future<void> logAiAnalysisRequestedWithVersion({
+    bool? hasCachedAi,
+    String? analysisVersion,
+  }) {
+    return logEvent(
+      AnalyticsEventNames.aiAnalysisRequested,
+      parameters: {
+        if (hasCachedAi != null) 'has_cached_ai': hasCachedAi ? 1 : 0,
+        if (analysisVersion != null) 'analysis_version': analysisVersion,
       },
     );
   }
@@ -191,6 +205,7 @@ class AnalyticsService {
     bool? hasFrontPhoto,
     bool? hasNutritionPhoto,
     bool? hasIngredientsPhoto,
+    bool? categorySelected,
   }) {
     return logEvent(
       AnalyticsEventNames.productSubmissionCompleted,
@@ -200,6 +215,8 @@ class AnalyticsService {
           'has_nutrition_photo': hasNutritionPhoto ? 1 : 0,
         if (hasIngredientsPhoto != null)
           'has_ingredients_photo': hasIngredientsPhoto ? 1 : 0,
+        if (categorySelected != null)
+          'category_selected': categorySelected ? 1 : 0,
       },
     );
   }
@@ -227,6 +244,19 @@ class AnalyticsService {
       AnalyticsEventNames.correctionReportSubmitted,
       parameters: {
         if (issueType != null) 'issue_type': issueType,
+      },
+    );
+  }
+
+  Future<void> logCorrectionReportSubmittedDetailed({
+    String? issueType,
+    bool? hasNote,
+  }) {
+    return logEvent(
+      AnalyticsEventNames.correctionReportSubmitted,
+      parameters: {
+        if (issueType != null) 'issue_type': issueType,
+        if (hasNote != null) 'has_note': hasNote ? 1 : 0,
       },
     );
   }

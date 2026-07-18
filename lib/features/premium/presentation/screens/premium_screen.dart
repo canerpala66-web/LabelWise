@@ -1,8 +1,29 @@
 import 'package:flutter/material.dart';
+import 'package:labelwise/core/analytics/analytics_service.dart';
+import 'package:labelwise/core/crashlytics/crashlytics_service.dart';
 import 'package:labelwise/core/theme/app_tokens.dart';
 
-class PremiumScreen extends StatelessWidget {
-  const PremiumScreen({super.key});
+class PremiumScreen extends StatefulWidget {
+  const PremiumScreen({super.key, this.sourceScreen});
+
+  final String? sourceScreen;
+
+  @override
+  State<PremiumScreen> createState() => _PremiumScreenState();
+}
+
+class _PremiumScreenState extends State<PremiumScreen> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      CrashlyticsService.instance.setCurrentScreen('premium');
+      CrashlyticsService.instance.setCurrentFlow('premium');
+      AnalyticsService.instance.logPremiumScreenViewed(
+        source: widget.sourceScreen ?? 'unknown',
+      );
+    });
+  }
 
   @override
   Widget build(BuildContext context) {

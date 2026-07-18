@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:labelwise/core/analytics/analytics_service.dart';
+import 'package:labelwise/core/crashlytics/crashlytics_service.dart';
 import 'package:labelwise/core/theme/app_tokens.dart';
 import 'package:labelwise/features/products/services/product_category_mapper.dart';
 import 'package:labelwise/features/scanner/data/submitted_product_repository.dart';
@@ -41,6 +43,11 @@ class _SubmitProductScreenState extends State<SubmitProductScreen> {
   void initState() {
     super.initState();
     _barcodeController = TextEditingController(text: widget.initialBarcode);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      CrashlyticsService.instance.setCurrentScreen('submit_product');
+      CrashlyticsService.instance.setCurrentFlow('product_submission');
+      AnalyticsService.instance.logProductSubmissionStarted();
+    });
   }
 
   Future<void> _pickPhoto(_PhotoType type) async {
@@ -75,6 +82,12 @@ class _SubmitProductScreenState extends State<SubmitProductScreen> {
     } on Exception catch (error, stackTrace) {
       debugPrint('Photo selection error: $error');
       debugPrintStack(stackTrace: stackTrace);
+      await CrashlyticsService.instance.recordNonFatal(
+        error,
+        stackTrace,
+        reason: 'photo_upload_failed',
+        context: const {'error_type': 'image_picker'},
+      );
 
       if (!mounted) {
         return;
@@ -127,6 +140,7 @@ class _SubmitProductScreenState extends State<SubmitProductScreen> {
     });
 
     try {
+      await CrashlyticsService.instance.setCurrentFlow('product_submission');
       await _repository.submitProduct(
         barcode: _barcodeController.text,
         name: _nameController.text,
@@ -153,6 +167,12 @@ class _SubmitProductScreenState extends State<SubmitProductScreen> {
         _isSubmitting = false;
         _isSubmitted = true;
       });
+      await AnalyticsService.instance.logProductSubmissionCompleted(
+        hasFrontPhoto: _frontPhoto != null,
+        hasNutritionPhoto: _nutritionPhoto != null,
+        hasIngredientsPhoto: _ingredientsPhoto != null,
+        categorySelected: _selectedCategory.trim() != 'Belirsiz',
+      );
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
@@ -163,11 +183,20 @@ class _SubmitProductScreenState extends State<SubmitProductScreen> {
     } on PhotoUploadException catch (error, stackTrace) {
       debugPrint('SubmitProduct: failed step=image_upload, error=$error');
       debugPrintStack(stackTrace: stackTrace);
+      await CrashlyticsService.instance.recordNonFatal(
+        error,
+        stackTrace,
+        reason: 'photo_upload_failed',
+        context: const {'error_type': 'image_upload'},
+      );
 
       if (!mounted) {
         return;
       }
 
+      await AnalyticsService.instance.logProductSubmissionFailed(
+        failureStep: 'image_upload',
+      );
       setState(() {
         _isSubmitting = false;
         _errorMessage =
@@ -176,8 +205,17 @@ class _SubmitProductScreenState extends State<SubmitProductScreen> {
     } on SubmissionInsertException catch (error, stackTrace) {
       debugPrint('SubmitProduct: failed step=database_insert, error=$error');
       debugPrintStack(stackTrace: stackTrace);
+      await CrashlyticsService.instance.recordNonFatal(
+        error,
+        stackTrace,
+        reason: 'product_submission_failed',
+        context: const {'error_type': 'database_insert'},
+      );
 
       if (!mounted) return;
+      await AnalyticsService.instance.logProductSubmissionFailed(
+        failureStep: 'database_insert',
+      );
       setState(() {
         _isSubmitting = false;
         _errorMessage =
@@ -186,11 +224,20 @@ class _SubmitProductScreenState extends State<SubmitProductScreen> {
     } on Exception catch (error, stackTrace) {
       debugPrint('SubmitProduct: failed step=unexpected, error=$error');
       debugPrintStack(stackTrace: stackTrace);
+      await CrashlyticsService.instance.recordNonFatal(
+        error,
+        stackTrace,
+        reason: 'product_submission_failed',
+        context: const {'error_type': 'unexpected'},
+      );
 
       if (!mounted) {
         return;
       }
 
+      await AnalyticsService.instance.logProductSubmissionFailed(
+        failureStep: 'unexpected',
+      );
       setState(() {
         _isSubmitting = false;
         _errorMessage =

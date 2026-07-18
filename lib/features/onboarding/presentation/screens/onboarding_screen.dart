@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:labelwise/core/analytics/analytics_service.dart';
 import 'package:labelwise/core/theme/app_tokens.dart';
 import 'package:labelwise/features/onboarding/data/onboarding_repository.dart';
 import 'package:labelwise/features/scanner/presentation/screens/home_screen.dart';
@@ -46,6 +47,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     });
 
     await _repository.markCompleted();
+    await AnalyticsService.instance.logOnboardingCompleted();
     if (!mounted) return;
 
     await Navigator.of(context).pushReplacement(

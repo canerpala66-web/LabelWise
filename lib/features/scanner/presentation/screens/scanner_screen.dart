@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:labelwise/features/analysis/services/labelwise_score_engine.dart';
+import 'package:labelwise/core/analytics/analytics_service.dart';
+import 'package:labelwise/core/crashlytics/crashlytics_service.dart';
 import 'package:labelwise/core/theme/app_tokens.dart';
 import 'package:labelwise/features/scanner/data/product.dart';
 import 'package:labelwise/features/scanner/data/product_barcode_validator.dart';
@@ -36,6 +39,10 @@ class _ScannerScreenState extends State<ScannerScreen> {
   void initState() {
     super.initState();
     _recentScans = _recentScansRepository.getRecentScans();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      CrashlyticsService.instance.setCurrentScreen('scanner');
+      CrashlyticsService.instance.setCurrentFlow('product_lookup');
+    });
 
     final initialBarcode = widget.initialBarcode?.trim();
     if (initialBarcode == null || initialBarcode.isEmpty) {
@@ -45,12 +52,13 @@ class _ScannerScreenState extends State<ScannerScreen> {
     _barcodeController.text = initialBarcode;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
-        _searchProduct();
+        _searchProduct(searchType: 'scan');
       }
     });
   }
 
   Future<void> _scanBarcode() async {
+    await AnalyticsService.instance.logScanStarted(searchType: 'scan');
     final barcode = await Navigator.of(context).push<String>(
       MaterialPageRoute<String>(
         builder: (context) => const BarcodeScannerScreen(),
@@ -62,7 +70,7 @@ class _ScannerScreenState extends State<ScannerScreen> {
     }
 
     _barcodeController.text = barcode;
-    await _searchProduct();
+    await _searchProduct(searchType: 'scan');
   }
 
   void _refreshRecentScans() {
@@ -121,7 +129,7 @@ class _ScannerScreenState extends State<ScannerScreen> {
     _refreshRecentScans();
   }
 
-  Future<void> _searchProduct() async {
+  Future<void> _searchProduct({String searchType = 'manual'}) async {
     final validation = ProductBarcodeValidator.validate(
       _barcodeController.text,
     );
@@ -140,8 +148,18 @@ class _ScannerScreenState extends State<ScannerScreen> {
     }
 
     final barcode = validation.value!;
+    final barcodeLength = barcode.length;
     _barcodeController.text = barcode;
     FocusScope.of(context).unfocus();
+    if (searchType == 'manual') {
+      await AnalyticsService.instance.logManualBarcodeSearch(
+        barcodeLength: barcodeLength,
+      );
+    }
+    await AnalyticsService.instance.logProductLookupStarted(
+      searchType: searchType,
+      barcodeLength: barcodeLength,
+    );
     setState(() {
       _isLoading = true;
       _errorMessage = null;
@@ -150,10 +168,21 @@ class _ScannerScreenState extends State<ScannerScreen> {
     });
 
     try {
+      await CrashlyticsService.instance.setCurrentFlow('product_lookup');
+      await CrashlyticsService.instance.setSafeContext(
+        'search_type',
+        searchType,
+      );
+      await CrashlyticsService.instance.setSafeContext(
+        'barcode_length',
+        barcodeLength,
+      );
+      var analyticsSource = 'products_cache';
       var product = await _productRepository.getProductByBarcode(barcode);
 
       if (product == null) {
         debugPrint('Cache miss: fetching from cache-openfoodfacts-product');
+        analyticsSource = 'openfoodfacts_function';
         product = await _productRepository.cacheOpenFoodFactsProductFromFunction(
           barcode: barcode,
         );
@@ -161,6 +190,7 @@ class _ScannerScreenState extends State<ScannerScreen> {
         debugPrint(
           'Cache hit: incomplete nutrition, refreshing from cache-openfoodfacts-product',
         );
+        analyticsSource = 'openfoodfacts_function';
         final refreshedProduct = await _productRepository
             .cacheOpenFoodFactsProductFromFunction(
               barcode: barcode,
@@ -173,6 +203,7 @@ class _ScannerScreenState extends State<ScannerScreen> {
         debugPrint(
           'Cache hit: category missing, refreshing from cache-openfoodfacts-product',
         );
+        analyticsSource = 'openfoodfacts_function';
         final cachedProduct = product;
         final refreshedProduct = await _productRepository
             .cacheOpenFoodFactsProductFromFunction(
@@ -195,6 +226,10 @@ class _ScannerScreenState extends State<ScannerScreen> {
       final foundProduct = product;
 
       if (foundProduct == null) {
+        await AnalyticsService.instance.logProductNotFound(
+          searchType: searchType,
+          barcodeLength: barcodeLength,
+        );
         setState(() {
           _isLoading = false;
           _missingBarcode = barcode;
@@ -205,6 +240,13 @@ class _ScannerScreenState extends State<ScannerScreen> {
       setState(() {
         _isLoading = false;
       });
+
+      await AnalyticsService.instance.logProductFound(
+        source: _analyticsProductSource(foundProduct, analyticsSource),
+        category: _analyticsCategory(foundProduct.category),
+        scoreBand: _scoreBandFromProduct(foundProduct),
+        hasAiCache: _hasAiCache(foundProduct),
+      );
 
       await Navigator.of(context).push(
         MaterialPageRoute<void>(
@@ -219,6 +261,15 @@ class _ScannerScreenState extends State<ScannerScreen> {
       if (e is PostgrestException) {
         debugPrint('Supabase error: ${e.message}');
       }
+      await CrashlyticsService.instance.recordNonFatal(
+        e,
+        stackTrace,
+        reason: 'product_lookup_failed',
+        context: {
+          'search_type': searchType,
+          'barcode_length': barcodeLength,
+        },
+      );
 
       if (!mounted) {
         return;
@@ -239,6 +290,46 @@ class _ScannerScreenState extends State<ScannerScreen> {
     final category = product.category?.trim();
     return source == 'openfoodfacts' &&
         (category == null || category.isEmpty || category == 'Belirsiz');
+  }
+
+  String _analyticsProductSource(Product product, String fallbackSource) {
+    final normalizedSource = product.source.trim().toLowerCase();
+    if (normalizedSource == 'user_submission') {
+      return 'user_submission';
+    }
+    if (fallbackSource == 'openfoodfacts_function') {
+      return 'openfoodfacts_function';
+    }
+    return normalizedSource.isEmpty ? 'unknown' : 'products_cache';
+  }
+
+  String _analyticsCategory(String? category) {
+    final trimmed = category?.trim();
+    if (trimmed == null || trimmed.isEmpty) {
+      return 'unknown';
+    }
+    return trimmed.length <= 100 ? trimmed : trimmed.substring(0, 100);
+  }
+
+  String _scoreBandFromProduct(Product product) {
+    final score = const LabelWiseScoreEngine().calculate(product).score;
+    if (score == null) return 'unknown';
+    if (score <= 24) return '0_24';
+    if (score <= 44) return '25_44';
+    if (score <= 59) return '45_59';
+    if (score <= 69) return '60_69';
+    if (score <= 79) return '70_79';
+    if (score <= 89) return '80_89';
+    return '90_100';
+  }
+
+  bool _hasAiCache(Product product) {
+    final summary = product.aiSummary?.trim();
+    final risk = product.aiRiskLevel?.trim();
+    return summary != null &&
+        summary.isNotEmpty &&
+        risk != null &&
+        risk.isNotEmpty;
   }
 
   @override

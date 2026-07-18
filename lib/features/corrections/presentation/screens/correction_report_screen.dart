@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:labelwise/core/analytics/analytics_service.dart';
+import 'package:labelwise/core/crashlytics/crashlytics_service.dart';
 import 'package:labelwise/features/corrections/data/product_correction_repository.dart';
 import 'package:labelwise/features/scanner/data/product.dart';
 
@@ -36,6 +38,16 @@ class _CorrectionReportScreenState extends State<CorrectionReportScreen> {
   String? _errorMessage;
   bool _isSubmitting = false;
   bool _isSubmitted = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      CrashlyticsService.instance.setCurrentScreen('correction_report');
+      CrashlyticsService.instance.setCurrentFlow('correction_report');
+      AnalyticsService.instance.logCorrectionReportStarted();
+    });
+  }
 
   Future<void> _submit() async {
     debugPrint('CorrectionReport: submit tapped');
@@ -97,6 +109,7 @@ class _CorrectionReportScreenState extends State<CorrectionReportScreen> {
     });
 
     try {
+      await CrashlyticsService.instance.setCurrentFlow('correction_report');
       final payloadPreview = <String, Object?>{
         'barcode': widget.product.barcode,
         'product_name': widget.product.productName,
@@ -136,9 +149,25 @@ class _CorrectionReportScreenState extends State<CorrectionReportScreen> {
         _isSubmitting = false;
         _isSubmitted = true;
       });
+      await AnalyticsService.instance.logCorrectionReportSubmittedDetailed(
+        issueType: _safeIssueType(_selectedIssue),
+        hasNote: _noteController.text.trim().isNotEmpty,
+      );
     } on Object catch (error, stackTrace) {
       debugPrint('CorrectionReport: insert failed error=$error');
       debugPrintStack(stackTrace: stackTrace);
+      await CrashlyticsService.instance.recordNonFatal(
+        error,
+        stackTrace,
+        reason: 'correction_report_failed',
+        context: {
+          'issue_type': _safeIssueType(_selectedIssue),
+          'error_type': 'submit',
+        },
+      );
+      await AnalyticsService.instance.logCorrectionReportFailed(
+        failureStep: 'submit',
+      );
       if (!mounted) return;
       setState(() {
         _isSubmitting = false;
@@ -159,6 +188,17 @@ class _CorrectionReportScreenState extends State<CorrectionReportScreen> {
     _saltController.dispose();
     _noteController.dispose();
     super.dispose();
+  }
+
+  String _safeIssueType(String? issue) {
+    return switch (issue) {
+      'Beslenme değeri farklı' => 'nutrition_mismatch',
+      'Ürün adı/marka hatalı' => 'name_brand_mismatch',
+      'Fotoğraf eksik veya yanlış' => 'photo_issue',
+      'İçindekiler bilgisi farklı' => 'ingredients_mismatch',
+      'Diğer' => 'other',
+      _ => 'unknown',
+    };
   }
 
   @override

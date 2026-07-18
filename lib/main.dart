@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter/widgets.dart';
 import 'package:labelwise/app/app.dart';
+import 'package:labelwise/core/crashlytics/crashlytics_service.dart';
 import 'package:labelwise/core/config/env.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -33,6 +34,9 @@ Future<void> _initializeFirebaseIfNeeded() async {
   await Firebase.initializeApp();
   await FirebaseAnalytics.instance.setAnalyticsCollectionEnabled(true);
   await FirebaseCrashlytics.instance.setCrashlyticsCollectionEnabled(true);
+  await CrashlyticsService.instance.log(
+    'firebase_initialized_android',
+  );
 
   FlutterError.onError = (FlutterErrorDetails details) {
     FlutterError.presentError(details);

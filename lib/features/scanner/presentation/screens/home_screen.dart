@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:labelwise/core/analytics/analytics_service.dart';
+import 'package:labelwise/core/crashlytics/crashlytics_service.dart';
 import 'package:labelwise/core/theme/app_tokens.dart';
 import 'package:labelwise/features/scanner/data/product_repository.dart';
 import 'package:labelwise/features/scanner/data/recent_scan.dart';
@@ -26,6 +28,10 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     _recentScans = _recentScansRepository.getRecentScans();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      CrashlyticsService.instance.setCurrentScreen('home');
+      CrashlyticsService.instance.setCurrentFlow('home');
+    });
   }
 
   void _refreshRecentScans() {
@@ -36,6 +42,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _openBarcodeScanner(BuildContext context) async {
+    await AnalyticsService.instance.logScanStarted(searchType: 'scan');
     final barcode = await Navigator.of(context).push<String>(
       MaterialPageRoute<String>(
         builder: (context) => const BarcodeScannerScreen(),
@@ -298,9 +305,13 @@ class _HomeScreenState extends State<HomeScreen> {
                   const SizedBox(height: AppSpacing.sectionSpacingLarge),
                   _PremiumTeaserCard(
                     onTap: () {
+                      AnalyticsService.instance.logPremiumCtaClicked(
+                        source: 'home_screen',
+                      );
                       Navigator.of(context).push(
                         MaterialPageRoute<void>(
-                          builder: (context) => const PremiumScreen(),
+                          builder: (context) =>
+                              const PremiumScreen(sourceScreen: 'home_screen'),
                         ),
                       );
                     },

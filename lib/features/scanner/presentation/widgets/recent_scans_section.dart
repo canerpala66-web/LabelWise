@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:labelwise/core/analytics/analytics_service.dart';
 import 'package:labelwise/core/theme/app_tokens.dart';
 import 'package:labelwise/features/premium/presentation/screens/premium_screen.dart';
 import 'package:labelwise/features/scanner/data/recent_scan.dart';
@@ -246,9 +247,13 @@ class _PremiumUpsellCard extends StatelessWidget {
                 width: double.infinity,
                 child: FilledButton(
                   onPressed: () {
+                    AnalyticsService.instance.logPremiumCtaClicked(
+                      source: 'recent_scans',
+                    );
                     Navigator.of(context).push(
                       MaterialPageRoute<void>(
-                        builder: (_) => const PremiumScreen(),
+                        builder: (_) =>
+                            const PremiumScreen(sourceScreen: 'recent_scans'),
                       ),
                     );
                   },
