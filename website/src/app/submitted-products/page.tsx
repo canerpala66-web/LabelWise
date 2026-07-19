@@ -2,13 +2,13 @@ import type { Metadata } from "next";
 import { SubmitProductContent } from "@/components/submit-product-content";
 
 export const metadata: Metadata = {
-  title: "Eksik Ürün Gönderimi",
-  description: "LabelWise eksik ürün gönderimi bilgilendirme sayfası.",
+  title: "Submitted Products",
+  description: "LabelWise eksik urun gonderimi bilgilendirme sayfasi.",
   alternates: {
-    canonical: "/submit-product",
+    canonical: "/submitted-products",
   },
 };
 
-export default function SubmitProductPage() {
+export default function SubmittedProductsPage() {
   return <SubmitProductContent />;
 }
