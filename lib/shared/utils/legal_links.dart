@@ -7,6 +7,7 @@ const String disclaimerUrl = 'https://labelwise.net/disclaimer';
 const String subscriptionTermsUrl =
     'https://labelwise.net/subscription-terms';
 const String contactUrl = 'https://labelwise.net/contact';
+const String accountDeletionUrl = 'https://labelwise.net/account-deletion';
 
 Future<void> openLegalUrl(BuildContext context, String url) async {
   final uri = Uri.tryParse(url);

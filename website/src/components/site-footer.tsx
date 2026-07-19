@@ -5,6 +5,7 @@ const footerLinks = [
   { href: "/terms", label: "Kullanım Koşulları" },
   { href: "/disclaimer", label: "Yasal Bilgilendirme" },
   { href: "/subscription-terms", label: "Abonelik Koşulları" },
+  { href: "/account-deletion", label: "Hesap Silme Talebi" },
   { href: "/contact", label: "İletişim" },
 ];
 

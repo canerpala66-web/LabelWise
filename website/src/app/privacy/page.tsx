@@ -212,6 +212,18 @@ export default function PrivacyPage() {
                 kullanim riskinin azaltulmasi icin ek bilgi istenebilir.
               </p>
               <p className="mt-3">
+                Hesap silme sureci hakkinda ek bilgi icin
+                {" "}
+                <a
+                  href="https://labelwise.net/account-deletion"
+                  className="font-semibold text-white underline decoration-[color:var(--gold)] underline-offset-4"
+                >
+                  https://labelwise.net/account-deletion
+                </a>
+                {" "}
+                sayfasi incelenebilir.
+              </p>
+              <p className="mt-3">
                 Hesap silme sonrasinda, uygulanabilir mevzuat kapsaminda veya
                 guvenlik, uyusmazlik, muhasebe ve abonelik dogrulama amaclariyla
                 saklanmasi gereken belirli veriler sinirli sureyle tutulabilir.

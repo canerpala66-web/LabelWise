@@ -750,6 +750,11 @@ class _LegalLinksCard extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           const _LegalLinkTile(
+            label: 'Hesap Silme Talebi',
+            url: accountDeletionUrl,
+          ),
+          const SizedBox(height: 8),
+          const _LegalLinkTile(
             label: 'İletişim',
             url: contactUrl,
           ),
