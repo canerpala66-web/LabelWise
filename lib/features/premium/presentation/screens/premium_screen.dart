@@ -9,6 +9,7 @@ import 'package:labelwise/features/premium/data/billing_repository.dart';
 import 'package:labelwise/features/premium/data/entitlement_repository.dart';
 import 'package:labelwise/features/premium/data/purchase_coordinator.dart';
 import 'package:labelwise/features/premium/data/user_entitlement.dart';
+import 'package:labelwise/shared/utils/legal_links.dart';
 
 enum _PremiumPlan { monthly, yearly }
 
@@ -422,6 +423,8 @@ class _PremiumScreenState extends State<PremiumScreen> {
                                 ),
                           ),
                         ),
+                        const SizedBox(height: AppSpacing.sectionSpacing),
+                        const _PremiumLegalDisclosureCard(),
                         const SizedBox(height: AppSpacing.sectionSpacingLarge),
                       ],
                       Text(
@@ -447,6 +450,8 @@ class _PremiumScreenState extends State<PremiumScreen> {
                       const SizedBox(height: 8),
                       const _ComparisonHighlightCard(),
                       const SizedBox(height: AppSpacing.sectionSpacingLarge),
+                      const _PremiumLegalDisclosureCard(),
+                      const SizedBox(height: AppSpacing.sectionSpacingLarge),
                       Center(
                         child: Text(
                           'LabelWise tıbbi tavsiye vermez. Ürün analizleri bilgilendirme amaçlıdır.',
@@ -465,6 +470,93 @@ class _PremiumScreenState extends State<PremiumScreen> {
             );
           },
         ),
+      ),
+    );
+  }
+}
+
+class _PremiumLegalDisclosureCard extends StatelessWidget {
+  const _PremiumLegalDisclosureCard();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(AppRadii.card),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Abonelik ve yasal bilgilendirme',
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w800,
+              color: AppColors.primaryText,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            'Premium abonelikler Google Play üzerinden yönetilir. Satın alma, yenileme ve iptal işlemleri Google Play hesap ayarlarından yapılır. Premium erişim yalnızca doğrulanmış abonelik durumuna göre aktifleşir.',
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: AppColors.mutedText,
+              height: 1.5,
+            ),
+          ),
+          const SizedBox(height: 14),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: const [
+              _PremiumLegalLinkChip(
+                label: 'Abonelik Koşulları',
+                url: subscriptionTermsUrl,
+              ),
+              _PremiumLegalLinkChip(
+                label: 'Gizlilik Politikası',
+                url: privacyPolicyUrl,
+              ),
+              _PremiumLegalLinkChip(
+                label: 'Kullanım Koşulları',
+                url: termsOfUseUrl,
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PremiumLegalLinkChip extends StatelessWidget {
+  const _PremiumLegalLinkChip({required this.label, required this.url});
+
+  final String label;
+  final String url;
+
+  @override
+  Widget build(BuildContext context) {
+    return ActionChip(
+      onPressed: () => openLegalUrl(context, url),
+      avatar: const Icon(
+        Icons.open_in_new_rounded,
+        size: 16,
+        color: AppColors.primary,
+      ),
+      label: Text(label),
+      labelStyle: Theme.of(context).textTheme.labelLarge?.copyWith(
+        color: AppColors.primaryText,
+        fontWeight: FontWeight.w700,
+      ),
+      side: const BorderSide(color: AppColors.border),
+      backgroundColor: AppColors.softSurface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppRadii.chip),
       ),
     );
   }

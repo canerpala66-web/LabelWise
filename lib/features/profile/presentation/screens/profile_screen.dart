@@ -6,6 +6,7 @@ import 'package:labelwise/features/profile/data/profile_repository.dart';
 import 'package:labelwise/features/profile/data/user_profile.dart';
 import 'package:labelwise/features/premium/data/entitlement_repository.dart';
 import 'package:labelwise/features/premium/data/user_entitlement.dart';
+import 'package:labelwise/shared/utils/legal_links.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -436,6 +437,8 @@ class _LoggedOutProfileView extends StatelessWidget {
             ),
           ),
         ),
+        const SizedBox(height: AppSpacing.sectionSpacing),
+        const _LegalLinksCard(),
       ],
     );
   }
@@ -692,6 +695,8 @@ class _LoggedInProfileView extends StatelessWidget {
           ),
         ),
         const SizedBox(height: AppSpacing.sectionSpacing),
+        const _LegalLinksCard(),
+        const SizedBox(height: AppSpacing.sectionSpacing),
         SizedBox(
           width: double.infinity,
           child: FilledButton.tonalIcon(
@@ -707,6 +712,95 @@ class _LoggedInProfileView extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _LegalLinksCard extends StatelessWidget {
+  const _LegalLinksCard();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return _InfoCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Yasal Bilgiler',
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.itemSpacing),
+          const _LegalLinkTile(
+            label: 'Gizlilik Politikası',
+            url: privacyPolicyUrl,
+          ),
+          const SizedBox(height: 8),
+          const _LegalLinkTile(
+            label: 'Kullanım Koşulları',
+            url: termsOfUseUrl,
+          ),
+          const SizedBox(height: 8),
+          const _LegalLinkTile(
+            label: 'Sağlık, AI ve Veri Bilgilendirmesi',
+            url: disclaimerUrl,
+          ),
+          const SizedBox(height: 8),
+          const _LegalLinkTile(
+            label: 'İletişim',
+            url: contactUrl,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _LegalLinkTile extends StatelessWidget {
+  const _LegalLinkTile({required this.label, required this.url});
+
+  final String label;
+  final String url;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () => openLegalUrl(context, url),
+        borderRadius: BorderRadius.circular(18),
+        child: Ink(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+          decoration: BoxDecoration(
+            color: AppColors.softSurface,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: AppColors.border),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  label,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: AppColors.primaryText,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              const Icon(
+                Icons.open_in_new_rounded,
+                size: 18,
+                color: AppColors.mutedText,
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
