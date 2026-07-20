@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   createSupabaseBrowserClient,
+  getBrowserSupabaseEnvStatus,
   hasSupabaseBrowserEnv,
 } from "@/lib/supabase/browser";
 
@@ -101,11 +102,17 @@ export function AdminAuthForm() {
   const router = useRouter();
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const [envStatus, setEnvStatus] = useState<{
+    urlPresent: boolean;
+    anonKeyPresent: boolean;
+  } | null>(null);
 
   async function handleSubmit(formData: FormData) {
     setErrorMessage(null);
+    setEnvStatus(null);
     const email = `${formData.get("email") ?? ""}`.trim();
     const password = `${formData.get("password") ?? ""}`;
+    const browserEnvStatus = getBrowserSupabaseEnvStatus();
 
     if (process.env.NODE_ENV !== "production") {
       console.log("[AdminLogin] signIn started");
@@ -116,7 +123,10 @@ export function AdminAuthForm() {
 
     try {
       if (!hasSupabaseBrowserEnv()) {
-        setErrorMessage("Supabase public env eksik.");
+        setEnvStatus(browserEnvStatus);
+        setErrorMessage(
+          "Supabase public env eksik. NEXT_PUBLIC_SUPABASE_URL ve NEXT_PUBLIC_SUPABASE_ANON_KEY Production env olarak eklenip yeniden deploy edilmeli.",
+        );
         return;
       }
 
@@ -169,9 +179,12 @@ export function AdminAuthForm() {
       }
       setErrorMessage(
         safeError.message?.includes("Missing required environment variable")
-          ? "Supabase public env eksik."
+          ? "Supabase public env eksik. NEXT_PUBLIC_SUPABASE_URL ve NEXT_PUBLIC_SUPABASE_ANON_KEY Production env olarak eklenip yeniden deploy edilmeli."
           : mapAdminLoginError(safeError),
       );
+      if (safeError.message?.includes("Missing required environment variable")) {
+        setEnvStatus(browserEnvStatus);
+      }
     }
   }
 
@@ -217,9 +230,15 @@ export function AdminAuthForm() {
       </div>
 
       {errorMessage ? (
-        <p className="mt-4 rounded-2xl border border-red-400/18 bg-red-400/8 px-4 py-3 text-sm text-red-200">
-          {errorMessage}
-        </p>
+        <div className="mt-4 rounded-2xl border border-red-400/18 bg-red-400/8 px-4 py-3 text-sm text-red-200">
+          <p>{errorMessage}</p>
+          {envStatus ? (
+            <div className="mt-3 grid gap-2 text-xs text-red-100/90 sm:grid-cols-2">
+              <p>NEXT_PUBLIC_SUPABASE_URL present: {envStatus.urlPresent ? "true" : "false"}</p>
+              <p>NEXT_PUBLIC_SUPABASE_ANON_KEY present: {envStatus.anonKeyPresent ? "true" : "false"}</p>
+            </div>
+          ) : null}
+        </div>
       ) : null}
 
       <button
