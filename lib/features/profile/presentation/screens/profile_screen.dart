@@ -143,6 +143,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                     validator: (value) {
                       final text = value?.trim() ?? '';
+                      if (text.isEmpty) {
+                        return 'Kullanıcı adı boş olamaz.';
+                      }
                       if (text.length > 40) {
                         return 'Profil adı 40 karakterden uzun olamaz.';
                       }
