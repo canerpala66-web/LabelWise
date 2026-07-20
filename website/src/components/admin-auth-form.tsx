@@ -2,7 +2,100 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
+import {
+  createSupabaseBrowserClient,
+  hasSupabaseBrowserEnv,
+} from "@/lib/supabase/browser";
+
+type SafeAuthError = {
+  name?: string;
+  code?: string;
+  status?: number;
+  message?: string;
+};
+
+function sanitizeAuthMessage(message: string | undefined) {
+  if (!message) {
+    return "";
+  }
+
+  return message
+    .replace(/bearer\s+[a-z0-9\-._~+/]+=*/gi, "[redacted]")
+    .replace(/\beyj[a-z0-9\-._~+/=]+\b/gi, "[redacted]")
+    .trim();
+}
+
+function mapAdminLoginError(error: SafeAuthError) {
+  const message = sanitizeAuthMessage(error.message).toLowerCase();
+  const code = `${error.code ?? ""}`.toLowerCase();
+  const status = error.status;
+
+  if (
+    message.includes("invalid login credentials") ||
+    code.includes("invalid_credentials")
+  ) {
+    return "E-posta veya şifre hatalı.";
+  }
+
+  if (
+    message.includes("email not confirmed") ||
+    code.includes("email_not_confirmed")
+  ) {
+    return "Bu e-posta henüz doğrulanmamış.";
+  }
+
+  if (
+    message.includes("user not found") ||
+    message.includes("no user found") ||
+    code.includes("user_not_found")
+  ) {
+    return "Bu e-posta ile kayıtlı kullanıcı bulunamadı.";
+  }
+
+  if (
+    status === 429 ||
+    code.includes("over_request_rate_limit") ||
+    message.includes("too many requests")
+  ) {
+    return "Çok fazla deneme yapıldı. Biraz bekleyip tekrar dene.";
+  }
+
+  if (
+    status === 0 ||
+    message.includes("failed to fetch") ||
+    message.includes("network") ||
+    message.includes("fetch") ||
+    message.includes("supabase public env eksik") ||
+    code.includes("auth_retryable_fetch_error")
+  ) {
+    return "Giriş servisine bağlanılamadı. Yapılandırma kontrol edilmeli.";
+  }
+
+  return sanitizeAuthMessage(error.message) || "Giriş yapılamadı. Lütfen tekrar dene.";
+}
+
+function getSafeAuthErrorDetails(error: unknown): SafeAuthError {
+  if (typeof error !== "object" || error === null) {
+    return {
+      message: typeof error === "string" ? error : "Bilinmeyen hata",
+    };
+  }
+
+  const candidate = error as {
+    name?: string;
+    code?: string;
+    status?: number;
+    statusCode?: number;
+    message?: string;
+  };
+
+  return {
+    name: candidate.name,
+    code: candidate.code,
+    status: candidate.status ?? candidate.statusCode,
+    message: candidate.message,
+  };
+}
 
 export function AdminAuthForm() {
   const router = useRouter();
@@ -13,24 +106,72 @@ export function AdminAuthForm() {
     setErrorMessage(null);
     const email = `${formData.get("email") ?? ""}`.trim();
     const password = `${formData.get("password") ?? ""}`;
+
+    if (process.env.NODE_ENV !== "production") {
+      console.log("[AdminLogin] signIn started");
+      console.log(
+        `[AdminLogin] Supabase browser client exists: ${hasSupabaseBrowserEnv()}`,
+      );
+    }
+
     try {
+      if (!hasSupabaseBrowserEnv()) {
+        setErrorMessage("Supabase public env eksik.");
+        return;
+      }
+
       const supabase = createSupabaseBrowserClient();
-      const { error } = await supabase.auth.signInWithPassword({
+      const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
 
+      if (process.env.NODE_ENV !== "production") {
+        console.log(
+          `[AdminLogin] session returned: ${Boolean(data.session)}`,
+        );
+        console.log(`[AdminLogin] user returned: ${Boolean(data.user)}`);
+      }
+
       if (error) {
-        setErrorMessage("Giris yapilamadi. E-posta veya sifreyi kontrol et.");
+        const safeError = getSafeAuthErrorDetails(error);
+        if (process.env.NODE_ENV !== "production") {
+          console.log(
+            `[AdminLogin] error name/code/status/message sanitized: ${JSON.stringify({
+              name: safeError.name ?? null,
+              code: safeError.code ?? null,
+              status: safeError.status ?? null,
+              message: sanitizeAuthMessage(safeError.message),
+            })}`,
+          );
+        }
+        setErrorMessage(mapAdminLoginError(safeError));
         return;
       }
 
       startTransition(() => {
-        router.replace("/admin");
+        router.replace("/admin/status");
         router.refresh();
       });
-    } catch {
-      setErrorMessage("Yonetim paneli su anda acilamadi.");
+    } catch (error) {
+      const safeError = getSafeAuthErrorDetails(error);
+      if (process.env.NODE_ENV !== "production") {
+        console.log(
+          `[AdminLogin] error name/code/status/message sanitized: ${JSON.stringify({
+            name: safeError.name ?? null,
+            code: safeError.code ?? null,
+            status: safeError.status ?? null,
+            message: sanitizeAuthMessage(safeError.message),
+          })}`,
+        );
+        console.log("[AdminLogin] session returned: false");
+        console.log("[AdminLogin] user returned: false");
+      }
+      setErrorMessage(
+        safeError.message?.includes("Missing required environment variable")
+          ? "Supabase public env eksik."
+          : mapAdminLoginError(safeError),
+      );
     }
   }
 
