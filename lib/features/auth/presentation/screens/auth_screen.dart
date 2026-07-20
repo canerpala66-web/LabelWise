@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:labelwise/core/theme/app_tokens.dart';
+import 'package:labelwise/features/auth/data/auth_config.dart';
 import 'package:labelwise/features/auth/data/auth_repository.dart';
 import 'package:labelwise/features/scanner/presentation/screens/home_screen.dart';
 
@@ -140,6 +141,37 @@ class _AuthScreenState extends State<AuthScreen> {
     }
   }
 
+  Future<void> _signInWithApple() async {
+    if (_isLoading) return;
+
+    FocusScope.of(context).unfocus();
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+      _infoMessage = null;
+    });
+
+    try {
+      await _authRepository.signInWithApple();
+
+      if (!mounted) return;
+      _handleAuthSuccess(createdAccount: false);
+    } on AuthRepositoryException catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+        _errorMessage = error.message;
+      });
+    } on Object {
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+        _errorMessage =
+            'Apple ile giriş yapılandırması henüz tamamlanmadı.';
+      });
+    }
+  }
+
   void _switchMode() {
     if (_isLoading) return;
     setState(() {
@@ -251,6 +283,17 @@ class _AuthScreenState extends State<AuthScreen> {
                           label: const Text('Google ile devam et'),
                         ),
                       ),
+                      if (AuthConfig.supportsAppleSignIn) ...[
+                        const SizedBox(height: AppSpacing.itemSpacing),
+                        SizedBox(
+                          height: 54,
+                          child: OutlinedButton.icon(
+                            onPressed: _isLoading ? null : _signInWithApple,
+                            icon: const Icon(Icons.apple_rounded, size: 22),
+                            label: const Text('Apple ile devam et'),
+                          ),
+                        ),
+                      ],
                       const SizedBox(height: AppSpacing.sectionSpacing),
                       Row(
                         children: [

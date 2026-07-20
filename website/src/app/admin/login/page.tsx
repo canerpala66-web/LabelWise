@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { AdminAuthForm } from "@/components/admin-auth-form";
 import { AdminStatusCard } from "@/components/admin-status-card";
-import { getAdminGateState } from "@/lib/admin/auth";
+import { getAdminDiagnostics, getAdminGateState } from "@/lib/admin/auth";
 
 export const metadata: Metadata = {
   title: "Admin Girisi",
@@ -15,6 +15,7 @@ export const metadata: Metadata = {
 
 export default async function AdminLoginPage() {
   const { session, isAdmin, error } = await getAdminGateState();
+  const diagnostics = error ? await getAdminDiagnostics() : null;
 
   if (session && isAdmin) {
     redirect("/admin/submissions");
@@ -34,6 +35,7 @@ export default async function AdminLoginPage() {
             message={error}
             actionLabel="Ana sayfaya don"
             actionHref="/"
+            diagnostics={diagnostics ?? undefined}
           />
         ) : (
           <AdminAuthForm />

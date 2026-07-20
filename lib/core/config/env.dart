@@ -7,4 +7,7 @@ abstract final class Env {
 
   static String get googleWebClientId =>
       dotenv.env['GOOGLE_WEB_CLIENT_ID']?.trim() ?? '';
+
+  static String get appleServiceId =>
+      dotenv.env['APPLE_SERVICE_ID']?.trim() ?? '';
 }

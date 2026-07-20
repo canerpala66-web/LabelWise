@@ -4,7 +4,7 @@ import { notFound, redirect } from "next/navigation";
 import { AdminShell } from "@/components/admin-shell";
 import { AdminStatusCard } from "@/components/admin-status-card";
 import { SubmissionDetailForm } from "@/components/submission-detail-form";
-import { getAdminGateState } from "@/lib/admin/auth";
+import { getAdminDiagnostics, getAdminGateState } from "@/lib/admin/auth";
 import {
   buildSignedSubmissionImages,
   getSubmittedProductById,
@@ -38,6 +38,7 @@ export default async function SubmissionDetailPage({ params }: Props) {
   const { id } = await params;
 
   if (error) {
+    const diagnostics = await getAdminDiagnostics();
     return (
       <AdminShell
         title="Gonderim detayi"
@@ -45,9 +46,10 @@ export default async function SubmissionDetailPage({ params }: Props) {
       >
         <AdminStatusCard
           title="Sayfa yuklenemedi"
-          message="Yonetim paneli su anda yuklenemedi."
+          message="Admin paneli açılamadı. Supabase ortam değişkenleri, migration ve admin_users kaydı kontrol edilmeli."
           actionLabel="Listeye don"
           actionHref="/admin/submissions"
+          diagnostics={diagnostics}
         />
       </AdminShell>
     );
@@ -63,6 +65,7 @@ export default async function SubmissionDetailPage({ params }: Props) {
     }
     signedImages = await buildSignedSubmissionImages(submission);
   } catch {
+    const diagnostics = await getAdminDiagnostics();
     return (
       <AdminShell
         title="Gonderim detayi"
@@ -73,6 +76,7 @@ export default async function SubmissionDetailPage({ params }: Props) {
           message="Gonderimler yuklenemedi."
           actionLabel="Listeye don"
           actionHref="/admin/submissions"
+          diagnostics={diagnostics}
         />
       </AdminShell>
     );

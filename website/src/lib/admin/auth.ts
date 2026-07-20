@@ -1,6 +1,22 @@
 import { redirect } from "next/navigation";
 import { createSupabaseAdminClient, createSupabaseServerClient } from "@/lib/supabase/server";
 import type { AdminSession } from "@/lib/admin/types";
+import {
+  getSupabaseAnonKey,
+  getSupabaseServiceRoleKey,
+  getSupabaseUrl,
+} from "@/lib/supabase/env";
+
+export type AdminDiagnostics = {
+  supabaseUrlPresent: boolean;
+  supabaseAnonKeyPresent: boolean;
+  supabaseServiceRolePresent: boolean;
+  userLoggedIn: boolean;
+  adminMembershipFound: boolean;
+  adminUsersTableReachable: boolean;
+  submissionsQueryOk: boolean;
+  message: string | null;
+};
 
 async function getCurrentSession() {
   const supabase = await createSupabaseServerClient();
@@ -72,4 +88,71 @@ export async function getAdminGateState() {
         "Yonetim paneli su anda yuklenemedi. Lutfen environment ayarlarini ve admin yetkilerini kontrol edin.",
     };
   }
+}
+
+export async function getAdminDiagnostics(): Promise<AdminDiagnostics> {
+  const diagnostics: AdminDiagnostics = {
+    supabaseUrlPresent: false,
+    supabaseAnonKeyPresent: false,
+    supabaseServiceRolePresent: false,
+    userLoggedIn: false,
+    adminMembershipFound: false,
+    adminUsersTableReachable: false,
+    submissionsQueryOk: false,
+    message: null,
+  };
+
+  try {
+    diagnostics.supabaseUrlPresent = Boolean(getSupabaseUrl());
+    diagnostics.supabaseAnonKeyPresent = Boolean(getSupabaseAnonKey());
+    diagnostics.supabaseServiceRolePresent = Boolean(getSupabaseServiceRoleKey());
+  } catch {
+    diagnostics.message =
+        "Admin paneli acilamadi. Supabase ortam degiskenleri, migration ve admin_users kaydi kontrol edilmeli.";
+    return diagnostics;
+  }
+
+  try {
+    const session = await getCurrentSession();
+    diagnostics.userLoggedIn = Boolean(session);
+
+    const adminClient = createSupabaseAdminClient();
+    const { error: adminUsersError } = await adminClient
+      .from("admin_users")
+      .select("user_id", { head: true, count: "exact" })
+      .limit(1);
+
+    diagnostics.adminUsersTableReachable = !adminUsersError;
+
+    if (session) {
+      const { data, error } = await adminClient
+        .from("admin_users")
+        .select("user_id")
+        .eq("user_id", session.userId)
+        .maybeSingle();
+
+      diagnostics.adminMembershipFound = !error && Boolean(data);
+    }
+
+    const { error: submissionsError } = await adminClient
+      .from("submitted_products")
+      .select("id", { head: true, count: "exact" })
+      .limit(1);
+    diagnostics.submissionsQueryOk = !submissionsError;
+  } catch {
+    diagnostics.message =
+        "Admin paneli acilamadi. Supabase ortam degiskenleri, migration ve admin_users kaydi kontrol edilmeli.";
+    return diagnostics;
+  }
+
+  if (
+    !diagnostics.adminUsersTableReachable ||
+    !diagnostics.submissionsQueryOk ||
+    !diagnostics.supabaseServiceRolePresent
+  ) {
+    diagnostics.message =
+        "Admin paneli acilamadi. Supabase ortam degiskenleri, migration ve admin_users kaydi kontrol edilmeli.";
+  }
+
+  return diagnostics;
 }

@@ -12,7 +12,20 @@
           "package_name": "com.labelwise.app"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "560216394743-eennh3ggd6a22j2nctu7s3frdvfue9s1.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.labelwise.app",
+            "certificate_hash": "7910b953ed1b1e70365392c2c5e205b1f5d6574c"
+          }
+        },
+        {
+          "client_id": "560216394743-h8qpbq6hifnt3mk07u4gq27jeelgtgps.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyA3ak2hNI5qtzGjfPX8suw5sc4HOYGY3WY"
@@ -20,7 +33,12 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "560216394743-h8qpbq6hifnt3mk07u4gq27jeelgtgps.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }

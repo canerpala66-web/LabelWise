@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { AdminShell } from "@/components/admin-shell";
 import { AdminStatusCard } from "@/components/admin-status-card";
 import { AdminSubmissionsTable } from "@/components/admin-submissions-table";
-import { getAdminGateState } from "@/lib/admin/auth";
+import { getAdminDiagnostics, getAdminGateState } from "@/lib/admin/auth";
 import { listSubmittedProducts, normalizeSubmissionStatus } from "@/lib/admin/submissions";
 import { redirect } from "next/navigation";
 
@@ -37,6 +37,7 @@ export default async function AdminSubmissionsPage({ searchParams }: Props) {
   const status = rawStatus === "all" ? "all" : normalizeSubmissionStatus(rawStatus);
 
   if (error) {
+    const diagnostics = await getAdminDiagnostics();
     return (
       <AdminShell
         title="Submitted product inceleme alani"
@@ -44,9 +45,10 @@ export default async function AdminSubmissionsPage({ searchParams }: Props) {
       >
         <AdminStatusCard
           title="Gonderimler yuklenemedi"
-          message="Gonderimler yuklenemedi."
+          message="Admin paneli açılamadı. Supabase ortam değişkenleri, migration ve admin_users kaydı kontrol edilmeli."
           actionLabel="Admin girisine don"
           actionHref="/admin/login"
+          diagnostics={diagnostics}
         />
       </AdminShell>
     );
@@ -64,6 +66,7 @@ export default async function AdminSubmissionsPage({ searchParams }: Props) {
       </AdminShell>
     );
   } catch {
+    const diagnostics = await getAdminDiagnostics();
     return (
       <AdminShell
         title="Submitted product inceleme alani"
@@ -74,6 +77,7 @@ export default async function AdminSubmissionsPage({ searchParams }: Props) {
           message="Gonderimler yuklenemedi."
           actionLabel="Listeyi yenile"
           actionHref="/admin/submissions"
+          diagnostics={diagnostics}
         />
       </AdminShell>
     );
