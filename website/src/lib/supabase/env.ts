@@ -6,6 +6,10 @@ function readEnv(name: string) {
   return value;
 }
 
+export function hasEnv(name: string) {
+  return Boolean(process.env[name]?.trim());
+}
+
 export function getSupabaseUrl() {
   return readEnv("NEXT_PUBLIC_SUPABASE_URL");
 }

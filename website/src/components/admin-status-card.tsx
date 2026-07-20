@@ -39,13 +39,19 @@ export function AdminStatusCard({
             Service role env: {diagnostics.supabaseServiceRolePresent ? "evet" : "hayir"}
           </div>
           <div className="rounded-2xl border border-white/8 bg-white/[0.04] px-4 py-3">
-            Kullanici oturumu: {diagnostics.userLoggedIn ? "evet" : "hayir"}
+            Kullanici oturumu: {diagnostics.currentSessionExists ? "evet" : "hayir"}
+          </div>
+          <div className="rounded-2xl border border-white/8 bg-white/[0.04] px-4 py-3">
+            Kullanici ID: {diagnostics.currentUserIdExists ? "evet" : "hayir"}
           </div>
           <div className="rounded-2xl border border-white/8 bg-white/[0.04] px-4 py-3">
             Admin kaydi: {diagnostics.adminMembershipFound ? "evet" : "hayir"}
           </div>
           <div className="rounded-2xl border border-white/8 bg-white/[0.04] px-4 py-3">
             admin_users erisimi: {diagnostics.adminUsersTableReachable ? "evet" : "hayir"}
+          </div>
+          <div className="rounded-2xl border border-white/8 bg-white/[0.04] px-4 py-3">
+            Review kolonlari: {diagnostics.reviewColumnsUsable ? "evet" : "hayir"}
           </div>
           <div className="rounded-2xl border border-white/8 bg-white/[0.04] px-4 py-3 sm:col-span-2">
             submitted_products sorgusu: {diagnostics.submissionsQueryOk ? "evet" : "hayir"}

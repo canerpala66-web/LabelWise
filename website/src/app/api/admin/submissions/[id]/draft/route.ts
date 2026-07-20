@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireAdminUser } from "@/lib/admin/auth";
+import { requireAdminUserForApi } from "@/lib/admin/auth";
 import { saveSubmissionDraft } from "@/lib/admin/submissions";
 
 type Props = {
@@ -8,15 +8,22 @@ type Props = {
 
 export async function POST(request: Request, { params }: Props) {
   try {
-    await requireAdminUser();
+    await requireAdminUserForApi();
     const { id } = await params;
     const formData = await request.formData();
     await saveSubmissionDraft(id, formData);
 
     return NextResponse.json({ message: "Degisiklikler kaydedildi." });
-  } catch {
+  } catch (error) {
+    const message =
+      error instanceof Error && error.message === "ADMIN_SESSION_MISSING"
+        ? "Oturum bulunamadi."
+        : error instanceof Error && error.message === "ADMIN_FORBIDDEN"
+          ? "Admin yetkisi bulunamadi."
+          : "Degisiklikler kaydedilemedi.";
+
     return NextResponse.json(
-      { message: "Degisiklikler kaydedilemedi." },
+      { message },
       { status: 500 },
     );
   }

@@ -54,17 +54,10 @@ export default async function AdminSubmissionsPage({ searchParams }: Props) {
     );
   }
 
-  try {
-    const items = await listSubmittedProducts(status);
+  let items;
 
-    return (
-      <AdminShell
-        title="Submitted product inceleme alani"
-        description="Eksik urun olarak gonderilen kayitlari incele, duzenle ve products tablosuna guvenli sekilde aktar."
-      >
-        <AdminSubmissionsTable items={items} activeFilter={status} />
-      </AdminShell>
-    );
+  try {
+    items = await listSubmittedProducts(status);
   } catch {
     const diagnostics = await getAdminDiagnostics();
     return (
@@ -82,4 +75,13 @@ export default async function AdminSubmissionsPage({ searchParams }: Props) {
       </AdminShell>
     );
   }
+
+  return (
+    <AdminShell
+      title="Submitted product inceleme alani"
+      description="Eksik urun olarak gonderilen kayitlari incele, duzenle ve products tablosuna guvenli sekilde aktar."
+    >
+      <AdminSubmissionsTable items={items} activeFilter={status} />
+    </AdminShell>
+  );
 }

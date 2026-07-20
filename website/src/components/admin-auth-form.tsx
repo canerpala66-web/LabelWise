@@ -21,12 +21,12 @@ export function AdminAuthForm() {
       });
 
       if (error) {
-        setErrorMessage("Giris yapilamadi.");
+        setErrorMessage("Giris yapilamadi. E-posta veya sifreyi kontrol et.");
         return;
       }
 
       startTransition(() => {
-        router.replace("/admin/submissions");
+        router.replace("/admin");
         router.refresh();
       });
     } catch {
