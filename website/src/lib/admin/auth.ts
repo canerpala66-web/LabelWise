@@ -19,7 +19,7 @@ async function getCurrentSession() {
 }
 
 export async function requireLoggedInUser(redirectTo = "/admin/login") {
-  const session = await getCurrentSession();
+  const { session } = await getAdminGateState();
 
   if (!session) {
     redirect(redirectTo);
@@ -55,12 +55,21 @@ export async function requireAdminUser() {
 }
 
 export async function getAdminGateState() {
-  const session = await getCurrentSession();
+  try {
+    const session = await getCurrentSession();
 
-  if (!session) {
-    return { session: null, isAdmin: false };
+    if (!session) {
+      return { session: null, isAdmin: false, error: null };
+    }
+
+    const admin = await isAdminUser(session.userId);
+    return { session, isAdmin: admin, error: null };
+  } catch {
+    return {
+      session: null,
+      isAdmin: false,
+      error:
+        "Yonetim paneli su anda yuklenemedi. Lutfen environment ayarlarini ve admin yetkilerini kontrol edin.",
+    };
   }
-
-  const admin = await isAdminUser(session.userId);
-  return { session, isAdmin: admin };
 }

@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { AdminShell } from "@/components/admin-shell";
+import { AdminStatusCard } from "@/components/admin-status-card";
 import { SubmissionDetailForm } from "@/components/submission-detail-form";
-import { requireAdminUser } from "@/lib/admin/auth";
+import { getAdminGateState } from "@/lib/admin/auth";
 import {
   buildSignedSubmissionImages,
   getSubmittedProductById,
@@ -24,16 +25,58 @@ type Props = {
 };
 
 export default async function SubmissionDetailPage({ params }: Props) {
-  await requireAdminUser();
+  const { session, isAdmin, error } = await getAdminGateState();
 
-  const { id } = await params;
-  const submission = await getSubmittedProductById(id);
-
-  if (!submission) {
-    notFound();
+  if (!session) {
+    redirect("/admin/login");
   }
 
-  const signedImages = await buildSignedSubmissionImages(submission);
+  if (!isAdmin) {
+    redirect("/admin/unauthorized");
+  }
+
+  const { id } = await params;
+
+  if (error) {
+    return (
+      <AdminShell
+        title="Gonderim detayi"
+        description="Secilen gonderim detaylari guvenli sekilde yuklenemedi."
+      >
+        <AdminStatusCard
+          title="Sayfa yuklenemedi"
+          message="Yonetim paneli su anda yuklenemedi."
+          actionLabel="Listeye don"
+          actionHref="/admin/submissions"
+        />
+      </AdminShell>
+    );
+  }
+
+  let submission;
+  let signedImages;
+
+  try {
+    submission = await getSubmittedProductById(id);
+    if (!submission) {
+      notFound();
+    }
+    signedImages = await buildSignedSubmissionImages(submission);
+  } catch {
+    return (
+      <AdminShell
+        title="Gonderim detayi"
+        description="Secilen gonderim detaylari guvenli sekilde yuklenemedi."
+      >
+        <AdminStatusCard
+          title="Gonderim yuklenemedi"
+          message="Gonderimler yuklenemedi."
+          actionLabel="Listeye don"
+          actionHref="/admin/submissions"
+        />
+      </AdminShell>
+    );
+  }
   const normalizedStatus = normalizeSubmissionStatus(submission.status);
 
   return (

@@ -21,6 +21,7 @@ class _AuthScreenState extends State<AuthScreen> {
   _AuthMode _mode = _AuthMode.signIn;
   bool _isLoading = false;
   String? _errorMessage;
+  String? _infoMessage;
 
   bool get _isSignIn => _mode == _AuthMode.signIn;
 
@@ -59,6 +60,7 @@ class _AuthScreenState extends State<AuthScreen> {
     setState(() {
       _isLoading = true;
       _errorMessage = null;
+      _infoMessage = null;
     });
 
     try {
@@ -67,15 +69,29 @@ class _AuthScreenState extends State<AuthScreen> {
           email: _emailController.text,
           password: _passwordController.text,
         );
+        if (!mounted) return;
+        _handleAuthSuccess(createdAccount: false);
       } else {
-        await _authRepository.signUpWithEmailPassword(
+        final result = await _authRepository.signUpWithEmailPassword(
           email: _emailController.text,
           password: _passwordController.text,
         );
-      }
 
-      if (!mounted) return;
-      _handleAuthSuccess(createdAccount: !_isSignIn);
+        if (!mounted) return;
+
+        if (result.isSignedIn) {
+          _handleAuthSuccess(createdAccount: true);
+          return;
+        }
+
+        setState(() {
+          _isLoading = false;
+          _mode = _AuthMode.signIn;
+          _infoMessage = result.message ??
+              'Hesabin olusturuldu. Giris yapmadan once e-posta dogrulamasi gerekebilir.';
+        });
+        return;
+      }
     } on AuthRepositoryException catch (error) {
       if (!mounted) return;
       setState(() {
@@ -100,6 +116,7 @@ class _AuthScreenState extends State<AuthScreen> {
     setState(() {
       _isLoading = true;
       _errorMessage = null;
+      _infoMessage = null;
     });
 
     try {
@@ -128,6 +145,7 @@ class _AuthScreenState extends State<AuthScreen> {
     setState(() {
       _mode = _isSignIn ? _AuthMode.signUp : _AuthMode.signIn;
       _errorMessage = null;
+      _infoMessage = null;
     });
   }
 
@@ -288,6 +306,23 @@ class _AuthScreenState extends State<AuthScreen> {
                             message,
                             style: theme.textTheme.bodyMedium?.copyWith(
                               color: AppColors.caution,
+                            ),
+                          ),
+                        ),
+                      ],
+                      if (_infoMessage case final message?) ...[
+                        const SizedBox(height: AppSpacing.itemSpacing),
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF5FAF7),
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: const Color(0xFFD1E5DB)),
+                          ),
+                          child: Text(
+                            message,
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              color: AppColors.primaryText,
                             ),
                           ),
                         ),

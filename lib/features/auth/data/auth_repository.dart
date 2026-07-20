@@ -15,6 +15,20 @@ class AuthRepositoryException implements Exception {
   String toString() => 'AuthRepositoryException(message: $message)';
 }
 
+class AuthActionResult {
+  const AuthActionResult({
+    this.user,
+    this.requiresEmailConfirmation = false,
+    this.message,
+  });
+
+  final app_auth.AuthUser? user;
+  final bool requiresEmailConfirmation;
+  final String? message;
+
+  bool get isSignedIn => user != null;
+}
+
 class AuthRepository {
   AuthRepository({SupabaseClient? client})
     : _client = client ?? Supabase.instance.client;
@@ -111,7 +125,7 @@ class AuthRepository {
     }
   }
 
-  Future<app_auth.AuthUser> signUpWithEmailPassword({
+  Future<AuthActionResult> signUpWithEmailPassword({
     required String email,
     required String password,
   }) async {
@@ -126,6 +140,20 @@ class AuthRepository {
       );
       final user = response.user ?? response.session?.user;
       final authUser = _mapUser(user);
+      final hasSession = response.session != null;
+
+      if (authUser != null && hasSession) {
+        debugPrint('Auth: signed in after sign up');
+        return AuthActionResult(user: authUser);
+      }
+
+      if (authUser != null && !hasSession) {
+        return const AuthActionResult(
+          requiresEmailConfirmation: true,
+          message:
+              'Hesabin olusturuldu. Giris yapmadan once e-posta dogrulamasi gerekebilir.',
+        );
+      }
 
       if (authUser == null) {
         throw const AuthRepositoryException(
@@ -133,8 +161,7 @@ class AuthRepository {
         );
       }
 
-      debugPrint('Auth: signed in');
-      return authUser;
+      return AuthActionResult(user: authUser);
     } on AuthRetryableFetchException {
       throw const AuthRepositoryException(
         'Bağlantı kurulamadı. İnternetini kontrol edip tekrar dene.',
@@ -181,9 +208,19 @@ class AuthRepository {
         'Bağlantı kurulamadı. İnternetini kontrol edip tekrar dene.',
       );
     } on AuthApiException catch (error) {
-      throw AuthRepositoryException(_friendlyMessageForAuthError(error));
+      throw AuthRepositoryException(
+        _friendlyMessageForAuthError(
+          error,
+          isSignIn: true,
+        ),
+      );
     } on AuthException catch (error) {
-      throw AuthRepositoryException(_friendlyMessageForAuthError(error));
+      throw AuthRepositoryException(
+        _friendlyMessageForAuthError(
+          error,
+          isSignIn: true,
+        ),
+      );
     } on AuthRepositoryException {
       rethrow;
     } on Object {
@@ -242,13 +279,35 @@ class AuthRepository {
     );
   }
 
-  String _friendlyMessageForAuthError(AuthException error) {
+  String _friendlyMessageForAuthError(
+    AuthException error, {
+    bool isSignIn = false,
+  }) {
     final message = error.message.trim().toLowerCase();
+    final code = error is AuthApiException ? (error.code ?? '').toLowerCase() : '';
+
+    if (message.contains('email not confirmed') ||
+        code.contains('email_not_confirmed')) {
+      return 'Giris yapmadan once e-posta adresini dogrulaman gerekebilir.';
+    }
+
+    if (message.contains('user not found') ||
+        message.contains('no user found') ||
+        code.contains('user_not_found')) {
+      return 'Bu e-posta ile kayitli bir hesap bulunamadi.';
+    }
+
+    if (message.contains('wrong password') ||
+        message.contains('incorrect password') ||
+        code.contains('wrong_password')) {
+      return 'Sifre hatali gorunuyor.';
+    }
 
     if (message.contains('invalid login credentials') ||
-        message.contains('email not confirmed') ||
         message.contains('invalid credentials')) {
-      return 'E-posta veya şifre hatalı olabilir.';
+      return isSignIn
+          ? 'E-posta veya sifre hatali olabilir.'
+          : 'Islem su anda tamamlanamadi. Lutfen tekrar deneyin.';
     }
 
     if (message.contains('user already registered') ||

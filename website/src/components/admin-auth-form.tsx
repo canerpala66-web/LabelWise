@@ -13,22 +13,25 @@ export function AdminAuthForm() {
     setErrorMessage(null);
     const email = `${formData.get("email") ?? ""}`.trim();
     const password = `${formData.get("password") ?? ""}`;
+    try {
+      const supabase = createSupabaseBrowserClient();
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
 
-    const supabase = createSupabaseBrowserClient();
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
+      if (error) {
+        setErrorMessage("Giris yapilamadi.");
+        return;
+      }
 
-    if (error) {
-      setErrorMessage("Giris yapilamadi.");
-      return;
+      startTransition(() => {
+        router.replace("/admin/submissions");
+        router.refresh();
+      });
+    } catch {
+      setErrorMessage("Yonetim paneli su anda acilamadi.");
     }
-
-    startTransition(() => {
-      router.replace("/admin");
-      router.refresh();
-    });
   }
 
   return (
