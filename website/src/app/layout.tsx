@@ -1,18 +1,13 @@
 import type { Metadata } from "next";
-import { Cormorant_Garamond, Manrope } from "next/font/google";
+import { Inter } from "next/font/google";
 import "./globals.css";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 
-const manrope = Manrope({
-  variable: "--font-manrope",
+const inter = Inter({
+  variable: "--font-inter",
   subsets: ["latin", "latin-ext"],
-});
-
-const cormorant = Cormorant_Garamond({
-  variable: "--font-cormorant",
-  subsets: ["latin", "latin-ext"],
-  weight: ["400", "500", "600", "700"],
+  display: "swap",
 });
 
 export const metadata: Metadata = {
@@ -67,7 +62,7 @@ export default function RootLayout({
   return (
     <html
       lang="tr"
-      className={`${manrope.variable} ${cormorant.variable} h-full scroll-smooth antialiased`}
+      className={`${inter.variable} h-full scroll-smooth antialiased`}
     >
       <body className="min-h-full">
         <div className="relative flex min-h-screen flex-col">
