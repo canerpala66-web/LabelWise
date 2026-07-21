@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:labelwise/core/theme/app_tokens.dart';
 import 'package:labelwise/features/auth/data/auth_config.dart';
 import 'package:labelwise/features/auth/data/auth_repository.dart';
@@ -207,6 +208,7 @@ class _AuthScreenState extends State<AuthScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final isWebGoogleUnsupported = kIsWeb;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -278,11 +280,27 @@ class _AuthScreenState extends State<AuthScreen> {
                       SizedBox(
                         height: 54,
                         child: OutlinedButton.icon(
-                          onPressed: _isLoading ? null : _signInWithGoogle,
+                          onPressed: _isLoading || isWebGoogleUnsupported
+                              ? null
+                              : _signInWithGoogle,
                           icon: const Icon(Icons.g_mobiledata_rounded, size: 24),
-                          label: const Text('Google ile devam et'),
+                          label: Text(
+                            isWebGoogleUnsupported
+                                ? 'Google ile giriş mobil uygulamada destekleniyor'
+                                : 'Google ile devam et',
+                          ),
                         ),
                       ),
+                      if (isWebGoogleUnsupported) ...[
+                        const SizedBox(height: AppSpacing.smallSpacing),
+                        Text(
+                          'Web test ortamında e-posta ve şifre ile giriş yapabilirsin.',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: AppColors.mutedText,
+                            height: 1.4,
+                          ),
+                        ),
+                      ],
                       if (AuthConfig.supportsAppleSignIn) ...[
                         const SizedBox(height: AppSpacing.itemSpacing),
                         SizedBox(

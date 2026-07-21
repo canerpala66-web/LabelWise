@@ -95,6 +95,8 @@ class AuthRepository {
 
   Future<app_auth.AuthUser> signInWithGoogle() async {
     if (kDebugMode) {
+      debugPrint('[AuthPlatform] kIsWeb: $kIsWeb');
+      debugPrint('[AuthPlatform] Google web supported: false');
       debugPrint('[GoogleAuthReset] start');
       debugPrint('[GoogleAuthReset] package/API mode: v7');
       debugPrint(
@@ -102,6 +104,12 @@ class AuthRepository {
       );
       debugPrint(
         '[GoogleAuthReset] webClientId valid format: ${AuthConfig.googleWebClientIdLooksValid}',
+      );
+    }
+
+    if (kIsWeb) {
+      throw const AuthRepositoryException(
+        'Google ile giriş web test ortamında desteklenmiyor.',
       );
     }
 

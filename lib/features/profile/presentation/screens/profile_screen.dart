@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
 import 'package:labelwise/core/theme/app_tokens.dart';
 import 'package:labelwise/features/auth/data/auth_repository.dart';
 import 'package:labelwise/features/auth/data/auth_user.dart';
-import 'package:labelwise/features/profile/data/profile_repository.dart';
-import 'package:labelwise/features/profile/data/user_profile.dart';
 import 'package:labelwise/features/premium/data/entitlement_repository.dart';
 import 'package:labelwise/features/premium/data/user_entitlement.dart';
 import 'package:labelwise/shared/utils/legal_links.dart';
@@ -17,26 +16,74 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   final AuthRepository _authRepository = AuthRepository();
-  final ProfileRepository _profileRepository = ProfileRepository();
   final EntitlementRepository _entitlementRepository = EntitlementRepository();
+  StreamSubscription<AuthUser?>? _authSubscription;
+  AuthUser? _currentUser;
   bool _isSigningOut = false;
-  bool _isUpdatingDisplayName = false;
-  String? _profileErrorMessage;
-  Future<UserProfile?>? _profileFuture;
   String? _entitlementErrorMessage;
   Future<UserEntitlement?>? _entitlementFuture;
+  String? _accountErrorMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    debugPrint('[ProfileScreen] init');
+    _currentUser = _authRepository.currentUser;
+    _syncUserState(_currentUser, forceReload: true);
+    _authSubscription = _authRepository.authStateChanges.listen((user) {
+      if (!mounted) {
+        return;
+      }
+      _syncUserState(user);
+    });
+  }
+
+  @override
+  void dispose() {
+    _authSubscription?.cancel();
+    debugPrint('[ProfileScreen] disposed');
+    super.dispose();
+  }
+
+  void _syncUserState(AuthUser? user, {bool forceReload = false}) {
+    final hasUserChanged = _currentUser?.id != user?.id;
+    debugPrint('[ProfileScreen] current user exists: ${user != null}');
+    if (!mounted && !forceReload) {
+      return;
+    }
+
+    if (!hasUserChanged && !forceReload) {
+      return;
+    }
+
+    setState(() {
+      _currentUser = user;
+      _accountErrorMessage = null;
+      _entitlementErrorMessage = null;
+      if (user == null) {
+        _entitlementFuture = null;
+      } else {
+        debugPrint('[ProfileScreen] load started');
+        _entitlementFuture = _entitlementRepository.getCurrentEntitlement();
+      }
+    });
+  }
+
+  void _showSnackBar(String message) {
+    if (!mounted) return;
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    messenger
+      ?..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
+  }
 
   Future<void> _openAuthScreen() async {
     final result = await Navigator.of(context).pushNamed('/auth');
     if (!mounted) return;
 
     if (result case final String message when message.isNotEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(message)),
-      );
+      _showSnackBar(message);
     }
-
-    _reloadProfile();
   }
 
   Future<void> _signOut() async {
@@ -50,18 +97,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
       await _authRepository.signOut();
       if (!mounted) return;
       setState(() {
-        _profileFuture = null;
+        _currentUser = null;
         _entitlementFuture = null;
-        _profileErrorMessage = null;
+        _accountErrorMessage = null;
         _entitlementErrorMessage = null;
       });
     } on AuthRepositoryException {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Çıkış yapılamadı. Lütfen tekrar dene.'),
-        ),
-      );
+      _showSnackBar('Çıkış yapılamadı. Lütfen tekrar dene.');
     } finally {
       if (mounted) {
         setState(() {
@@ -71,156 +114,46 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
-  void _reloadProfile() {
-    if (!mounted) return;
-    setState(() {
-      _profileErrorMessage = null;
-      _entitlementErrorMessage = null;
-      _profileFuture = _profileRepository.getCurrentProfile();
-      _entitlementFuture = _entitlementRepository.getCurrentEntitlement();
-    });
-  }
-
-  Future<void> _editDisplayName(UserProfile? profile) async {
-    final controller = TextEditingController(text: profile?.displayName ?? '');
-    final formKey = GlobalKey<FormState>();
-
-    final result = await showModalBottomSheet<String>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) {
-        final theme = Theme.of(context);
-
-        return Padding(
-          padding: EdgeInsets.fromLTRB(
-            16,
-            0,
-            16,
-            MediaQuery.of(context).viewInsets.bottom + 16,
-          ),
-          child: Container(
-            padding: const EdgeInsets.all(AppSpacing.cardPadding),
-            decoration: BoxDecoration(
-              color: AppColors.surface,
-              borderRadius: BorderRadius.circular(AppRadii.hero),
-              border: Border.all(color: AppColors.border),
-              boxShadow: const [
-                BoxShadow(
-                  color: Color(0x14000000),
-                  blurRadius: 24,
-                  offset: Offset(0, 10),
-                ),
-              ],
-            ),
-            child: Form(
-              key: formKey,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Text(
-                    'Profil adını düzenle',
-                    style: theme.textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                  const SizedBox(height: AppSpacing.smallSpacing),
-                  Text(
-                    'İstersen burada görünen adını ekleyebilirsin.',
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: AppColors.mutedText,
-                    ),
-                  ),
-                  const SizedBox(height: AppSpacing.sectionSpacing),
-                  TextFormField(
-                    controller: controller,
-                    autofocus: true,
-                    maxLength: 40,
-                    decoration: const InputDecoration(
-                      labelText: 'Profil adı',
-                      hintText: 'Adın',
-                    ),
-                    validator: (value) {
-                      final text = value?.trim() ?? '';
-                      if (text.isEmpty) {
-                        return 'Kullanıcı adı boş olamaz.';
-                      }
-                      if (text.length > 40) {
-                        return 'Profil adı 40 karakterden uzun olamaz.';
-                      }
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: AppSpacing.itemSpacing),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton(
-                          onPressed: () => Navigator.of(context).pop(),
-                          child: const Text('Vazgeç'),
-                        ),
-                      ),
-                      const SizedBox(width: AppSpacing.itemSpacing),
-                      Expanded(
-                        child: FilledButton(
-                          onPressed: () {
-                            if (!(formKey.currentState?.validate() ?? false)) {
-                              return;
-                            }
-                            Navigator.of(context).pop(controller.text.trim());
-                          },
-                          child: const Text('Kaydet'),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
-        );
-      },
-    );
-
-    controller.dispose();
-
-    if (!mounted || result == null || _isUpdatingDisplayName) {
-      return;
-    }
-
-    setState(() {
-      _isUpdatingDisplayName = true;
-      _profileErrorMessage = null;
-    });
-
-    try {
-      await _profileRepository.updateDisplayName(result);
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Profil adı güncellendi.')),
-      );
-      _reloadProfile();
-    } on ProfileRepositoryException catch (error) {
-      if (!mounted) return;
-      setState(() {
-        _profileErrorMessage = error.message;
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error.message)),
-      );
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isUpdatingDisplayName = false;
-        });
-      }
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final bodyContent = _currentUser == null
+        ? _LoggedOutProfileView(
+            onAuthTap: _openAuthScreen,
+            theme: theme,
+          )
+        : FutureBuilder<UserEntitlement?>(
+            future: _entitlementFuture,
+            builder: (context, entitlementSnapshot) {
+              if (entitlementSnapshot.connectionState == ConnectionState.waiting) {
+                return const _ProfileLoadingView();
+              }
+
+              if (entitlementSnapshot.hasError) {
+                debugPrint('[ProfileScreen] load failed: Premium durumu yüklenemedi.');
+              } else {
+                debugPrint('[ProfileScreen] load success');
+              }
+
+              final entitlement = entitlementSnapshot.data;
+              final entitlementErrorMessage = entitlementSnapshot.hasError
+                  ? entitlementSnapshot.error is EntitlementRepositoryException
+                      ? (entitlementSnapshot.error as EntitlementRepositoryException)
+                          .message
+                      : 'Premium durumu yüklenemedi.'
+                  : _entitlementErrorMessage;
+
+              return _LoggedInProfileView(
+                user: _currentUser!,
+                entitlement: entitlement,
+                theme: theme,
+                isSigningOut: _isSigningOut,
+                accountErrorMessage: _accountErrorMessage,
+                entitlementErrorMessage: entitlementErrorMessage,
+                onSignOut: _signOut,
+              );
+            },
+          );
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -230,98 +163,27 @@ class _ProfileScreenState extends State<ProfileScreen> {
         elevation: 0,
         title: const Text('Profil'),
       ),
-      body: StreamBuilder<AuthUser?>(
-        stream: _authRepository.authStateChanges,
-        initialData: _authRepository.currentUser,
-        builder: (context, snapshot) {
-          final user = snapshot.data;
-          final profileFuture = user == null
-              ? null
-              : _profileFuture ?? _profileRepository.getCurrentProfile();
-          final entitlementFuture = user == null
-              ? null
-              : _entitlementFuture ??
-                    _entitlementRepository.getCurrentEntitlement();
-
-          if (user != null && !identical(_profileFuture, profileFuture)) {
-            _profileFuture = profileFuture;
-          }
-          if (user != null &&
-              !identical(_entitlementFuture, entitlementFuture)) {
-            _entitlementFuture = entitlementFuture;
-          }
-
-          return SafeArea(
-            child: Center(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(
-                  AppSpacing.pagePadding,
-                  16,
-                  AppSpacing.pagePadding,
-                  32,
-                ),
+      body: SafeArea(
+        child: LayoutBuilder(
+          builder: (context, constraints) => SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.pagePadding,
+              16,
+              AppSpacing.pagePadding,
+              32,
+            ),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minHeight: constraints.maxHeight),
+              child: Align(
+                alignment: Alignment.topCenter,
                 child: ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 560),
-                  child: user == null
-                      ? _LoggedOutProfileView(
-                          onAuthTap: _openAuthScreen,
-                          theme: theme,
-                        )
-                      : FutureBuilder<UserProfile?>(
-                          future: profileFuture,
-                          builder: (context, profileSnapshot) {
-                            if (profileSnapshot.connectionState ==
-                                ConnectionState.waiting) {
-                              return const _ProfileLoadingView();
-                            }
-
-                            final profile = profileSnapshot.data;
-                            final errorMessage = profileSnapshot.hasError
-                                ? profileSnapshot.error
-                                      is ProfileRepositoryException
-                                  ? (profileSnapshot.error
-                                          as ProfileRepositoryException)
-                                      .message
-                                  : 'Profil bilgileri yüklenemedi.'
-                                : _profileErrorMessage;
-
-                            return FutureBuilder<UserEntitlement?>(
-                              future: entitlementFuture,
-                              builder: (context, entitlementSnapshot) {
-                                final entitlement = entitlementSnapshot.data;
-                                final entitlementErrorMessage =
-                                    entitlementSnapshot.hasError
-                                    ? entitlementSnapshot.error
-                                              is EntitlementRepositoryException
-                                          ? (entitlementSnapshot.error
-                                                  as EntitlementRepositoryException)
-                                              .message
-                                          : 'Premium durumu yüklenemedi.'
-                                    : _entitlementErrorMessage;
-
-                                return _LoggedInProfileView(
-                                  user: user,
-                                  profile: profile,
-                                  entitlement: entitlement,
-                                  theme: theme,
-                                  isSigningOut: _isSigningOut,
-                                  isUpdatingDisplayName: _isUpdatingDisplayName,
-                                  errorMessage: errorMessage,
-                                  entitlementErrorMessage:
-                                      entitlementErrorMessage,
-                                  onEditDisplayName: () =>
-                                      _editDisplayName(profile),
-                                  onSignOut: _signOut,
-                                );
-                              },
-                            );
-                          },
-                        ),
+                  child: bodyContent,
                 ),
               ),
             ),
-          );
-        },
+          ),
+        ),
       ),
     );
   }
@@ -450,36 +312,25 @@ class _LoggedOutProfileView extends StatelessWidget {
 class _LoggedInProfileView extends StatelessWidget {
   const _LoggedInProfileView({
     required this.user,
-    required this.profile,
     required this.entitlement,
     required this.theme,
     required this.isSigningOut,
-    required this.isUpdatingDisplayName,
-    required this.errorMessage,
+    required this.accountErrorMessage,
     required this.entitlementErrorMessage,
-    required this.onEditDisplayName,
     required this.onSignOut,
   });
 
   final AuthUser user;
-  final UserProfile? profile;
   final UserEntitlement? entitlement;
   final ThemeData theme;
   final bool isSigningOut;
-  final bool isUpdatingDisplayName;
-  final String? errorMessage;
+  final String? accountErrorMessage;
   final String? entitlementErrorMessage;
-  final Future<void> Function() onEditDisplayName;
   final Future<void> Function() onSignOut;
 
   @override
   Widget build(BuildContext context) {
-    final emailText = profile?.email.isNotEmpty == true
-        ? profile!.email
-        : (user.email.isEmpty ? 'Giriş yapılmış hesap' : user.email);
-    final displayName = profile?.displayName?.trim();
-    final displayNameText =
-        displayName == null || displayName.isEmpty ? 'Ad eklenmedi' : displayName;
+    final emailText = user.email.isEmpty ? 'Giriş yapılmış hesap' : user.email;
     final hasPremium = entitlement?.hasActivePremium == true;
     final planTitle = hasPremium ? 'Premium aktif' : 'Ücretsiz plan';
     final premiumChipLabel = hasPremium ? entitlement!.planLabel : 'Premium yakında';
@@ -553,39 +404,21 @@ class _LoggedInProfileView extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      'Görünen ad',
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                  ),
-                  TextButton.icon(
-                    onPressed: isUpdatingDisplayName ? null : onEditDisplayName,
-                    icon: isUpdatingDisplayName
-                        ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.edit_outlined, size: 18),
-                    label: Text(
-                      isUpdatingDisplayName ? 'Kaydediliyor...' : 'Düzenle',
-                    ),
-                  ),
-                ],
-              ),
               Text(
-                displayNameText,
+                'Hesap durumu',
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: AppSpacing.itemSpacing),
+              Text(
+                'Giriş yapılmış',
                 style: theme.textTheme.bodyLarge?.copyWith(
                   color: AppColors.primaryText,
                   fontWeight: FontWeight.w600,
                 ),
               ),
-              if (errorMessage case final message?) ...[
+              if (accountErrorMessage case final message?) ...[
                 const SizedBox(height: AppSpacing.itemSpacing),
                 Text(
                   message,
