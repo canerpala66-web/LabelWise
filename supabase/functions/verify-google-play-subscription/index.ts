@@ -13,7 +13,7 @@ const supportedProductIds = new Set([
   "labelwise_premium_yearly",
 ]);
 
-const expectedPackageName = "com.labelwise.app";
+const googlePlayPackageName = "com.zezey.labelwise";
 
 type VerificationRequest = {
   productId: string;
@@ -90,7 +90,7 @@ function validateInput(body: unknown):
     };
   }
 
-  if (packageName !== expectedPackageName) {
+  if (packageName !== googlePlayPackageName) {
     return {
       ok: false,
       response: errorResponse("Geçersiz ürün bilgisi.", "validate_input", 400),

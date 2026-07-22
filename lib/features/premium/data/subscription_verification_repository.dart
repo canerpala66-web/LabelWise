@@ -16,7 +16,7 @@ class SubscriptionVerificationRepository {
   SubscriptionVerificationRepository({SupabaseClient? client})
     : _client = client ?? Supabase.instance.client;
 
-  static const String _packageName = 'com.labelwise.app';
+  static const String _googlePlayPackageName = 'com.zezey.labelwise';
   final SupabaseClient _client;
 
   Future<SubscriptionVerificationResult> verifyGooglePlaySubscription({
@@ -36,7 +36,7 @@ class SubscriptionVerificationRepository {
         body: {
           'productId': productId.trim(),
           'purchaseToken': purchaseToken.trim(),
-          'packageName': _packageName,
+          'packageName': _googlePlayPackageName,
         },
       );
 
