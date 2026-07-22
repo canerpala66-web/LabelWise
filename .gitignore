@@ -52,3 +52,7 @@ android/key.properties
 android/app/upload-keystore.jks
 *.jks
 *.keystore
+
+# Firebase local config
+android/app/google-services.json
+ios/Runner/GoogleService-Info.plist
