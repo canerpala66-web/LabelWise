@@ -9,6 +9,7 @@ class RecentScansSection extends StatelessWidget {
     required this.recentScans,
     required this.onTap,
     required this.onClear,
+    this.showPremiumUpsell = true,
     super.key,
   });
 
@@ -17,6 +18,7 @@ class RecentScansSection extends StatelessWidget {
   final Future<List<RecentScan>> recentScans;
   final ValueChanged<RecentScan> onTap;
   final VoidCallback onClear;
+  final bool showPremiumUpsell;
 
   @override
   Widget build(BuildContext context) {
@@ -47,11 +49,12 @@ class RecentScansSection extends StatelessWidget {
         }
 
         final visibleScans = scans.take(_freeVisibleLimit).toList();
-        final showPremiumUpsell = scans.length > _freeVisibleLimit;
+        final shouldShowUpsell =
+            showPremiumUpsell && scans.length > _freeVisibleLimit;
         debugPrint(
           'RecentScans: total stored count=${scans.length}, '
           'visible free count=${visibleScans.length}, '
-          'premium upsell shown=$showPremiumUpsell',
+          'premium upsell shown=$shouldShowUpsell',
         );
 
         return Column(
@@ -76,7 +79,7 @@ class RecentScansSection extends StatelessWidget {
               height: 224,
               child: ListView.separated(
                 scrollDirection: Axis.horizontal,
-                itemCount: visibleScans.length + (showPremiumUpsell ? 1 : 0),
+                itemCount: visibleScans.length + (shouldShowUpsell ? 1 : 0),
                 separatorBuilder: (_, _) => const SizedBox(width: 12),
                 itemBuilder: (context, index) {
                   if (index >= visibleScans.length) {

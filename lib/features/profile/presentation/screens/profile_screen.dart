@@ -1,10 +1,14 @@
-import 'package:flutter/material.dart';
 import 'dart:async';
+
+import 'package:flutter/material.dart';
 import 'package:labelwise/core/theme/app_tokens.dart';
 import 'package:labelwise/features/auth/data/auth_repository.dart';
 import 'package:labelwise/features/auth/data/auth_user.dart';
 import 'package:labelwise/features/premium/data/entitlement_repository.dart';
 import 'package:labelwise/features/premium/data/user_entitlement.dart';
+import 'package:labelwise/features/profile/data/profile_repository.dart';
+import 'package:labelwise/features/profile/data/user_profile.dart';
+import 'package:labelwise/features/premium/presentation/screens/premium_screen.dart';
 import 'package:labelwise/shared/utils/legal_links.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -17,24 +21,25 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen> {
   final AuthRepository _authRepository = AuthRepository();
   final EntitlementRepository _entitlementRepository = EntitlementRepository();
+  final ProfileRepository _profileRepository = ProfileRepository();
+
   StreamSubscription<AuthUser?>? _authSubscription;
   AuthUser? _currentUser;
-  bool _isSigningOut = false;
-  String? _entitlementErrorMessage;
+  Future<UserProfile?>? _profileFuture;
   Future<UserEntitlement?>? _entitlementFuture;
-  String? _accountErrorMessage;
+  bool _isSigningOut = false;
+  bool _isSavingProfile = false;
+  bool _isDeletingAccount = false;
 
   @override
   void initState() {
     super.initState();
     debugPrint('[ProfileScreen] init');
     _currentUser = _authRepository.currentUser;
-    _syncUserState(_currentUser, forceReload: true);
+    _reloadForUser(_currentUser, forceReload: true);
     _authSubscription = _authRepository.authStateChanges.listen((user) {
-      if (!mounted) {
-        return;
-      }
-      _syncUserState(user);
+      if (!mounted) return;
+      _reloadForUser(user);
     });
   }
 
@@ -45,28 +50,27 @@ class _ProfileScreenState extends State<ProfileScreen> {
     super.dispose();
   }
 
-  void _syncUserState(AuthUser? user, {bool forceReload = false}) {
-    final hasUserChanged = _currentUser?.id != user?.id;
+  void _reloadForUser(AuthUser? user, {bool forceReload = false}) {
+    final userChanged = _currentUser?.id != user?.id;
     debugPrint('[ProfileScreen] current user exists: ${user != null}');
-    if (!mounted && !forceReload) {
-      return;
-    }
 
-    if (!hasUserChanged && !forceReload) {
-      return;
-    }
+    if (!userChanged && !forceReload) return;
 
     setState(() {
       _currentUser = user;
-      _accountErrorMessage = null;
-      _entitlementErrorMessage = null;
       if (user == null) {
+        _profileFuture = null;
         _entitlementFuture = null;
       } else {
         debugPrint('[ProfileScreen] load started');
+        _profileFuture = _profileRepository.getCurrentProfile();
         _entitlementFuture = _entitlementRepository.getCurrentEntitlement();
       }
     });
+  }
+
+  void _reloadCurrentAccountData() {
+    _reloadForUser(_authRepository.currentUser, forceReload: true);
   }
 
   void _showSnackBar(String message) {
@@ -84,6 +88,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (result case final String message when message.isNotEmpty) {
       _showSnackBar(message);
     }
+
+    _reloadCurrentAccountData();
+  }
+
+  Future<void> _openPremiumScreen() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => const PremiumScreen(sourceScreen: 'profile_screen'),
+      ),
+    );
+    if (!mounted) return;
+    _reloadCurrentAccountData();
   }
 
   Future<void> _signOut() async {
@@ -98,12 +114,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
       if (!mounted) return;
       setState(() {
         _currentUser = null;
+        _profileFuture = null;
         _entitlementFuture = null;
-        _accountErrorMessage = null;
-        _entitlementErrorMessage = null;
       });
     } on AuthRepositoryException {
-      if (!mounted) return;
       _showSnackBar('Çıkış yapılamadı. Lütfen tekrar dene.');
     } finally {
       if (mounted) {
@@ -114,43 +128,149 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
+  Future<void> _editProfile(UserProfile? currentProfile) async {
+    if (_isSavingProfile) return;
+
+    final values = await showDialog<_EditableProfileValues>(
+      context: context,
+      builder: (context) => _EditProfileDialog(profile: currentProfile),
+    );
+
+    if (values == null || !mounted) return;
+
+    setState(() {
+      _isSavingProfile = true;
+    });
+
+    try {
+      await _profileRepository.updateProfile(
+        displayName: values.displayName,
+        age: values.age,
+        gender: values.gender,
+        heightCm: values.heightCm,
+        weightKg: values.weightKg,
+      );
+      _reloadCurrentAccountData();
+      _showSnackBar('Profil bilgileri güncellendi.');
+    } on ProfileRepositoryException catch (error) {
+      _showSnackBar(error.message);
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSavingProfile = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _deleteAccount() async {
+    if (_isDeletingAccount) return;
+
+    final shouldDelete = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Hesabını sil'),
+        content: const Text(
+          'Bu işlem kalıcıdır. Profil bilgilerin ve hesabına bağlı üyelik kayıtların silinir. Google Play aboneliğin varsa yönetimi yine Google Play üzerinden yapılır.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Vazgeç'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: AppColors.caution,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Hesabımı Sil'),
+          ),
+        ],
+      ),
+    );
+
+    if (shouldDelete != true || !mounted) return;
+
+    setState(() {
+      _isDeletingAccount = true;
+    });
+
+    try {
+      await _profileRepository.deleteCurrentAccount();
+      try {
+        await _authRepository.signOut();
+      } catch (_) {}
+
+      if (!mounted) return;
+      setState(() {
+        _currentUser = null;
+        _profileFuture = null;
+        _entitlementFuture = null;
+      });
+
+      _showSnackBar('Hesabın silindi.');
+      Navigator.of(context).popUntil((route) => route.isFirst);
+    } on ProfileRepositoryException catch (error) {
+      _showSnackBar(error.message);
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isDeletingAccount = false;
+        });
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+
     final bodyContent = _currentUser == null
-        ? _LoggedOutProfileView(
-            onAuthTap: _openAuthScreen,
-            theme: theme,
-          )
-        : FutureBuilder<UserEntitlement?>(
-            future: _entitlementFuture,
-            builder: (context, entitlementSnapshot) {
-              if (entitlementSnapshot.connectionState == ConnectionState.waiting) {
-                return const _ProfileLoadingView();
-              }
+        ? _LoggedOutProfileView(onAuthTap: _openAuthScreen, theme: theme)
+        : FutureBuilder<UserProfile?>(
+            future: _profileFuture,
+            builder: (context, profileSnapshot) {
+              return FutureBuilder<UserEntitlement?>(
+                future: _entitlementFuture,
+                builder: (context, entitlementSnapshot) {
+                  final isLoading =
+                      profileSnapshot.connectionState ==
+                          ConnectionState.waiting ||
+                      entitlementSnapshot.connectionState ==
+                          ConnectionState.waiting;
 
-              if (entitlementSnapshot.hasError) {
-                debugPrint('[ProfileScreen] load failed: Premium durumu yüklenemedi.');
-              } else {
-                debugPrint('[ProfileScreen] load success');
-              }
+                  if (isLoading) {
+                    return const _ProfileLoadingView();
+                  }
 
-              final entitlement = entitlementSnapshot.data;
-              final entitlementErrorMessage = entitlementSnapshot.hasError
-                  ? entitlementSnapshot.error is EntitlementRepositoryException
-                      ? (entitlementSnapshot.error as EntitlementRepositoryException)
-                          .message
-                      : 'Premium durumu yüklenemedi.'
-                  : _entitlementErrorMessage;
+                  if (profileSnapshot.hasError) {
+                    debugPrint('[ProfileScreen] profile load failed');
+                  }
+                  if (entitlementSnapshot.hasError) {
+                    debugPrint('[ProfileScreen] entitlement load failed');
+                  }
 
-              return _LoggedInProfileView(
-                user: _currentUser!,
-                entitlement: entitlement,
-                theme: theme,
-                isSigningOut: _isSigningOut,
-                accountErrorMessage: _accountErrorMessage,
-                entitlementErrorMessage: entitlementErrorMessage,
-                onSignOut: _signOut,
+                  return _LoggedInProfileView(
+                    user: _currentUser!,
+                    profile: profileSnapshot.data,
+                    entitlement: entitlementSnapshot.data,
+                    theme: theme,
+                    isSigningOut: _isSigningOut,
+                    isSavingProfile: _isSavingProfile,
+                    isDeletingAccount: _isDeletingAccount,
+                    profileErrorMessage: _messageFromProfileError(
+                      profileSnapshot.error,
+                    ),
+                    entitlementErrorMessage: _messageFromEntitlementError(
+                      entitlementSnapshot.error,
+                    ),
+                    onEditProfile: () => _editProfile(profileSnapshot.data),
+                    onOpenPremium: _openPremiumScreen,
+                    onSignOut: _signOut,
+                    onDeleteAccount: _deleteAccount,
+                  );
+                },
               );
             },
           );
@@ -187,13 +307,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ),
     );
   }
+
+  String? _messageFromProfileError(Object? error) {
+    if (error == null) return null;
+    if (error is ProfileRepositoryException) return error.message;
+    return 'Profil bilgileri yüklenemedi.';
+  }
+
+  String? _messageFromEntitlementError(Object? error) {
+    if (error == null) return null;
+    if (error is EntitlementRepositoryException) return error.message;
+    return 'Premium durumu yüklenemedi.';
+  }
 }
 
 class _LoggedOutProfileView extends StatelessWidget {
-  const _LoggedOutProfileView({
-    required this.onAuthTap,
-    required this.theme,
-  });
+  const _LoggedOutProfileView({required this.onAuthTap, required this.theme});
 
   final Future<void> Function() onAuthTap;
   final ThemeData theme;
@@ -273,8 +402,8 @@ class _LoggedOutProfileView extends StatelessWidget {
               ),
               const SizedBox(height: AppSpacing.itemSpacing),
               const _BenefitRow(
-                icon: Icons.restore_rounded,
-                text: 'Satın alımlarını geri yükle',
+                icon: Icons.edit_note_rounded,
+                text: 'Profil bilgilerini isteğe bağlı olarak ekle',
               ),
               const SizedBox(height: AppSpacing.itemSpacing),
               const _BenefitRow(
@@ -312,33 +441,44 @@ class _LoggedOutProfileView extends StatelessWidget {
 class _LoggedInProfileView extends StatelessWidget {
   const _LoggedInProfileView({
     required this.user,
+    required this.profile,
     required this.entitlement,
     required this.theme,
     required this.isSigningOut,
-    required this.accountErrorMessage,
+    required this.isSavingProfile,
+    required this.isDeletingAccount,
+    required this.profileErrorMessage,
     required this.entitlementErrorMessage,
+    required this.onEditProfile,
+    required this.onOpenPremium,
     required this.onSignOut,
+    required this.onDeleteAccount,
   });
 
   final AuthUser user;
+  final UserProfile? profile;
   final UserEntitlement? entitlement;
   final ThemeData theme;
   final bool isSigningOut;
-  final String? accountErrorMessage;
+  final bool isSavingProfile;
+  final bool isDeletingAccount;
+  final String? profileErrorMessage;
   final String? entitlementErrorMessage;
+  final Future<void> Function() onEditProfile;
+  final Future<void> Function() onOpenPremium;
   final Future<void> Function() onSignOut;
+  final Future<void> Function() onDeleteAccount;
 
   @override
   Widget build(BuildContext context) {
     final emailText = user.email.isEmpty ? 'Giriş yapılmış hesap' : user.email;
     final hasPremium = entitlement?.hasActivePremium == true;
     final planTitle = hasPremium ? 'Premium aktif' : 'Ücretsiz plan';
-    final premiumChipLabel = hasPremium ? entitlement!.planLabel : 'Premium yakında';
     final premiumDescription = hasPremium
         ? entitlement?.validUntil != null
               ? 'Geçerlilik: ${_formatDate(entitlement!.validUntil!)}'
               : '${entitlement?.planLabel ?? 'Premium'} planın şu anda aktif.'
-        : 'Premium özellikler henüz aktif değil.';
+        : 'Premium özellikler şu anda hesabında aktif görünmüyor.';
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -378,7 +518,9 @@ class _LoggedInProfileView extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Profil',
+                      profile?.displayName?.trim().isNotEmpty == true
+                          ? profile!.displayName!.trim()
+                          : 'Profil',
                       style: theme.textTheme.titleLarge?.copyWith(
                         fontWeight: FontWeight.w800,
                       ),
@@ -404,21 +546,58 @@ class _LoggedInProfileView extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                'Hesap durumu',
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w800,
-                ),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Kişisel bilgiler',
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                  TextButton.icon(
+                    onPressed: isSavingProfile ? null : onEditProfile,
+                    icon: isSavingProfile
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.edit_outlined, size: 18),
+                    label: Text(
+                      isSavingProfile ? 'Kaydediliyor...' : 'Düzenle',
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(height: AppSpacing.itemSpacing),
-              Text(
-                'Giriş yapılmış',
-                style: theme.textTheme.bodyLarge?.copyWith(
-                  color: AppColors.primaryText,
-                  fontWeight: FontWeight.w600,
-                ),
+              _ProfileValueRow(
+                label: 'Görünen ad',
+                value: profile?.displayName ?? 'Ad eklenmedi',
               ),
-              if (accountErrorMessage case final message?) ...[
+              _ProfileValueRow(
+                label: 'Yaş',
+                value: profile?.age?.toString() ?? 'Eklenmedi',
+              ),
+              _ProfileValueRow(
+                label: 'Cinsiyet',
+                value: profile?.gender ?? 'Eklenmedi',
+              ),
+              _ProfileValueRow(
+                label: 'Boy',
+                value: profile?.heightCm != null
+                    ? '${profile!.heightCm} cm'
+                    : 'Eklenmedi',
+              ),
+              _ProfileValueRow(
+                label: 'Kilo',
+                value: profile?.weightKg != null
+                    ? _formatWeight(profile!.weightKg!)
+                    : 'Eklenmedi',
+                isLast: true,
+              ),
+              if (profileErrorMessage case final message?) ...[
                 const SizedBox(height: AppSpacing.itemSpacing),
                 Text(
                   message,
@@ -433,50 +612,41 @@ class _LoggedInProfileView extends StatelessWidget {
         ),
         const SizedBox(height: AppSpacing.sectionSpacing),
         _InfoCard(
-          child: Row(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  color: AppColors.softSurface,
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: const Icon(
-                  Icons.verified_outlined,
-                  color: AppColors.primary,
+              Text(
+                planTitle,
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w800,
                 ),
               ),
-              const SizedBox(width: AppSpacing.itemSpacing),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      planTitle,
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      premiumDescription,
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: AppColors.mutedText,
-                        height: 1.45,
-                      ),
-                    ),
-                    if (entitlementErrorMessage case final message?) ...[
-                      const SizedBox(height: AppSpacing.smallSpacing),
-                      Text(
-                        message,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: AppColors.caution,
-                          height: 1.4,
-                        ),
-                      ),
-                    ],
-                  ],
+              const SizedBox(height: 8),
+              Text(
+                premiumDescription,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: AppColors.mutedText,
+                  height: 1.45,
+                ),
+              ),
+              if (entitlementErrorMessage case final message?) ...[
+                const SizedBox(height: AppSpacing.smallSpacing),
+                Text(
+                  message,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: AppColors.caution,
+                    height: 1.4,
+                  ),
+                ),
+              ],
+              const SizedBox(height: AppSpacing.sectionSpacing),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton(
+                  onPressed: onOpenPremium,
+                  child: Text(
+                    hasPremium ? 'Premium detayları' : 'Premium’u Gör',
+                  ),
                 ),
               ),
             ],
@@ -487,44 +657,56 @@ class _LoggedInProfileView extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                decoration: BoxDecoration(
-                  color: AppColors.softSurface,
-                  borderRadius: BorderRadius.circular(AppRadii.chip),
-                ),
-                child: Text(
-                  premiumChipLabel,
-                  style: theme.textTheme.labelLarge?.copyWith(
-                    color: AppColors.primary,
-                    fontWeight: FontWeight.w700,
-                  ),
+              Text(
+                'Hesap işlemleri',
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w800,
                 ),
               ),
-              const SizedBox(height: AppSpacing.itemSpacing),
+              const SizedBox(height: 8),
               Text(
-                hasPremium
-                    ? 'Premium ayrıcalıkların doğrulanmış üyelik durumuna göre gösterilir.'
-                    : 'Aylık ve yıllık paketler yakında aktif olacak.',
+                'Hesabını istediğin zaman kapatabilir veya güvenle çıkış yapabilirsin.',
                 style: theme.textTheme.bodyMedium?.copyWith(
                   color: AppColors.mutedText,
-                  height: 1.5,
+                  height: 1.45,
                 ),
               ),
               const SizedBox(height: AppSpacing.sectionSpacing),
               SizedBox(
                 width: double.infinity,
-                child: OutlinedButton(
-                  onPressed: null,
-                  child: const Text('Aboneliği Yönet'),
+                child: FilledButton.tonalIcon(
+                  onPressed: isSigningOut ? null : onSignOut,
+                  icon: isSigningOut
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.logout_rounded),
+                  label: Text(
+                    isSigningOut ? 'Çıkış yapılıyor...' : 'Çıkış Yap',
+                  ),
                 ),
               ),
               const SizedBox(height: AppSpacing.itemSpacing),
               SizedBox(
                 width: double.infinity,
-                child: OutlinedButton(
-                  onPressed: null,
-                  child: const Text('Satın Alımları Geri Yükle'),
+                child: OutlinedButton.icon(
+                  onPressed: isDeletingAccount ? null : onDeleteAccount,
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.caution,
+                    side: const BorderSide(color: AppColors.caution),
+                  ),
+                  icon: isDeletingAccount
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.delete_outline_rounded),
+                  label: Text(
+                    isDeletingAccount ? 'Hesap siliniyor...' : 'Hesabımı Sil',
+                  ),
                 ),
               ),
             ],
@@ -532,22 +714,319 @@ class _LoggedInProfileView extends StatelessWidget {
         ),
         const SizedBox(height: AppSpacing.sectionSpacing),
         const _LegalLinksCard(),
-        const SizedBox(height: AppSpacing.sectionSpacing),
-        SizedBox(
-          width: double.infinity,
-          child: FilledButton.tonalIcon(
-            onPressed: isSigningOut ? null : onSignOut,
-            icon: isSigningOut
-                ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
+      ],
+    );
+  }
+}
+
+class _EditProfileDialog extends StatefulWidget {
+  const _EditProfileDialog({required this.profile});
+
+  final UserProfile? profile;
+
+  @override
+  State<_EditProfileDialog> createState() => _EditProfileDialogState();
+}
+
+class _EditProfileDialogState extends State<_EditProfileDialog> {
+  late final TextEditingController _displayNameController;
+  late final TextEditingController _ageController;
+  late final TextEditingController _heightController;
+  late final TextEditingController _weightController;
+  late String? _selectedGender;
+  String? _errorMessage;
+
+  static const List<String> _genders = [
+    'Kadın',
+    'Erkek',
+    'Belirtmek istemiyorum',
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _displayNameController = TextEditingController(
+      text: widget.profile?.displayName ?? '',
+    );
+    _ageController = TextEditingController(
+      text: widget.profile?.age?.toString() ?? '',
+    );
+    _heightController = TextEditingController(
+      text: widget.profile?.heightCm?.toString() ?? '',
+    );
+    final initialWeight = widget.profile?.weightKg;
+    _weightController = TextEditingController(
+      text: initialWeight == null
+          ? ''
+          : initialWeight.toStringAsFixed(
+              initialWeight.truncateToDouble() == initialWeight ? 0 : 1,
+            ),
+    );
+    _selectedGender = widget.profile?.gender;
+  }
+
+  @override
+  void dispose() {
+    _displayNameController.dispose();
+    _ageController.dispose();
+    _heightController.dispose();
+    _weightController.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    final age = _parseInt(_ageController.text);
+    final heightCm = _parseInt(_heightController.text);
+    final weightKg = _parseDouble(_weightController.text);
+
+    if (_ageController.text.trim().isNotEmpty && age == null) {
+      setState(() {
+        _errorMessage = 'Yaş bilgisi sayı olarak girilmeli.';
+      });
+      return;
+    }
+
+    if (_heightController.text.trim().isNotEmpty && heightCm == null) {
+      setState(() {
+        _errorMessage = 'Boy bilgisi sayı olarak girilmeli.';
+      });
+      return;
+    }
+
+    if (_weightController.text.trim().isNotEmpty && weightKg == null) {
+      setState(() {
+        _errorMessage = 'Kilo bilgisi sayı olarak girilmeli.';
+      });
+      return;
+    }
+
+    Navigator.of(context).pop(
+      _EditableProfileValues(
+        displayName: _displayNameController.text.trim(),
+        age: age,
+        gender: _selectedGender,
+        heightCm: heightCm,
+        weightKg: weightKg,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Profil bilgilerini düzenle'),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: _displayNameController,
+              textInputAction: TextInputAction.next,
+              decoration: const InputDecoration(
+                labelText: 'Görünen ad',
+                hintText: 'İsteğe bağlı',
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _ageController,
+              keyboardType: TextInputType.number,
+              textInputAction: TextInputAction.next,
+              decoration: const InputDecoration(
+                labelText: 'Yaş',
+                hintText: 'İsteğe bağlı',
+              ),
+            ),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<String>(
+              initialValue: _genders.contains(_selectedGender)
+                  ? _selectedGender
+                  : null,
+              items: _genders
+                  .map(
+                    (value) => DropdownMenuItem<String>(
+                      value: value,
+                      child: Text(value),
+                    ),
                   )
-                : const Icon(Icons.logout_rounded),
-            label: Text(isSigningOut ? 'Çıkış yapılıyor...' : 'Çıkış Yap'),
+                  .toList(),
+              onChanged: (value) {
+                setState(() {
+                  _selectedGender = value;
+                });
+              },
+              decoration: const InputDecoration(
+                labelText: 'Cinsiyet',
+                hintText: 'İsteğe bağlı',
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _heightController,
+              keyboardType: TextInputType.number,
+              textInputAction: TextInputAction.next,
+              decoration: const InputDecoration(
+                labelText: 'Boy (cm)',
+                hintText: 'İsteğe bağlı',
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _weightController,
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
+              textInputAction: TextInputAction.done,
+              decoration: const InputDecoration(
+                labelText: 'Kilo (kg)',
+                hintText: 'İsteğe bağlı',
+              ),
+            ),
+            if (_errorMessage case final message?) ...[
+              const SizedBox(height: 12),
+              Text(
+                message,
+                style: Theme.of(
+                  context,
+                ).textTheme.bodySmall?.copyWith(color: AppColors.caution),
+              ),
+            ],
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Vazgeç'),
+        ),
+        FilledButton(onPressed: _submit, child: const Text('Kaydet')),
+      ],
+    );
+  }
+}
+
+class _EditableProfileValues {
+  const _EditableProfileValues({
+    required this.displayName,
+    required this.age,
+    required this.gender,
+    required this.heightCm,
+    required this.weightKg,
+  });
+
+  final String displayName;
+  final int? age;
+  final String? gender;
+  final int? heightCm;
+  final double? weightKg;
+}
+
+class _ProfileLoadingView extends StatelessWidget {
+  const _ProfileLoadingView();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Center(
+      child: Padding(
+        padding: EdgeInsets.symmetric(vertical: 48),
+        child: CircularProgressIndicator(),
+      ),
+    );
+  }
+}
+
+class _InfoCard extends StatelessWidget {
+  const _InfoCard({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(AppSpacing.cardPadding),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(AppRadii.card),
+        border: Border.all(color: AppColors.border),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x0A000000),
+            blurRadius: 16,
+            offset: Offset(0, 8),
+          ),
+        ],
+      ),
+      child: child,
+    );
+  }
+}
+
+class _BenefitRow extends StatelessWidget {
+  const _BenefitRow({required this.icon, required this.text});
+
+  final IconData icon;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Icon(icon, size: 20, color: AppColors.primary),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Text(
+            text,
+            style: Theme.of(
+              context,
+            ).textTheme.bodyMedium?.copyWith(color: AppColors.primaryText),
           ),
         ),
       ],
+    );
+  }
+}
+
+class _ProfileValueRow extends StatelessWidget {
+  const _ProfileValueRow({
+    required this.label,
+    required this.value,
+    this.isLast = false,
+  });
+
+  final String label;
+  final String value;
+  final bool isLast;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(bottom: isLast ? 0 : 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 110,
+            child: Text(
+              label,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: AppColors.mutedText,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              value,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: AppColors.primaryText,
+                height: 1.4,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -575,10 +1054,7 @@ class _LegalLinksCard extends StatelessWidget {
             url: privacyPolicyUrl,
           ),
           const SizedBox(height: 8),
-          const _LegalLinkTile(
-            label: 'Kullanım Koşulları',
-            url: termsOfUseUrl,
-          ),
+          const _LegalLinkTile(label: 'Kullanım Koşulları', url: termsOfUseUrl),
           const SizedBox(height: 8),
           const _LegalLinkTile(
             label: 'Sağlık, AI ve Veri Bilgilendirmesi',
@@ -586,14 +1062,11 @@ class _LegalLinksCard extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           const _LegalLinkTile(
-            label: 'Hesap Silme Talebi',
+            label: 'Hesap Silme Bilgisi',
             url: accountDeletionUrl,
           ),
           const SizedBox(height: 8),
-          const _LegalLinkTile(
-            label: 'İletişim',
-            url: contactUrl,
-          ),
+          const _LegalLinkTile(label: 'İletişim', url: contactUrl),
         ],
       ),
     );
@@ -629,14 +1102,14 @@ class _LegalLinkTile extends StatelessWidget {
                   label,
                   style: theme.textTheme.bodyMedium?.copyWith(
                     color: AppColors.primaryText,
-                    fontWeight: FontWeight.w700,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
               ),
               const Icon(
                 Icons.open_in_new_rounded,
                 size: 18,
-                color: AppColors.mutedText,
+                color: AppColors.primary,
               ),
             ],
           ),
@@ -653,93 +1126,21 @@ String _formatDate(DateTime date) {
   return '$day.$month.$year';
 }
 
-class _ProfileLoadingView extends StatelessWidget {
-  const _ProfileLoadingView();
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return _InfoCard(
-      child: Column(
-        children: [
-          const SizedBox(
-            width: 28,
-            height: 28,
-            child: CircularProgressIndicator(strokeWidth: 2.5),
-          ),
-          const SizedBox(height: AppSpacing.itemSpacing),
-          Text(
-            'Profil bilgileri yükleniyor...',
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: AppColors.mutedText,
-            ),
-          ),
-        ],
-      ),
-    );
+String _formatWeight(double value) {
+  if (value == value.truncateToDouble()) {
+    return '${value.toStringAsFixed(0)} kg';
   }
+  return '${value.toStringAsFixed(1)} kg';
 }
 
-class _BenefitRow extends StatelessWidget {
-  const _BenefitRow({required this.icon, required this.text});
-
-  final IconData icon;
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Container(
-          width: 36,
-          height: 36,
-          decoration: BoxDecoration(
-            color: AppColors.softSurface,
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Icon(icon, color: AppColors.primary, size: 20),
-        ),
-        const SizedBox(width: AppSpacing.itemSpacing),
-        Expanded(
-          child: Text(
-            text,
-            style: theme.textTheme.bodyLarge?.copyWith(
-              color: AppColors.primaryText,
-              height: 1.4,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
+int? _parseInt(String value) {
+  final normalized = value.trim();
+  if (normalized.isEmpty) return null;
+  return int.tryParse(normalized);
 }
 
-class _InfoCard extends StatelessWidget {
-  const _InfoCard({required this.child});
-
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(AppSpacing.cardPadding),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(AppRadii.card),
-        border: Border.all(color: AppColors.border),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x10000000),
-            blurRadius: 20,
-            offset: Offset(0, 8),
-          ),
-        ],
-      ),
-      child: child,
-    );
-  }
+double? _parseDouble(String value) {
+  final normalized = value.trim().replaceAll(',', '.');
+  if (normalized.isEmpty) return null;
+  return double.tryParse(normalized);
 }

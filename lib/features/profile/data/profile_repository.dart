@@ -18,12 +18,18 @@ class ProfileRepository {
 
   final SupabaseClient _client;
   static const _profileFields =
-      'id, email, display_name, created_at, updated_at';
+      'id, email, display_name, age, gender, height_cm, weight_kg, created_at, updated_at';
 
   String _sanitizeMessage(String message) {
     return message
-        .replaceAll(RegExp(r'bearer\s+[A-Za-z0-9\-._~+/]+=*', caseSensitive: false), '[redacted]')
-        .replaceAll(RegExp(r'\beyj[A-Za-z0-9\-._~+/=]+\b', caseSensitive: false), '[redacted]');
+        .replaceAll(
+          RegExp(r'bearer\s+[A-Za-z0-9\-._~+/]+=*', caseSensitive: false),
+          '[redacted]',
+        )
+        .replaceAll(
+          RegExp(r'\beyj[A-Za-z0-9\-._~+/=]+\b', caseSensitive: false),
+          '[redacted]',
+        );
   }
 
   User _requireCurrentUser() {
@@ -76,39 +82,38 @@ class ProfileRepository {
     }
   }
 
-  Future<UserProfile> updateDisplayName(String displayName) async {
+  Future<UserProfile> updateProfile({
+    required String? displayName,
+    required int? age,
+    required String? gender,
+    required int? heightCm,
+    required double? weightKg,
+  }) async {
     final currentUser = _requireCurrentUser();
-    final normalized = displayName.trim();
+    final normalizedDisplayName = _normalizeText(displayName);
+    final normalizedGender = _normalizeGender(gender);
 
-    if (normalized.isEmpty) {
-      throw const ProfileRepositoryException('Kullanıcı adı boş olamaz.');
-    }
+    _validateAge(age);
+    _validateHeight(heightCm);
+    _validateWeight(weightKg);
 
     if (kDebugMode) {
       debugPrint('[Profile] update started');
     }
 
     try {
-      final existingProfile = await _client
-          .from('profiles')
-          .select(_profileFields)
-          .eq('id', currentUser.id)
-          .maybeSingle();
-
-      if (kDebugMode) {
-        debugPrint('[Profile] profile exists: ${existingProfile != null}');
-      }
-
       final payload = {
-        'id': currentUser.id,
-        'email': (currentUser.email ?? '').trim(),
-        'display_name': normalized,
-        'updated_at': DateTime.now().toIso8601String(),
+        'display_name': normalizedDisplayName,
+        'age': age,
+        'gender': normalizedGender,
+        'height_cm': heightCm,
+        'weight_kg': weightKg,
       };
 
       final response = await _client
           .from('profiles')
-          .upsert(payload, onConflict: 'id')
+          .update(payload)
+          .eq('id', currentUser.id)
           .select(_profileFields)
           .single();
 
@@ -140,6 +145,97 @@ class ProfileRepository {
       }
       throw const ProfileRepositoryException(
         'Profil güncellenemedi. Lütfen tekrar dene.',
+      );
+    }
+  }
+
+  Future<void> deleteCurrentAccount() async {
+    _requireCurrentUser();
+
+    try {
+      final response = await _client.functions.invoke('delete-account');
+      final data = response.data;
+      if (response.status != 200 || data is! Map<String, dynamic>) {
+        throw const ProfileRepositoryException(
+          'Hesap şu anda silinemedi. Lütfen tekrar dene.',
+        );
+      }
+
+      if (data['success'] != true) {
+        throw ProfileRepositoryException(
+          (data['message'] as String?)?.trim().isNotEmpty == true
+              ? (data['message'] as String).trim()
+              : 'Hesap şu anda silinemedi. Lütfen tekrar dene.',
+        );
+      }
+    } on FunctionException catch (error) {
+      if (kDebugMode) {
+        debugPrint(
+          '[Profile] delete failed: ${_sanitizeMessage(error.toString())}',
+        );
+      }
+      throw const ProfileRepositoryException(
+        'Hesap şu anda silinemedi. Lütfen tekrar dene.',
+      );
+    } on AuthException {
+      throw const ProfileRepositoryException(
+        'Giriş yapmadan profil bilgileri görüntülenemez.',
+      );
+    } on ProfileRepositoryException {
+      rethrow;
+    } on Object catch (error) {
+      if (kDebugMode) {
+        debugPrint(
+          '[Profile] delete failed: ${_sanitizeMessage(error.toString())}',
+        );
+      }
+      throw const ProfileRepositoryException(
+        'Hesap şu anda silinemedi. Lütfen tekrar dene.',
+      );
+    }
+  }
+
+  String? _normalizeText(String? value) {
+    final normalized = value?.trim() ?? '';
+    return normalized.isEmpty ? null : normalized;
+  }
+
+  String? _normalizeGender(String? value) {
+    final normalized = _normalizeText(value);
+    if (normalized == null) {
+      return null;
+    }
+
+    const allowedGenders = {'kadın', 'erkek', 'belirtmek istemiyorum'};
+    if (!allowedGenders.contains(normalized.toLowerCase())) {
+      throw const ProfileRepositoryException(
+        'Cinsiyet bilgisi güncellenemedi. Lütfen tekrar dene.',
+      );
+    }
+
+    return normalized;
+  }
+
+  void _validateAge(int? value) {
+    if (value != null && (value < 0 || value > 120)) {
+      throw const ProfileRepositoryException(
+        'Yaş bilgisi 0 ile 120 arasında olmalı.',
+      );
+    }
+  }
+
+  void _validateHeight(int? value) {
+    if (value != null && (value < 50 || value > 300)) {
+      throw const ProfileRepositoryException(
+        'Boy bilgisi 50 ile 300 cm arasında olmalı.',
+      );
+    }
+  }
+
+  void _validateWeight(double? value) {
+    if (value != null && (value <= 0 || value > 500)) {
+      throw const ProfileRepositoryException(
+        'Kilo bilgisi geçerli bir aralıkta olmalı.',
       );
     }
   }

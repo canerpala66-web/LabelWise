@@ -85,8 +85,7 @@ class _PremiumScreenState extends State<PremiumScreen> {
   bool get _isPurchaseBusy {
     return _purchaseStatus.state == PurchaseCoordinatorState.pending ||
         _purchaseStatus.state == PurchaseCoordinatorState.verifying ||
-        _purchaseStatus.state ==
-            PurchaseCoordinatorState.refreshingEntitlement;
+        _purchaseStatus.state == PurchaseCoordinatorState.refreshingEntitlement;
   }
 
   String? get _purchaseStatusMessage {
@@ -127,8 +126,7 @@ class _PremiumScreenState extends State<PremiumScreen> {
         message != null &&
         message.isNotEmpty &&
         (status.state == PurchaseCoordinatorState.verificationFailed ||
-            status.state ==
-                PurchaseCoordinatorState.entitlementRefreshFailed ||
+            status.state == PurchaseCoordinatorState.entitlementRefreshFailed ||
             status.state == PurchaseCoordinatorState.error ||
             status.state == PurchaseCoordinatorState.canceled ||
             status.state == PurchaseCoordinatorState.entitlementActive);
@@ -150,9 +148,9 @@ class _PremiumScreenState extends State<PremiumScreen> {
       if (!mounted) return;
 
       if (result case final String message when message.isNotEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(message)),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(message)));
       }
 
       setState(() {
@@ -193,9 +191,9 @@ class _PremiumScreenState extends State<PremiumScreen> {
       if (!mounted) return;
 
       if (result case final String message when message.isNotEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(message)),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(message)));
       }
 
       setState(() {
@@ -212,9 +210,7 @@ class _PremiumScreenState extends State<PremiumScreen> {
       await _billingRepository.restorePurchases();
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Satın alımlar kontrol ediliyor...'),
-        ),
+        const SnackBar(content: Text('Satın alımlar kontrol ediliyor...')),
       );
     } on BillingRepositoryException catch (error) {
       if (!mounted) return;
@@ -235,17 +231,17 @@ class _PremiumScreenState extends State<PremiumScreen> {
     const benefits = [
       _PremiumBenefit(
         icon: Icons.do_not_disturb_on_outlined,
-        title: 'Reklamsız deneyim',
+        title: 'Reklamsız kullanım',
         description: 'Daha sade ve kesintisiz kullanım.',
       ),
       _PremiumBenefit(
         icon: Icons.auto_awesome_mosaic_outlined,
-        title: 'Daha sağlıklı alternatifler',
+        title: 'Daha sağlıklı alternatif önerileri',
         description: 'Benzer ürünler arasında daha dengeli seçenekleri keşfet.',
       ),
       _PremiumBenefit(
         icon: Icons.auto_awesome_outlined,
-        title: 'Daha detaylı AI yorumları',
+        title: 'Detaylı AI ürün analizleri',
         description: 'Ürünleri daha kapsamlı ve anlaşılır şekilde değerlendir.',
       ),
       _PremiumBenefit(
@@ -254,9 +250,9 @@ class _PremiumScreenState extends State<PremiumScreen> {
         description: 'Eski ürün sonuçlarına daha uzun süre eriş.',
       ),
       _PremiumBenefit(
-        icon: Icons.cloud_off_outlined,
-        title: 'Offline veritabanı yakında',
-        description: 'Bağlantı olmadığında da temel ürün bilgilerine eriş.',
+        icon: Icons.bolt_outlined,
+        title: 'Premium özelliklere erken erişim',
+        description: 'Yeni ayrıcalıklar hazır oldukça önce Premium’da görünür.',
       ),
     ];
 
@@ -373,20 +369,30 @@ class _PremiumScreenState extends State<PremiumScreen> {
                           ),
                         ),
                         const SizedBox(height: AppSpacing.itemSpacing),
-                        SizedBox(
-                          width: double.infinity,
-                          child: OutlinedButton(
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: TextButton.icon(
                             onPressed: _isRestoringPurchases || _isPurchaseBusy
                                 ? null
                                 : _handleRestorePurchasesTap,
-                            child: Text(
+                            icon: _isRestoringPurchases
+                                ? const SizedBox(
+                                    width: 16,
+                                    height: 16,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  )
+                                : const Icon(Icons.restore_rounded, size: 18),
+                            label: Text(
                               _isRestoringPurchases
                                   ? 'Satın alımlar kontrol ediliyor...'
-                                  : 'Satın Alımları Geri Yükle',
+                                  : 'Satın alımlarını geri yükle',
                             ),
                           ),
                         ),
-                        if (_purchaseStatusMessage case final statusMessage?) ...[
+                        if (_purchaseStatusMessage
+                            case final statusMessage?) ...[
                           const SizedBox(height: AppSpacing.itemSpacing),
                           Center(
                             child: Text(
@@ -396,16 +402,15 @@ class _PremiumScreenState extends State<PremiumScreen> {
                                   ?.copyWith(
                                     color:
                                         _purchaseStatus.state ==
-                                                    PurchaseCoordinatorState
-                                                        .verificationFailed ||
-                                                _purchaseStatus.state ==
-                                                    PurchaseCoordinatorState
-                                                        .entitlementRefreshFailed ||
-                                                _purchaseStatus.state ==
-                                                    PurchaseCoordinatorState
-                                                        .error
-                                            ? AppColors.caution
-                                            : AppColors.mutedText,
+                                                PurchaseCoordinatorState
+                                                    .verificationFailed ||
+                                            _purchaseStatus.state ==
+                                                PurchaseCoordinatorState
+                                                    .entitlementRefreshFailed ||
+                                            _purchaseStatus.state ==
+                                                PurchaseCoordinatorState.error
+                                        ? AppColors.caution
+                                        : AppColors.mutedText,
                                     height: 1.4,
                                   ),
                             ),
@@ -704,24 +709,38 @@ class _ActivePremiumCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: AppSpacing.sectionSpacing),
-          SizedBox(
-            width: double.infinity,
-            child: OutlinedButton(
-              onPressed: null,
-              child: const Text('Aboneliği Yönet'),
+          Text(
+            'Abonelik işlemleri ve geri yükleme seçenekleri burada yardımcı işlem olarak kalır.',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: AppColors.mutedText,
+              height: 1.4,
             ),
           ),
-          const SizedBox(height: AppSpacing.itemSpacing),
-          SizedBox(
-            width: double.infinity,
-            child: OutlinedButton(
-              onPressed: isRestoringPurchases ? null : onRestorePurchases,
-              child: Text(
-                isRestoringPurchases
-                    ? 'Satın alımlar kontrol ediliyor...'
-                    : 'Satın Alımları Geri Yükle',
+          const SizedBox(height: AppSpacing.smallSpacing),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              OutlinedButton(
+                onPressed: null,
+                child: const Text('Aboneliği Yönet'),
               ),
-            ),
+              TextButton.icon(
+                onPressed: isRestoringPurchases ? null : onRestorePurchases,
+                icon: isRestoringPurchases
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.restore_rounded, size: 18),
+                label: Text(
+                  isRestoringPurchases
+                      ? 'Kontrol ediliyor...'
+                      : 'Satın alımlarını geri yükle',
+                ),
+              ),
+            ],
           ),
         ],
       ),

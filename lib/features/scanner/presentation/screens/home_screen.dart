@@ -1,7 +1,13 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:labelwise/core/analytics/analytics_service.dart';
 import 'package:labelwise/core/crashlytics/crashlytics_service.dart';
 import 'package:labelwise/core/theme/app_tokens.dart';
+import 'package:labelwise/features/auth/data/auth_repository.dart';
+import 'package:labelwise/features/auth/data/auth_user.dart';
+import 'package:labelwise/features/premium/data/entitlement_repository.dart';
+import 'package:labelwise/features/premium/data/user_entitlement.dart';
 import 'package:labelwise/features/scanner/data/product_repository.dart';
 import 'package:labelwise/features/scanner/data/recent_scan.dart';
 import 'package:labelwise/features/scanner/data/recent_scans_repository.dart';
@@ -19,25 +25,47 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+  final AuthRepository _authRepository = AuthRepository();
+  final EntitlementRepository _entitlementRepository = EntitlementRepository();
   final RecentScansRepository _recentScansRepository =
       const RecentScansRepository();
 
+  StreamSubscription<AuthUser?>? _authSubscription;
   late Future<List<RecentScan>> _recentScans;
+  Future<UserEntitlement?>? _entitlementFuture;
 
   @override
   void initState() {
     super.initState();
     _recentScans = _recentScansRepository.getRecentScans();
+    _refreshEntitlement(forceReload: true);
+    _authSubscription = _authRepository.authStateChanges.listen((_) {
+      if (!mounted) return;
+      _refreshEntitlement(forceReload: true);
+    });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       CrashlyticsService.instance.setCurrentScreen('home');
       CrashlyticsService.instance.setCurrentFlow('home');
     });
   }
 
+  @override
+  void dispose() {
+    _authSubscription?.cancel();
+    super.dispose();
+  }
+
   void _refreshRecentScans() {
     if (!mounted) return;
     setState(() {
       _recentScans = _recentScansRepository.getRecentScans();
+    });
+  }
+
+  void _refreshEntitlement({bool forceReload = false}) {
+    if (!mounted && !forceReload) return;
+    setState(() {
+      _entitlementFuture = _entitlementRepository.getCurrentEntitlement();
     });
   }
 
@@ -110,258 +138,268 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _openAccountEntry() async {
     await Navigator.of(context).pushNamed('/profile');
+    if (!mounted) return;
+    _refreshEntitlement(forceReload: true);
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(AppSpacing.pagePadding),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 560),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(AppSpacing.pagePadding),
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [Color(0xFF1C5A49), Color(0xFF143B31)],
-                      ),
-                      borderRadius: BorderRadius.circular(AppRadii.hero),
-                      boxShadow: const [
-                        BoxShadow(
-                          color: Color(0x1A000000),
-                          blurRadius: 28,
-                          offset: Offset(0, 14),
-                        ),
-                      ],
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Container(
-                              width: 56,
-                              height: 56,
-                              decoration: BoxDecoration(
-                                color: Colors.white.withValues(alpha: 0.12),
-                                borderRadius: BorderRadius.circular(18),
-                                border: Border.all(
-                                  color: Colors.white.withValues(alpha: 0.08),
-                                ),
-                              ),
-                              child: const Icon(
-                                Icons.eco_outlined,
-                                color: Colors.white,
-                                size: 30,
-                              ),
+    return FutureBuilder<UserEntitlement?>(
+      future: _entitlementFuture,
+      builder: (context, entitlementSnapshot) {
+        final premiumActive =
+            entitlementSnapshot.data?.hasActivePremium == true;
+        debugPrint(
+          'HomeScreen: premiumActive=$premiumActive, entitlementLoaded=${entitlementSnapshot.connectionState == ConnectionState.done}',
+        );
+
+        return Scaffold(
+          backgroundColor: AppColors.background,
+          body: SafeArea(
+            child: Center(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(AppSpacing.pagePadding),
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 560),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(AppSpacing.pagePadding),
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [Color(0xFF1C5A49), Color(0xFF143B31)],
+                          ),
+                          borderRadius: BorderRadius.circular(AppRadii.hero),
+                          boxShadow: const [
+                            BoxShadow(
+                              color: Color(0x1A000000),
+                              blurRadius: 28,
+                              offset: Offset(0, 14),
                             ),
-                            const Spacer(),
-                            Semantics(
-                              label: 'Profil',
-                              button: true,
-                              child: Tooltip(
-                                message: 'Profil',
-                                child: Material(
-                                  color: Colors.white.withValues(alpha: 0.12),
-                                  shape: RoundedRectangleBorder(
+                          ],
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Container(
+                                  width: 56,
+                                  height: 56,
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withValues(alpha: 0.12),
                                     borderRadius: BorderRadius.circular(18),
-                                    side: BorderSide(
+                                    border: Border.all(
                                       color: Colors.white.withValues(
                                         alpha: 0.08,
                                       ),
                                     ),
                                   ),
-                                  child: InkWell(
-                                    onTap: _openAccountEntry,
-                                    borderRadius: BorderRadius.circular(18),
-                                    child: const SizedBox(
-                                      width: 48,
-                                      height: 48,
-                                      child: Icon(
-                                        Icons.person_outline_rounded,
-                                        color: Colors.white,
-                                        size: 24,
+                                  child: const Icon(
+                                    Icons.eco_outlined,
+                                    color: Colors.white,
+                                    size: 30,
+                                  ),
+                                ),
+                                const Spacer(),
+                                Semantics(
+                                  label: 'Profil',
+                                  button: true,
+                                  child: Tooltip(
+                                    message: 'Profil',
+                                    child: Material(
+                                      color: Colors.white.withValues(
+                                        alpha: 0.12,
+                                      ),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(18),
+                                        side: BorderSide(
+                                          color: Colors.white.withValues(
+                                            alpha: 0.08,
+                                          ),
+                                        ),
+                                      ),
+                                      child: InkWell(
+                                        onTap: _openAccountEntry,
+                                        borderRadius: BorderRadius.circular(18),
+                                        child: const SizedBox(
+                                          width: 48,
+                                          height: 48,
+                                          child: Icon(
+                                            Icons.person_outline_rounded,
+                                            color: Colors.white,
+                                            size: 24,
+                                          ),
+                                        ),
                                       ),
                                     ),
                                   ),
                                 ),
-                              ),
+                              ],
                             ),
-                          ],
-                        ),
-                        const SizedBox(height: AppSpacing.sectionSpacing),
-                        Text(
-                          'LabelWise',
-                          style: theme.textTheme.displaySmall?.copyWith(
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: -1.2,
-                            color: Colors.white,
-                          ),
-                        ),
-                        const SizedBox(height: AppSpacing.smallSpacing),
-                        Text(
-                          'Markette ne aldığını 5 saniyede anla.',
-                          style: theme.textTheme.headlineSmall?.copyWith(
-                            fontWeight: FontWeight.w700,
-                            color: Colors.white,
-                            height: 1.2,
-                          ),
-                        ),
-                        const SizedBox(height: AppSpacing.itemSpacing),
-                        Text(
-                          'Barkodu okut, ürünün besin değerlerini, içerik profilini ve daha dengeli alternatifleri gör.',
-                          style: theme.textTheme.bodyLarge?.copyWith(
-                            height: 1.45,
-                            color: const Color(0xFFD8E6DF),
-                          ),
-                        ),
-                        const SizedBox(height: AppSpacing.sectionSpacing),
-                        SizedBox(
-                          width: double.infinity,
-                          height: 58,
-                          child: FilledButton.icon(
-                            onPressed: () => _openBarcodeScanner(context),
-                            style: FilledButton.styleFrom(
-                              backgroundColor: Colors.white,
-                              foregroundColor: AppColors.primary,
-                              elevation: 0,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(
-                                  AppRadii.button,
-                                ),
-                              ),
-                              textStyle: const TextStyle(
-                                fontSize: 17,
+                            const SizedBox(height: AppSpacing.sectionSpacing),
+                            Text(
+                              'LabelWise',
+                              style: theme.textTheme.displaySmall?.copyWith(
                                 fontWeight: FontWeight.w800,
+                                letterSpacing: -1.2,
+                                color: Colors.white,
                               ),
                             ),
-                            icon: const Icon(Icons.barcode_reader, size: 24),
-                            label: const Text('Barkod Tara'),
-                          ),
-                        ),
-                        const SizedBox(height: AppSpacing.itemSpacing),
-                        Align(
-                          alignment: Alignment.centerLeft,
-                          child: TextButton.icon(
-                            onPressed: () => _openManualLookup(context),
-                            style: TextButton.styleFrom(
-                              foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 2,
-                                vertical: 2,
-                              ),
-                              textStyle: const TextStyle(
-                                fontSize: 15,
+                            const SizedBox(height: AppSpacing.smallSpacing),
+                            Text(
+                              'Markette ne aldığını 5 saniyede anla.',
+                              style: theme.textTheme.headlineSmall?.copyWith(
                                 fontWeight: FontWeight.w700,
+                                color: Colors.white,
+                                height: 1.2,
                               ),
                             ),
-                            icon: const Icon(Icons.keyboard_alt_outlined),
-                            label: const Text('Barkodu elle gir'),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: AppSpacing.sectionSpacing),
-                  Material(
-                    color: AppColors.surface,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(AppRadii.card),
-                      side: const BorderSide(color: AppColors.border),
-                    ),
-                    elevation: 0.5,
-                    shadowColor: const Color(0x0D000000),
-                    clipBehavior: Clip.antiAlias,
-                    child: InkWell(
-                      onTap: () => _openManualLookup(context),
-                      child: Padding(
-                        padding: const EdgeInsets.all(AppSpacing.cardPadding),
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Container(
-                              width: 44,
-                              height: 44,
-                              decoration: BoxDecoration(
-                                color: AppColors.softSurface,
-                                borderRadius: BorderRadius.circular(14),
-                              ),
-                              child: const Icon(
-                                Icons.edit_rounded,
-                                color: AppColors.primary,
+                            const SizedBox(height: AppSpacing.itemSpacing),
+                            Text(
+                              'Barkodu okut, ürünün besin değerlerini, içerik profilini ve daha dengeli alternatifleri gör.',
+                              style: theme.textTheme.bodyLarge?.copyWith(
+                                height: 1.45,
+                                color: const Color(0xFFD8E6DF),
                               ),
                             ),
-                            const SizedBox(width: 14),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'Barkodu elle gir',
-                                    style: theme.textTheme.titleMedium
-                                        ?.copyWith(
-                                          fontWeight: FontWeight.w800,
-                                          color: AppColors.primaryText,
-                                        ),
-                                  ),
-                                  const SizedBox(height: 6),
-                                  Text(
-                                    'Kameraya ihtiyaç duymadan barkod numarasını yazarak hızlıca ürün arayabilirsiniz.',
-                                    style: theme.textTheme.bodyMedium?.copyWith(
-                                      height: 1.45,
-                                      color: AppColors.mutedText,
+                            const SizedBox(height: AppSpacing.sectionSpacing),
+                            SizedBox(
+                              width: double.infinity,
+                              height: 58,
+                              child: FilledButton.icon(
+                                onPressed: () => _openBarcodeScanner(context),
+                                style: FilledButton.styleFrom(
+                                  backgroundColor: Colors.white,
+                                  foregroundColor: AppColors.primary,
+                                  elevation: 0,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(
+                                      AppRadii.button,
                                     ),
                                   ),
-                                ],
+                                  textStyle: const TextStyle(
+                                    fontSize: 17,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                                icon: const Icon(
+                                  Icons.barcode_reader,
+                                  size: 24,
+                                ),
+                                label: const Text('Barkod Tara'),
                               ),
-                            ),
-                            const SizedBox(width: 8),
-                            const Icon(
-                              Icons.chevron_right_rounded,
-                              color: AppColors.mutedText,
                             ),
                           ],
                         ),
                       ),
-                    ),
-                  ),
-                  const SizedBox(height: AppSpacing.sectionSpacingLarge),
-                  RecentScansSection(
-                    recentScans: _recentScans,
-                    onTap: (scan) => _openRecentScan(context, scan),
-                    onClear: _clearRecentScans,
-                  ),
-                  const SizedBox(height: AppSpacing.sectionSpacingLarge),
-                  _PremiumTeaserCard(
-                    onTap: () {
-                      AnalyticsService.instance.logPremiumCtaClicked(
-                        source: 'home_screen',
-                      );
-                      Navigator.of(context).push(
-                        MaterialPageRoute<void>(
-                          builder: (context) =>
-                              const PremiumScreen(sourceScreen: 'home_screen'),
+                      const SizedBox(height: AppSpacing.sectionSpacing),
+                      Material(
+                        color: AppColors.surface,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(AppRadii.card),
+                          side: const BorderSide(color: AppColors.border),
                         ),
-                      );
-                    },
+                        elevation: 0.5,
+                        shadowColor: const Color(0x0D000000),
+                        clipBehavior: Clip.antiAlias,
+                        child: InkWell(
+                          onTap: () => _openManualLookup(context),
+                          child: Padding(
+                            padding: const EdgeInsets.all(
+                              AppSpacing.cardPadding,
+                            ),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Container(
+                                  width: 44,
+                                  height: 44,
+                                  decoration: BoxDecoration(
+                                    color: AppColors.softSurface,
+                                    borderRadius: BorderRadius.circular(14),
+                                  ),
+                                  child: const Icon(
+                                    Icons.edit_rounded,
+                                    color: AppColors.primary,
+                                  ),
+                                ),
+                                const SizedBox(width: 14),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'Barkodu elle gir',
+                                        style: theme.textTheme.titleMedium
+                                            ?.copyWith(
+                                              fontWeight: FontWeight.w800,
+                                              color: AppColors.primaryText,
+                                            ),
+                                      ),
+                                      const SizedBox(height: 6),
+                                      Text(
+                                        'Kameraya ihtiyaç duymadan barkod numarasını yazarak hızlıca ürün arayabilirsiniz.',
+                                        style: theme.textTheme.bodyMedium
+                                            ?.copyWith(
+                                              height: 1.45,
+                                              color: AppColors.mutedText,
+                                            ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                const Icon(
+                                  Icons.chevron_right_rounded,
+                                  color: AppColors.mutedText,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: AppSpacing.sectionSpacingLarge),
+                      RecentScansSection(
+                        recentScans: _recentScans,
+                        onTap: (scan) => _openRecentScan(context, scan),
+                        onClear: _clearRecentScans,
+                        showPremiumUpsell: !premiumActive,
+                      ),
+                      if (!premiumActive) ...[
+                        const SizedBox(height: AppSpacing.sectionSpacingLarge),
+                        _PremiumTeaserCard(
+                          onTap: () async {
+                            AnalyticsService.instance.logPremiumCtaClicked(
+                              source: 'home_screen',
+                            );
+                            await Navigator.of(context).push(
+                              MaterialPageRoute<void>(
+                                builder: (context) => const PremiumScreen(
+                                  sourceScreen: 'home_screen',
+                                ),
+                              ),
+                            );
+                            if (!context.mounted) return;
+                            _refreshEntitlement(forceReload: true);
+                          },
+                        ),
+                      ],
+                    ],
                   ),
-                ],
+                ),
               ),
             ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 }
