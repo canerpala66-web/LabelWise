@@ -16,7 +16,6 @@ class SubscriptionVerificationRepository {
   SubscriptionVerificationRepository({SupabaseClient? client})
     : _client = client ?? Supabase.instance.client;
 
-  static const String _googlePlayPackageName = 'com.zezey.labelwise';
   final SupabaseClient _client;
 
   Future<SubscriptionVerificationResult> verifyGooglePlaySubscription({
@@ -36,21 +35,21 @@ class SubscriptionVerificationRepository {
         body: {
           'productId': productId.trim(),
           'purchaseToken': purchaseToken.trim(),
-          'packageName': _googlePlayPackageName,
+          'platform': 'android',
         },
       );
 
       final data = response.data;
       if (data is! Map<String, dynamic>) {
         throw const SubscriptionVerificationRepositoryException(
-          'Abonelik bilgisi şu anda kontrol edilemedi.',
+          'Abonelik bilgisi şu anda doğrulanamadı. Lütfen kısa süre sonra tekrar deneyin.',
         );
       }
 
       return SubscriptionVerificationResult.fromMap(data);
     } on FunctionException catch (_) {
       throw const SubscriptionVerificationRepositoryException(
-        'Abonelik bilgisi şu anda kontrol edilemedi.',
+        'Abonelik bilgisi şu anda doğrulanamadı. Lütfen kısa süre sonra tekrar deneyin.',
       );
     } on AuthException {
       throw const SubscriptionVerificationRepositoryException(
@@ -60,7 +59,7 @@ class SubscriptionVerificationRepository {
       rethrow;
     } on Object {
       throw const SubscriptionVerificationRepositoryException(
-        'Abonelik doğrulanamadı.',
+        'Abonelik doğrulanamadı. Lütfen kısa süre sonra tekrar deneyin.',
       );
     }
   }
