@@ -11,21 +11,21 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://www.labelwise.net"),
+  metadataBase: new URL("https://labelwise.net"),
   title: {
-    default: "LabelWise | Barkodu okut, daha bilinçli seç.",
+    default: "LabelWise | Etiketlerin arkasındaki gerçeği görün.",
     template: "%s | LabelWise",
   },
   description:
-    "LabelWise, gıda ürünlerinin içeriklerini, besin değerlerini ve etiket bilgilerini daha anlaşılır hale getiren mobil barkod tarama uygulamasıdır.",
+    "LabelWise, paketli gıdaların içeriklerini, besin değerlerini ve etiket dilini daha anlaşılır hale getiren premium barkod deneyimidir.",
   alternates: {
     canonical: "/",
   },
   openGraph: {
-    title: "LabelWise | Barkodu okut, daha bilinçli seç.",
+    title: "LabelWise | Etiketlerin arkasındaki gerçeği görün.",
     description:
-      "Türkiye için geliştirilen LabelWise ile gıda ürünlerinin etiket bilgilerini daha anlaşılır şekilde keşfedin.",
-    url: "https://www.labelwise.net",
+      "Barkodu tara, içeriği anla, daha bilinçli seç. Türkiye odaklı gıda şeffaflığı deneyimi.",
+    url: "https://labelwise.net",
     siteName: "LabelWise",
     images: [
       {

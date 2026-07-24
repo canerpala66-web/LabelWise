@@ -1,13 +1,13 @@
 import type { Metadata } from "next";
 import { LegalPage } from "@/components/legal-page";
 
-const effectiveDate = "19 Temmuz 2026";
+const effectiveDate = "24 Temmuz 2026";
 const contactEmail = "canerpala66@gmail.com";
 
 export const metadata: Metadata = {
   title: "LabelWise Abonelik Koşulları",
   description:
-    "LabelWise premium abonelikler, Google Play odemeleri ve iptal surecleri hakkinda ozet kosullar.",
+    "LabelWise Premium abonelik planları, Google Play yenileme koşulları ve premium erişim doğrulaması hakkında özet bilgiler.",
   alternates: {
     canonical: "/subscription-terms",
   },
@@ -18,98 +18,98 @@ export default function SubscriptionTermsPage() {
     <LegalPage
       eyebrow="Abonelik"
       title="Abonelik Koşulları"
-      intro="Bu sayfa, LabelWise premium abonelikleri kullanima sunuldugunda uygulanacak genel esaslari aciklar. Metin seffaflik amaciyla hazirlanmistir; hukuki veya mali tavsiye niteliginde degildir."
+      intro="Bu sayfa, LabelWise Premium abonelikleri için geçerli olabilecek genel esasları açıklar. Metin genel bilgilendirme amaçlıdır; hukuki veya mali tavsiye niteliğinde değildir."
       effectiveDate={effectiveDate}
       contactEmail={contactEmail}
-      transparencyNote="Premium abonelikler kullanima sunuldugunda veya planlar uygulama icinde kademeli olarak sunuldugunda, satin alma sirasindaki son fiyat, vergi, yenileme ve teklif bilgileri Google Play ekraninda gosterildigi sekliyle gecerli olur."
+      transparencyNote="Premium planlar kademeli olarak kullanıma sunulabilir. Satın alma anındaki son fiyat, vergi, yenileme ve teklif bilgileri Google Play ekranında gösterildiği şekliyle geçerli olur."
       sections={[
         {
-          title: "Premium Abonelik Hakkinda",
+          title: "1. Premium planlar",
           body: (
-            <p>
-              Premium abonelikler kullanima sunuldugunda, kullanicilara ek ozellikler
-              veya genisletilmis deneyimler saglayabilir. Planlar uygulama icinde
-              kademeli olarak sunulabilir ve tum kullanicilar ayni anda ayni
-              secenekleri gormeyebilir.
-            </p>
-          ),
-        },
-        {
-          title: "Planlar ve Fiyatlar",
-          body: (
-            <ul className="list-disc space-y-2 pl-5">
-              <li>Aylik Premium: 69,99 TL / ay</li>
-              <li>Yillik Premium: 299,99 TL / yil</li>
+            <ul>
+              <li>Aylık Premium: 69,99 TL / ay</li>
+              <li>Yıllık Premium: 299,99 TL / yıl</li>
             </ul>
           ),
         },
         {
-          title: "Otomatik Yenileme",
+          title: "2. Sunulabilecek premium avantajları",
+          body: (
+            <ul>
+              <li>Reklamsız kullanım</li>
+              <li>Daha detaylı AI ürün analizleri</li>
+              <li>Daha sağlıklı alternatif önerileri</li>
+              <li>Daha rafine premium deneyim katmanları</li>
+            </ul>
+          ),
+        },
+        {
+          title: "3. Satın alma ve ödeme",
           body: (
             <p>
-              Google Play uzerinden satin alinan abonelikler, kullanici tarafindan
-              iptal edilmedigi surece otomatik olarak yenilenebilir. Yenileme
-              kosullari ve zamanlamasi satin alma aninda Google Play tarafindan
-              gosterilir.
+              Ödemeler Google Play üzerinden işlenir. LabelWise, tam kart bilgilerini
+              doğrudan toplamaz veya saklamaz. Satın alma sırasında görünen son fiyat,
+              vergiler ve varsa kampanyalar Google Play ekranında gösterildiği şekliyle
+              uygulanır.
             </p>
           ),
         },
         {
-          title: "Satin Alma ve Odeme Islemleri",
+          title: "4. Otomatik yenileme",
           body: (
             <p>
-              Odemeler Google Play uzerinden islenir. LabelWise dogrudan tam kart
-              bilgilerini toplamaz veya saklamaz. Satin alma sirasindaki son fiyat,
-              vergiler, kampanyalar ve diger ayrintilar Google Play ekraninda
-              gosterildigi sekliyle uygulanir.
+              Google Play üzerinden satın alınan abonelikler, kullanıcı tarafından
+              iptal edilmedikçe otomatik olarak yenilenebilir. Yenileme zamanlaması ve
+              koşulları Google Play tarafından belirlenir ve satın alma anında
+              kullanıcıya gösterilir.
             </p>
           ),
         },
         {
-          title: "Abonelik Yonetimi ve Iptal",
+          title: "5. İptal ve abonelik yönetimi",
           body: (
             <p>
-              Kullanicilar aboneliklerini Google Play hesap / abonelik ayarlari
-              uzerinden yonetebilir veya iptal edebilir. Uygulamanin silinmesi her
-              zaman aboneligin otomatik olarak iptal edildigi anlamina gelmez.
+              Kullanıcılar aboneliklerini Google Play hesap ayarları üzerinden
+              yönetebilir veya iptal edebilir. Uygulamanın silinmesi her zaman
+              aboneliğin otomatik olarak iptal edildiği anlamına gelmez.
             </p>
           ),
         },
         {
-          title: "Premium Erisim ve Dogrulama",
+          title: "6. Premium erişimin doğrulanması",
           body: (
             <p>
-              Premium erisim, yalnizca dogrulanmis abonelik yetkisi sonrasinda
-              saglanir. Bu amacla satin alma dogrulama bilgileri ve abonelik
-              metaverileri hizmetin calismasi icin gerekli oldugu olcude
-              saklanabilir.
+              Premium erişim yalnızca doğrulanmış abonelik yetkisine göre aktif hale
+              gelir. Satın alma bağlamındaki sınırlı veriler, premium yetkinin
+              doğrulanması ve kötüye kullanım riskinin azaltılması amacıyla
+              işlenebilir.
             </p>
           ),
         },
         {
-          title: "Iade Politikasi",
+          title: "7. İadeler ve anlaşmazlıklar",
           body: (
             <p>
-              Iade talepleri ve uygunluk durumu, Google Play politikalarina ve
-              uygulanabilir kurallara gore degerlendirilebilir. LabelWise her durum
-              icin dogrudan iade taahhudu vermez.
+              İade talepleri ve uygunluk durumu genel olarak Google Play politikaları
+              ve uygulanabilir kurallara göre değerlendirilir. LabelWise her durum
+              için doğrudan iade taahhüdü vermez.
             </p>
           ),
         },
         {
-          title: "Ozelliklerin Degismesi",
+          title: "8. Özelliklerin değişmesi",
           body: (
             <p>
-              Premium kapsamindaki ozellikler zamanla degisebilir, yeniden
-              duzenlenebilir veya belirli bolgelerde farklilasabilir. Belirli bir
-              ozelligin surekli ve degismeden sunulacagi garanti edilmez.
+              Premium kapsamındaki özellikler zaman içinde değiştirilebilir, yeniden
+              düzenlenebilir veya belirli bölgelerde farklılaştırılabilir. Belirli bir
+              özelliğin aynı biçimde sürekli sunulacağı garanti edilmez.
             </p>
           ),
         },
         {
-          title: "Iletisim",
+          title: "9. İletişim",
           body: (
-            <ul className="list-disc space-y-2 pl-5">
+            <ul>
               <li>E-posta: canerpala66@gmail.com</li>
               <li>Web sitesi: https://labelwise.net</li>
             </ul>

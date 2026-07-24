@@ -1,13 +1,13 @@
 import type { Metadata } from "next";
 import { LegalPage } from "@/components/legal-page";
 
-const effectiveDate = "19 Temmuz 2026";
+const effectiveDate = "24 Temmuz 2026";
 const contactEmail = "canerpala66@gmail.com";
 
 export const metadata: Metadata = {
-  title: "LabelWise Hesap Silme Talebi",
+  title: "LabelWise Hesap Silme",
   description:
-    "LabelWise hesabinizi ve iliskili verilerinizi silme talebi hakkinda bilgi.",
+    "LabelWise hesabını silme süreci, uygulama içi silme seçeneği ve sınırlı süre saklanabilecek kayıtlar hakkında bilgilendirme.",
   alternates: {
     canonical: "/account-deletion",
   },
@@ -17,82 +17,84 @@ export default function AccountDeletionPage() {
   return (
     <LegalPage
       eyebrow="Hesap Silme"
-      title="Hesap Silme Talebi"
-      intro="Bu sayfa, LabelWise kullanicilarinin hesap silme talebini nasil iletebilecegini aciklamak icin hazirlanmistir. Metin seffaflik amaclidir; otomatik silme islemi bu sayfa uzerinden baslatilmaz."
+      title="Hesap Silme Bilgisi"
+      intro="Bu sayfa, LabelWise kullanıcılarının hesap silme sürecini anlaması için hazırlanmıştır. Hesap silme işlemi uygulama içinden başlatılabilir; bazı durumlarda destek kanalları üzerinden ek doğrulama gerekebilir."
       effectiveDate={effectiveDate}
       contactEmail={contactEmail}
-      transparencyNote="Hesap silme talebi, degerlendirme ve kimlik dogrulama sonrasinda uygulanabilir ve teknik olarak mumkun oldugu olcude yerine getirilir. Bazi kayitlar yasal veya guvenlik gerekceleriyle sinirli sure saklanabilir."
+      transparencyNote="Hesap silme işlemi kalıcıdır. Teknik olarak mümkün olduğu ölçüde kişisel profil ve hesap verileri silinir. Yasal, güvenlik veya abonelik doğrulama nedenleriyle belirli kayıtlar sınırlı süre saklanabilir."
       sections={[
         {
-          title: "Talep Hakkinda",
-          body: (
-            <p>
-              LabelWise kullanicilari hesaplarinin ve hesapla iliskili
-              verilerinin silinmesini talep edebilir.
-            </p>
-          ),
-        },
-        {
-          title: "Talep Nasil Gonderilir",
+          title: "1. Uygulama içinden hesap silme",
           body: (
             <>
               <p>
-                Talep icin canerpala66@gmail.com adresine e-posta
-                gonderebilirsiniz.
+                LabelWise hesabı, mobil uygulamadaki profil / hesap alanı içinden
+                silinebilir. İşlem öncesinde kullanıcıdan açık onay alınır.
               </p>
-              <p className="mt-3">
-                Onerilen e-posta konusu:
-                <strong> LabelWise Hesap Silme Talebi</strong>
-              </p>
-              <p className="mt-3">
-                Mumkunse hesabinizla iliskili e-posta adresinden yazmaniz, talebin
-                daha hizli dogrulanmasina yardimci olur.
+              <p>
+                Hesap silme sonrasında oturum kapatılır ve hesapla ilişkili kişisel
+                profil verileri sistemden kaldırılmaya çalışılır.
               </p>
             </>
           ),
         },
         {
-          title: "Degerlendirme ve Uygulama",
+          title: "2. Destek üzerinden talep",
+          body: (
+            <>
+              <p>
+                Uygulama içindeki silme akışı kullanılamıyorsa, canerpala66@gmail.com
+                adresine e-posta göndererek de talep iletilebilir.
+              </p>
+              <p>
+                Önerilen konu satırı: <strong>LabelWise Hesap Silme Talebi</strong>
+              </p>
+            </>
+          ),
+        },
+        {
+          title: "3. Silinebilecek veriler",
+          body: (
+            <ul>
+              <li>Kimlik doğrulama hesabı</li>
+              <li>Profil alanları ve uygulama hesabına bağlı kişisel bilgiler</li>
+              <li>Kullanıcıya bağlı premium yetki kayıtları</li>
+            </ul>
+          ),
+        },
+        {
+          title: "4. Sınırlı süre saklanabilecek kayıtlar",
           body: (
             <p>
-              Talep degerlendirildikten sonra uygulanabilir ve teknik olarak mumkun
-              oldugu olcude hesapla iliskili veriler silinir veya anonimlestirilir.
+              Güvenlik, kötüye kullanımı önleme, muhasebe yükümlülükleri, abonelik
+              doğrulama geçmişi veya hukuki uyuşmazlık yönetimi gibi nedenlerle bazı
+              kayıtlar sınırlı süre boyunca saklanabilir.
             </p>
           ),
         },
         {
-          title: "Sinirli Sure Saklanabilecek Kayitlar",
+          title: "5. Cihazdaki yerel veriler",
           body: (
             <p>
-              Bazi kayitlar guvenlik, kotuye kullanimın onlenmesi, yasal
-              yukumlulukler, abonelik dogrulama surecleri veya uyusmazlik cozumu
-              amaclariyla sinirli sure saklanabilir.
+              Uygulama kaldırıldığında veya cihaz ayarlarından ilgili veriler
+              temizlendiğinde, cihazda saklanan yerel kayıtlar da silinebilir.
             </p>
           ),
         },
         {
-          title: "Cihazdaki Yerel Veriler",
+          title: "6. Google Play abonelikleri hakkında önemli not",
           body: (
             <p>
-              Cihazda tutulan yerel veriler uygulamanin kaldirilmasi veya cihaz
-              ayarlari uzerinden temizlenebilir.
+              Aktif bir Google Play aboneliğiniz varsa, hesap silme işlemi bu
+              aboneliği otomatik olarak iptal etmeyebilir. Aboneliğin ayrıca Google
+              Play hesap ayarları üzerinden yönetilmesi veya iptal edilmesi gerekir.
             </p>
           ),
         },
         {
-          title: "Abonelikler Hakkinda Onemli Not",
+          title: "7. İletişim",
           body: (
-            <p>
-              Aktif bir aboneliginiz varsa, hesap silme islemi Google Play
-              aboneliginizi otomatik olarak iptal etmeyebilir. Aboneliginizi Google
-              Play uzerinden ayri olarak yonetmeniz veya iptal etmeniz gerekir.
-            </p>
-          ),
-        },
-        {
-          title: "Iletisim",
-          body: (
-            <ul className="list-disc space-y-2 pl-5">
+            <ul>
               <li>E-posta: canerpala66@gmail.com</li>
               <li>Web sitesi: https://labelwise.net</li>
             </ul>

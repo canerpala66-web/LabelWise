@@ -1,363 +1,406 @@
+import type { Metadata } from "next";
 import Link from "next/link";
+import { ContributionFlowScene } from "@/components/contribution-flow-scene";
+import { DatabaseVisionScene } from "@/components/database-vision-scene";
+import { HeroInteractiveStage } from "@/components/hero-interactive-stage";
+import { LabelChaosScene } from "@/components/label-chaos-scene";
+import { ProductAnalysisScene } from "@/components/product-analysis-scene";
 import { Reveal } from "@/components/reveal";
 
-const features = [
-  {
-    title: "Barkod tarama",
+export const metadata: Metadata = {
+  title: "Etiketlerin arkasındaki gerçeği görün",
+  description:
+    "LabelWise, paketli gıdaların etiketlerini, içeriklerini ve besin değerlerini daha anlaşılır hale getiren premium barkod deneyimidir.",
+  alternates: {
+    canonical: "/",
+  },
+  openGraph: {
+    title: "LabelWise | Etiketlerin arkasındaki gerçeği görün.",
     description:
-      "Ürünü saniyeler içinde tanıyıp etiket bilgisini daha okunur bir deneyime dönüştürür.",
+      "Barkodu tara, içeriği anla, daha bilinçli seç. Türkiye odaklı gıda şeffaflığı deneyimi.",
+    url: "https://labelwise.net",
+    images: [
+      {
+        url: "/labelwise-logo.png",
+        width: 1200,
+        height: 1200,
+        alt: "LabelWise",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "LabelWise | Etiketlerin arkasındaki gerçeği görün.",
+    description:
+      "Paketli gıdaların etiketlerini daha anlaşılır hale getiren AI destekli barkod deneyimi.",
+    images: ["/labelwise-logo.png"],
+  },
+};
+
+const flowSteps = [
+  {
+    title: "Taranıyor",
+    description:
+      "Barkod ışını ürün kimliğini yakalar ve veriyi tek akışta toplamaya başlar.",
   },
   {
-    title: "Besin puanı",
+    title: "Analiz ediliyor",
     description:
-      "Besin değerlerini tek bakışta yorumlamaya yardımcı olacak sade bir değerlendirme sunar.",
+      "İçindekiler, besin tablosu ve ürün bağlamı daha okunur katmanlara ayrılır.",
   },
   {
-    title: "İçerik açıklamaları",
+    title: "Açıklandı",
     description:
-      "Katkı maddeleri ve içerikler için daha anlaşılır, günlük dile yakın açıklamalar sağlar.",
-  },
-  {
-    title: "AI ürün yorumu",
-    description:
-      "Etiket ve ürün verilerini bir araya getirerek anlaşılır özetler üretir.",
-  },
-  {
-    title: "Daha dengeli alternatifler",
-    description:
-      "Benzer ürünler arasında daha bilinçli kıyas yapmayı kolaylaştırmayı hedefler.",
-  },
-  {
-    title: "Eksik ürün gönderimi",
-    description:
-      "Sistemde bulunmayan ürünlerin uygulama üzerinden bildirilmesine destek verir.",
+      "Skor, AI notu ve daha iyi alternatifler alışveriş anında karar vermeni kolaylaştırır.",
   },
 ];
 
-const steps = [
-  "Barkodu okut",
-  "Ürün bilgilerini gör",
-  "Daha bilinçli karar ver",
+const ingredientRows = [
+  {
+    raw: "Glukoz-fruktoz şurubu",
+    result: "Şeker yükünü artırabilir; sık tüketimde dikkatli olunabilir.",
+  },
+  {
+    raw: "Palm yağı",
+    result: "Doymuş yağ içeriği nedeniyle genel tüketimde dikkat gerektirebilir.",
+  },
+  {
+    raw: "Sodyum benzoat",
+    result: "Koruyucu katkı maddesidir; hassas kullanıcılar etiketi incelemelidir.",
+  },
 ];
 
-const premiumItems = [
-  "Reklamsız deneyim",
-  "Detaylı AI açıklamaları",
-  "Daha dengeli alternatifler",
-  "Gelişmiş geçmiş / offline features later",
+const premiumBenefits = [
+  "Reklamsız kullanım",
+  "Detaylı AI ürün analizleri",
+  "Daha sağlıklı alternatif önerileri",
+  "Premium deneyim",
 ];
 
-const signals = [
-  "Türkiye odaklı ürün dili",
-  "Etiketleri sadeleştiren yorum katmanı",
-  "Karar anında hızlı ve güven veren görünüm",
+const trustItems = [
+  "Genel bilgilendirme amaçlıdır.",
+  "Tıbbi tavsiye değildir.",
+  "Hesap silme uygulama içinden yapılabilir.",
+  "Gizlilik ve abonelik koşulları her zaman erişilebilirdir.",
 ];
 
 export default function Home() {
   return (
     <main className="relative overflow-hidden">
-      <div className="hero-glow absolute inset-x-0 top-0 h-[58rem] opacity-100" />
-      <div className="absolute right-[-10rem] top-28 h-80 w-80 rounded-full bg-[radial-gradient(circle,_rgba(200,169,107,0.34)_0%,_transparent_72%)] blur-3xl" />
-      <div className="absolute left-[-8rem] top-[32rem] h-80 w-80 rounded-full bg-[radial-gradient(circle,_rgba(63,183,140,0.18)_0%,_transparent_72%)] blur-3xl" />
-      <div className="absolute inset-x-0 top-[34rem] h-px bg-[linear-gradient(90deg,transparent,rgba(200,169,107,0.25),transparent)]" />
+      <div className="hero-glow absolute inset-x-0 top-0 h-[78rem] opacity-100" />
+      <div className="hero-noise absolute inset-0 opacity-40" aria-hidden="true" />
 
-      <section className="mx-auto flex w-full max-w-7xl flex-col px-6 pb-20 pt-10 sm:px-8 lg:px-10 lg:pb-28">
-        <Reveal>
-          <div className="glass-panel relative overflow-hidden px-6 py-8 sm:px-8 lg:px-10 lg:py-10">
-          <div className="absolute inset-y-0 right-0 hidden w-1/2 bg-[linear-gradient(135deg,rgba(27,94,74,0.14),transparent_55%)] lg:block" />
-          <div className="absolute left-0 top-0 h-px w-full bg-[linear-gradient(90deg,transparent,rgba(255,255,255,0.2),transparent)]" />
-          <div className="grid gap-12 lg:grid-cols-[1.05fr_0.95fr] lg:items-center">
-            <div className="animate-fade-up">
-              <span className="inline-flex items-center rounded-full border border-white/10 bg-white/8 px-4 py-2 text-xs font-semibold uppercase tracking-[0.32em] text-[color:var(--gold-soft)] shadow-[0_12px_30px_rgba(0,0,0,0.12)] backdrop-blur">
-                Türkiye için gıda etiketi rehberi
-              </span>
-              <h1 className="mt-7 max-w-4xl font-display text-5xl leading-[0.92] text-white sm:text-6xl lg:text-8xl">
-                Barkodu okut, daha bilinçli seç.
+      <section className="relative mx-auto flex min-h-[calc(100vh-5rem)] w-full max-w-7xl flex-col justify-center px-6 pb-18 pt-8 sm:px-8 lg:px-10 lg:pb-24 lg:pt-12">
+        <div className="home-hero grid items-center gap-12 lg:grid-cols-[1.02fr_0.98fr]">
+          <Reveal>
+            <div className="hero-copy">
+              <span className="hero-pill">Etiketlerin arkasındaki gerçeği görün</span>
+              <h1 className="mt-7 max-w-5xl font-display text-5xl leading-[0.88] text-white sm:text-6xl lg:text-[6.7rem]">
+                Gıda etiketlerini okumak zorunda değilsin.
               </h1>
-              <p className="mt-6 max-w-2xl text-base leading-8 text-[color:var(--text-muted)] sm:text-lg">
-                LabelWise, gıda ürünlerinin içeriklerini, besin değerlerini ve
-                etiket bilgilerini daha anlaşılır hale getiren mobil barkod
-                tarama uygulamasıdır.
+              <p className="mt-4 text-2xl font-semibold tracking-[-0.04em] text-[color:var(--mint-bright)] sm:text-3xl">
+                LabelWise senin için açıklar.
               </p>
+              <p className="mt-6 max-w-2xl text-base leading-8 text-[color:var(--text-muted)] sm:text-lg">
+                Barkodu tara, içerikleri ve besin değerlerini anlaşılır şekilde gör.
+                AI destekli analizlerle daha bilinçli seçimler yap.
+              </p>
+
               <div className="mt-8 flex flex-col gap-4 sm:flex-row">
-                <span className="button-primary">
-                  Yakında Google Play&apos;de
-                </span>
-                <Link href="/privacy" className="button-secondary">
-                  Gizlilik Politikası
+                <span className="button-primary">Google Play’de yakında</span>
+                <Link href="#how-it-works" className="button-secondary">
+                  Nasıl çalışır?
                 </Link>
               </div>
-              <div className="mt-10 grid gap-3 sm:max-w-xl sm:grid-cols-3">
-                {signals.map((item) => (
-                  <div
-                    key={item}
-                    className="rounded-[1.35rem] border border-white/8 bg-white/[0.04] px-4 py-4 text-sm leading-6 text-white/76 backdrop-blur"
-                  >
-                    {item}
-                  </div>
-                ))}
-              </div>
-            </div>
 
-            <div className="animate-tilt">
-              <div className="card relative mx-auto max-w-md overflow-hidden p-6 sm:p-7">
-                <div className="absolute inset-x-0 top-0 h-1 bg-[linear-gradient(90deg,var(--green-deep),var(--gold))]" />
-                <div className="grid gap-4">
-                  <div className="rounded-[1.75rem] bg-[linear-gradient(180deg,rgba(27,94,74,0.95),rgba(18,58,46,0.96))] p-5 text-white shadow-[0_20px_60px_rgba(16,40,32,0.25)]">
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="rounded-full bg-white/14 px-3 py-1 text-xs uppercase tracking-[0.28em] text-white/78">
-                        Scan Insight
-                      </span>
-                      <span className="text-xs text-white/65">LabelWise</span>
-                    </div>
-                    <div className="mt-6 space-y-4">
-                      <div>
-                        <p className="text-xs uppercase tracking-[0.26em] text-white/58">
-                          Besin görünümü
-                        </p>
-                        <p className="mt-2 text-3xl font-semibold">
-                          Dengeli seçim için hızlı özet
-                        </p>
-                      </div>
-                      <div className="grid grid-cols-3 gap-3">
-                        {[
-                          ["Puan", "82/100"],
-                          ["Şeker", "Orta"],
-                          ["Lif", "İyi"],
-                        ].map(([label, value]) => (
-                          <div
-                            key={label}
-                            className="rounded-2xl border border-white/12 bg-white/8 p-3"
-                          >
-                            <p className="text-[11px] uppercase tracking-[0.22em] text-white/56">
-                              {label}
-                            </p>
-                            <p className="mt-2 text-sm font-semibold">{value}</p>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <div className="rounded-[1.5rem] border border-white/8 bg-white/6 p-4">
-                      <p className="text-xs uppercase tracking-[0.24em] text-[color:var(--text-soft)]">
-                        AI Özet
-                      </p>
-                      <p className="mt-3 text-sm leading-7 text-[color:var(--text-muted)]">
-                        İçerik listesi ve besin değerleri daha anlaşılır bir
-                        dille yorumlanır.
-                      </p>
-                    </div>
-                    <div className="rounded-[1.5rem] border border-white/8 bg-[rgba(200,169,107,0.08)] p-4">
-                      <p className="text-xs uppercase tracking-[0.24em] text-[color:var(--text-soft)]">
-                        Alternatifler
-                      </p>
-                      <p className="mt-3 text-sm leading-7 text-[color:var(--text-muted)]">
-                        Benzer ürünleri karşılaştırıp daha dengeli tercihleri
-                        keşfetmeye yardımcı olur.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </div>
+              <p className="mt-5 text-sm leading-7 text-[color:var(--text-soft)]">
+                Tıbbi tavsiye değildir. Genel bilgilendirme amaçlıdır.
+              </p>
             </div>
-          </div>
-          </div>
-        </Reveal>
+          </Reveal>
+
+          <Reveal delay={140}>
+            <HeroInteractiveStage />
+          </Reveal>
+        </div>
+      </section>
+
+      <section className="mx-auto w-full max-w-7xl px-6 py-14 sm:px-8 lg:px-10">
+        <div className="grid gap-8 lg:grid-cols-[0.95fr_1.05fr] lg:items-center">
+          <Reveal>
+            <div className="manifesto-copy">
+              <span className="section-label">Sorun</span>
+              <h2 className="section-title mt-4">
+                Küçük puntolar, teknik içerikler, karmaşık besin tabloları…
+              </h2>
+              <p className="section-description mt-5">
+                LabelWise bu dağınık bilgiyi tek bakışta anlaşılır bir yapıya dönüştürür.
+                Barkoddan besin tablosuna, katkı isimlerinden AI özetine kadar her
+                katman aynı hikâyeyi anlatır: daha net, daha sakin, daha güvenilir karar.
+              </p>
+            </div>
+          </Reveal>
+
+          <Reveal delay={120}>
+            <LabelChaosScene />
+          </Reveal>
+        </div>
       </section>
 
       <section
-        id="about"
-        className="mx-auto w-full max-w-7xl px-6 py-12 sm:px-8 lg:px-10"
+        id="how-it-works"
+        className="mx-auto w-full max-w-7xl px-6 py-14 sm:px-8 lg:px-10"
       >
-        <div className="grid gap-5 lg:grid-cols-[1.05fr_0.95fr]">
-          <Reveal>
-            <div className="glass-panel p-8 sm:p-10">
-            <p className="text-xs font-semibold uppercase tracking-[0.34em] text-[color:var(--gold-soft)]">
-              Hakkında
-            </p>
-            <h2 className="mt-4 font-display text-4xl text-white sm:text-5xl">
-              Sıradan bilgi sayfası değil, karar anına eşlik eden akıllı bir katman.
+        <Reveal>
+          <div className="section-heading">
+            <span className="section-label">Akış</span>
+            <h2 className="section-title">
+              Barkod → ürün kimliği → içerikler → AI açıklama → skor → alternatif
             </h2>
-            <p className="mt-5 max-w-2xl text-base leading-8 text-[color:var(--text-muted)]">
-              LabelWise, market rafında saniyeler içinde daha net bir karar vermeyi
-              hedefler. Ürünün etiketini daha okunur hale getirir, karmaşık içerik
-              dilini sadeleştirir ve güven duygusunu merkezde tutar.
+            <p className="section-description">
+              Deneyim sadece bilgi sunmaz; alışveriş anındaki kafa karışıklığını azaltan
+              görsel ve anlamlı bir akış kurar.
             </p>
-            </div>
-          </Reveal>
-          <Reveal delay={120}>
-            <div className="card relative overflow-hidden p-8 sm:p-10">
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,_rgba(200,169,107,0.18),transparent_46%)]" />
-            <div className="relative grid gap-4">
-              {[
-                "Etiketi okumayı kolaylaştıran arayüz dili",
-                "Veri, AI ve ürün bağlamını birleştiren yorum yaklaşımı",
-                "Premium, güven ve sadelik dengesini koruyan görsel kimlik",
-              ].map((point) => (
-                <div
-                  key={point}
-                  className="rounded-[1.35rem] border border-white/8 bg-white/[0.04] px-5 py-5 text-sm leading-7 text-white/80"
-                >
-                  {point}
-                </div>
-                ))}
-            </div>
-            </div>
-          </Reveal>
-        </div>
-      </section>
+          </div>
+        </Reveal>
 
-      <section className="mx-auto w-full max-w-7xl px-6 py-12 sm:px-8 lg:px-10">
-        <div className="mb-8 flex flex-col gap-4">
-          <p className="text-xs font-semibold uppercase tracking-[0.34em] text-[color:var(--gold-soft)]">
-            Ne yapar?
-          </p>
-          <h2 className="font-display text-4xl text-white sm:text-5xl">
-            Etiketi veri olmaktan çıkarır, karara dönüştürür.
-          </h2>
-        </div>
-        <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-          {features.map((feature, index) => (
-            <Reveal key={feature.title} delay={index * 90}>
-              <article className="card feature-card group p-6 sm:p-7">
-                <div className="gradient-number mb-5 flex h-12 w-12 items-center justify-center rounded-2xl text-sm font-semibold text-[color:var(--gold-soft)]">
-                  0{index + 1}
+        <div className="flow-journey mt-12">
+          {flowSteps.map((step, index) => (
+            <Reveal key={step.title} delay={index * 120}>
+              <article className="flow-journey__step">
+                <div className="flow-journey__visual">
+                  <span className="flow-journey__index">
+                    {String(index + 1).padStart(2, "0")}
+                  </span>
+                  <div className={`flow-journey__state flow-journey__state--${index + 1}`}>
+                    <span />
+                    <span />
+                    <span />
+                  </div>
                 </div>
-                <h3 className="text-2xl font-semibold text-white">
-                  {feature.title}
-                </h3>
-                <p className="mt-3 text-sm leading-8 text-[color:var(--text-muted)] sm:text-base">
-                  {feature.description}
-                </p>
+                <div className="flow-journey__copy">
+                  <h3>{step.title}</h3>
+                  <p>{step.description}</p>
+                </div>
               </article>
             </Reveal>
           ))}
         </div>
       </section>
 
-      <section className="mx-auto w-full max-w-7xl px-6 py-12 sm:px-8 lg:px-10">
-        <Reveal>
-          <div className="card grid gap-8 p-8 sm:p-10 lg:grid-cols-[0.9fr_1.1fr] lg:items-center">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.34em] text-[color:var(--gold-soft)]">
-              Nasıl çalışır?
-            </p>
-            <h2 className="mt-4 font-display text-4xl text-white sm:text-5xl">
-              Üç adımda daha net bir alışveriş deneyimi.
-            </h2>
-          </div>
-          <div className="grid gap-4">
-            {steps.map((step, index) => (
-              <div
-                key={step}
-                className="flex items-center gap-4 rounded-[1.5rem] border border-white/8 bg-white/[0.04] px-5 py-5 shadow-[0_14px_40px_rgba(0,0,0,0.16)] backdrop-blur"
-              >
-                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[linear-gradient(135deg,var(--green-rich),var(--green-deep))] text-sm font-semibold text-white shadow-[0_14px_35px_rgba(27,94,74,0.26)]">
-                  {index + 1}
-                </span>
-                <p className="text-base font-medium text-white sm:text-lg">
-                  {step}
-                </p>
-              </div>
-            ))}
-          </div>
-          </div>
-        </Reveal>
-      </section>
-
-      <section className="mx-auto w-full max-w-7xl px-6 py-12 sm:px-8 lg:px-10">
-        <Reveal>
-          <div className="relative overflow-hidden rounded-[2rem] border border-[color:var(--border-soft)] bg-[linear-gradient(135deg,#184D3D_0%,#123B2F_55%,#1B5E4A_100%)] px-8 py-10 text-white shadow-[0_35px_90px_rgba(16,40,32,0.28)] sm:px-10 sm:py-12">
-          <div className="absolute right-0 top-0 h-full w-1/2 bg-[radial-gradient(circle_at_top_right,_rgba(200,169,107,0.22),transparent_55%)]" />
-          <div className="relative grid gap-8 lg:grid-cols-[0.95fr_1.05fr] lg:items-center">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.34em] text-[color:var(--gold-soft)]">
-                Premium
-              </p>
-              <h2 className="mt-4 font-display text-4xl sm:text-5xl">
-                Daha derin içgörü isteyenler için planlanan ek deneyimler.
-              </h2>
-              <p className="mt-5 max-w-2xl text-base leading-8 text-white/76">
-                Premium özellikler kademeli olarak kullanıma sunulacaktır.
-              </p>
-            </div>
-            <div className="grid gap-3 sm:grid-cols-2">
-              {premiumItems.map((item) => (
-                <div
-                  key={item}
-                  className="rounded-[1.5rem] border border-white/12 bg-white/8 px-5 py-5 backdrop-blur"
-                >
-                  <p className="text-sm leading-7 text-white/84">{item}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-          </div>
-        </Reveal>
-      </section>
-
       <section
-        id="developer"
-        className="mx-auto w-full max-w-7xl px-6 py-12 sm:px-8 lg:px-10"
+        id="analysis"
+        className="mx-auto w-full max-w-7xl px-6 py-14 sm:px-8 lg:px-10"
       >
-        <div className="grid gap-5 lg:grid-cols-[0.88fr_1.12fr]">
+        <div className="grid gap-8 lg:grid-cols-[0.92fr_1.08fr] lg:items-center">
           <Reveal>
-            <div className="glass-panel p-8 sm:p-10">
-            <p className="text-xs font-semibold uppercase tracking-[0.34em] text-[color:var(--gold-soft)]">
-              Geliştirici
-            </p>
-            <h2 className="mt-4 font-display text-4xl text-white sm:text-5xl">
-              Ürünün arkasında sade ama iddialı bir vizyon var.
-            </h2>
-            <p className="mt-5 text-base leading-8 text-[color:var(--text-muted)]">
-              LabelWise, karmaşık gıda etiketlerini günlük kararlar için daha
-              kullanışlı hale getirme fikri etrafında şekilleniyor. Amaç, soğuk bir
-              veri paneli değil; insanın güven duymak isteyeceği bir rehber deneyimi.
-            </p>
+            <div className="manifesto-copy">
+              <span className="section-label">Analiz vitrini</span>
+              <h2 className="section-title mt-4">
+                Premium uygulama hissi veren ürün sonucu.
+              </h2>
+              <p className="section-description mt-5">
+                LabelWise skor, içerik özeti, besin tablosu ve AI açıklamasını tek
+                sahnede bir araya getirir. Amaç korkutmak değil; daha hızlı anlamayı
+                mümkün kılmaktır.
+              </p>
             </div>
           </Reveal>
+
           <Reveal delay={120}>
-            <div className="card p-8 sm:p-10">
-            <div className="grid gap-4 sm:grid-cols-2">
-              {[
-                ["Kimlik", "Bağımsız ürün geliştirme odağı"],
-                ["Yaklaşım", "AI, açıklık ve güven dengesini koruyan ürün tasarımı"],
-                ["Odak", "Türkiye'de gıda ürünlerini daha anlaşılır hale getirmek"],
-                ["İletişim", "Geri bildirim ve yayın öncesi hazırlık için açık kanal"],
-              ].map(([label, value]) => (
-                <div
-                  key={label}
-                  className="rounded-[1.4rem] border border-white/8 bg-white/[0.04] p-5"
-                >
-                  <p className="text-xs uppercase tracking-[0.28em] text-[color:var(--gold-soft)]">
-                    {label}
-                  </p>
-                  <p className="mt-3 text-sm leading-7 text-white/82">{value}</p>
-                </div>
-              ))}
-            </div>
-            <div className="mt-5">
-              <Link href="/contact" className="button-secondary">
-                Geliştirici ile iletişime geç
-              </Link>
-            </div>
-            </div>
+            <ProductAnalysisScene />
           </Reveal>
         </div>
       </section>
 
-      <section className="mx-auto w-full max-w-7xl px-6 py-12 pb-24 sm:px-8 lg:px-10">
+      <section className="mx-auto w-full max-w-7xl px-6 py-14 sm:px-8 lg:px-10">
+        <div className="grid gap-8 lg:grid-cols-[0.92fr_1.08fr]">
+          <Reveal>
+            <div className="manifesto-copy">
+              <span className="section-label">AI içerik açıklaması</span>
+              <h2 className="section-title mt-4">
+                Karmaşık terimler, daha sade Türkçe açıklamalar.
+              </h2>
+              <p className="section-description mt-5">
+                Kullanıcının amacı kimyasal isim ezberlemek değil; ürünün ne anlama
+                geldiğini daha rahat anlamak. Bu yüzden açıklamalar dikkatli, kısa ve
+                günlük dile yakındır.
+              </p>
+            </div>
+          </Reveal>
+
+          <div className="ingredient-transform">
+            {ingredientRows.map((row, index) => (
+              <Reveal key={row.raw} delay={index * 110}>
+                <div className="ingredient-transform__row">
+                  <div className="ingredient-transform__raw">{row.raw}</div>
+                  <div className="ingredient-transform__divider" aria-hidden="true">
+                    →
+                  </div>
+                  <div className="ingredient-transform__result">{row.result}</div>
+                </div>
+              </Reveal>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section
+        id="premium"
+        className="mx-auto w-full max-w-7xl px-6 py-14 sm:px-8 lg:px-10"
+      >
         <Reveal>
-          <div className="card p-8 sm:p-10">
-          <p className="text-xs font-semibold uppercase tracking-[0.34em] text-[color:var(--gold-soft)]">
-            Önemli not
-          </p>
-          <p className="mt-4 max-w-4xl text-lg leading-9 text-[color:var(--text-muted)]">
-            LabelWise bilgilendirme amaçlıdır; tıbbi tavsiye, teşhis veya tedavi
-            önerisi sunmaz. Ürün etiketleri, veri kaynakları ve yapay zekâ
-            çıktıları eksik ya da hatalı olabilir.
-          </p>
+          <div className="section-heading">
+            <span className="section-label">Premium deneyim</span>
+            <h2 className="section-title">
+              Premium, etiketi anlamanın ötesine geçer.
+            </h2>
+            <p className="section-description">
+              Daha iyi seçenekleri keşfetmene, daha rafine açıklamalar görmene ve
+              daha sakin bir deneyim yaşamana yardımcı olur.
+            </p>
+          </div>
+        </Reveal>
+
+        <div className="premium-scene mt-12 grid gap-8 lg:grid-cols-[1.04fr_0.96fr]">
+          <Reveal>
+            <div className="premium-scene__comparison">
+              <div className="premium-scene__comparison-head">
+                <span>Alternatif karşılaştırması</span>
+                <strong>Daha dengeli seçenekler</strong>
+              </div>
+              <div className="premium-scene__cards">
+                {["Mevcut ürün", "Daha sade seçenek", "En dengeli seçenek"].map(
+                  (title, index) => (
+                    <article
+                      key={title}
+                      className={`premium-scene__product premium-scene__product--${index + 1}`}
+                    >
+                      <span>{title}</span>
+                      <strong>{index === 0 ? "64" : index === 1 ? "78" : "86"}</strong>
+                      <p>{index === 0 ? "Şeker daha yüksek" : index === 1 ? "Daha sade içerik" : "Daha dengeli profil"}</p>
+                    </article>
+                  ),
+                )}
+              </div>
+            </div>
+          </Reveal>
+
+          <div className="premium-scene__benefits">
+            {premiumBenefits.map((item, index) => (
+              <Reveal key={item} delay={index * 90}>
+                <div className="premium-scene__benefit">
+                  <span>0{index + 1}</span>
+                  <p>{item}</p>
+                </div>
+              </Reveal>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="mx-auto w-full max-w-7xl px-6 py-14 sm:px-8 lg:px-10">
+        <div className="grid gap-8 lg:grid-cols-[1.02fr_0.98fr] lg:items-center">
+          <Reveal>
+            <div className="manifesto-copy">
+              <span className="section-label">Türkiye veri tabanı vizyonu</span>
+              <h2 className="section-title mt-4">
+                Türkiye’deki paketli gıdaları daha anlaşılır hale getiren büyüyen bir
+                veri tabanı.
+              </h2>
+              <p className="section-description mt-5">
+                Bu sadece bir ürün sayfası koleksiyonu değil; kullanıcı katkısı,
+                doğrulama ve açıklama katmanıyla büyüyen yerel bir bilgi ağıdır.
+              </p>
+              <p className="section-description mt-4">
+                Eksik ürünler kullanıcılar tarafından gönderilebilir, doğrulama
+                sürecinden sonra sisteme eklenir.
+              </p>
+            </div>
+          </Reveal>
+
+          <Reveal delay={120}>
+            <DatabaseVisionScene />
+          </Reveal>
+        </div>
+      </section>
+
+      <section className="mx-auto w-full max-w-7xl px-6 py-14 sm:px-8 lg:px-10">
+        <div className="grid gap-8 lg:grid-cols-[0.96fr_1.04fr] lg:items-center">
+          <Reveal>
+            <div className="manifesto-copy">
+              <span className="section-label">Topluluk katkısı</span>
+              <h2 className="section-title mt-4">
+                Bulamadığın ürünü gönder, veri tabanını birlikte büyütelim.
+              </h2>
+              <p className="section-description mt-5">
+                Ön yüz, arka etiket, besin tablosu ve içerik verisi birlikte
+                değerlendirilir. Her gönderim doğrudan yayına alınmak yerine kalite
+                kontrolünden geçer.
+              </p>
+            </div>
+          </Reveal>
+
+          <Reveal delay={120}>
+            <ContributionFlowScene />
+          </Reveal>
+        </div>
+      </section>
+
+      <section
+        id="trust"
+        className="mx-auto w-full max-w-7xl px-6 py-14 sm:px-8 lg:px-10"
+      >
+        <Reveal>
+          <div className="trust-manifesto">
+            <div>
+              <span className="section-label">Güven, gizlilik ve güvenlik</span>
+              <h2 className="section-title mt-4">
+                Şeffaflık sadece ürünlerde değil, ürünün kendisinde de görünür olmalı.
+              </h2>
+              <p className="section-description mt-5">
+                LabelWise ürün yorumlarını daha anlaşılır hale getirmeyi amaçlar.
+                Tıbbi tavsiye vermez. Gizlilik, hesap silme ve abonelik koşulları açık
+                şekilde erişilebilir kalır.
+              </p>
+            </div>
+
+            <div className="trust-manifesto__items">
+              {trustItems.map((item) => (
+                <div key={item} className="trust-manifesto__item">
+                  <span />
+                  <p>{item}</p>
+                </div>
+              ))}
+            </div>
+
+            <div className="trust-manifesto__links">
+              <Link href="/privacy">Gizlilik Politikası</Link>
+              <Link href="/terms">Kullanım Koşulları</Link>
+              <Link href="/subscription-terms">Abonelik Koşulları</Link>
+              <Link href="/account-deletion">Hesap Silme</Link>
+            </div>
+          </div>
+        </Reveal>
+      </section>
+
+      <section className="mx-auto w-full max-w-7xl px-6 pb-20 pt-10 sm:px-8 lg:px-10 lg:pb-28">
+        <Reveal>
+          <div className="campaign-ending">
+            <span className="section-label">Final</span>
+            <h2 className="section-title mt-4">
+              Daha bilinçli seçimler için etiketi anlaşılır hale getir.
+            </h2>
+            <p className="section-description mt-5">
+              LabelWise, Google Play açık erişim sürecine yaklaşırken güçlü bir marka,
+              ürün vitrini ve güvenli bilgi katmanı olarak hazır bekliyor.
+            </p>
+            <div className="mt-8 flex flex-col gap-4 sm:flex-row">
+              <span className="button-primary">Google Play’de yakında</span>
+              <Link href="/privacy" className="button-secondary">
+                Gizlilik politikasını incele
+              </Link>
+            </div>
           </div>
         </Reveal>
       </section>

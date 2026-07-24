@@ -3,9 +3,9 @@ import Link from "next/link";
 
 const navItems = [
   { href: "/", label: "Ana Sayfa" },
-  { href: "/#about", label: "Hakkında" },
-  { href: "/#developer", label: "Geliştirici" },
-  { href: "/privacy", label: "Politikalar" },
+  { href: "/#how-it-works", label: "Nasıl çalışır?" },
+  { href: "/#premium", label: "Premium" },
+  { href: "/#trust", label: "Güven" },
 ];
 
 export function SiteHeader() {

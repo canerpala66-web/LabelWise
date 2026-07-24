@@ -1,13 +1,13 @@
 import type { Metadata } from "next";
 import { LegalPage } from "@/components/legal-page";
 
-const effectiveDate = "19 Temmuz 2026";
+const effectiveDate = "24 Temmuz 2026";
 const contactEmail = "canerpala66@gmail.com";
 
 export const metadata: Metadata = {
   title: "LabelWise Kullanım Koşulları",
   description:
-    "LabelWise kullanim kosullari: bilgilendirme amaci, veri dogrulugu sinirlari, AI ciktlari ve abonelik kullanimi hakkinda genel esaslar.",
+    "LabelWise kullanım koşulları: hizmetin amacı, veri doğruluğu sınırları, yapay zekâ çıktıları ve premium abonelik kullanımı hakkında genel esaslar.",
   alternates: {
     canonical: "/terms",
   },
@@ -18,187 +18,148 @@ export default function TermsPage() {
     <LegalPage
       eyebrow="Koşullar"
       title="Kullanım Koşulları"
-      intro="Bu kullanim kosullari, LabelWise mobil uygulamasi ve https://labelwise.net uzerindeki ilgili sayfalarin kullanimina iliskin temel esaslari aciklar. Metin seffaflik amaciyla sunulur; hukuki tavsiye niteliginde degildir."
+      intro="Bu kullanım koşulları, LabelWise mobil uygulaması ve labelwise.net üzerindeki ilgili sayfaların kullanımına ilişkin temel esasları açıklar. Metin genel bilgilendirme amaçlıdır; hukuki tavsiye niteliğinde değildir."
       effectiveDate={effectiveDate}
       contactEmail={contactEmail}
-      transparencyNote="LabelWise bilgilendirme amaclidir. Urun etiketleri, alerjenler, son kullanma tarihi, icerik uygunlugu ve kisisel saglik ihtiyaclari acisindan son kontrol her zaman kullaniciya aittir."
+      transparencyNote="LabelWise ürünleri anlamayı kolaylaştırmayı amaçlar. Alerjenler, son kullanma tarihi, içerik uygunluğu ve kişisel sağlık ihtiyaçları açısından son değerlendirme her zaman kullanıcıya aittir."
       sections={[
         {
-          title: "Giris",
+          title: "1. Hizmetin kabulü",
           body: (
             <p>
-              LabelWise hizmetini kullanarak bu kosullari kabul etmis sayilirsiniz.
-              Eger bu kosullari kabul etmiyorsaniz uygulamayi ve ilgili web
-              sayfalarini kullanmamalisiniz.
+              LabelWise hizmetini kullanarak bu koşulları kabul etmiş sayılırsınız.
+              Eğer bu koşulları kabul etmiyorsanız uygulamayı ve ilgili web
+              sayfalarını kullanmamalısınız.
             </p>
           ),
         },
         {
-          title: "Uygulamanin Amaci",
+          title: "2. Hizmetin amacı",
           body: (
             <p>
-              LabelWise, gida urunleriyle ilgili barkod tarama, urun sorgulama,
-              besin puani, icerik aciklamalari, AI tabanli urun analizi ve daha
-              dengeli alternatifler gibi bilgilendirme amacli araclar sunar.
-              Hizmet bir tibbi hizmet veya profesyonel beslenme danismanligi
-              yerine gecmez.
+              LabelWise; barkod tarama, ürün sorgulama, içerik açıklamaları, skor
+              üretimi, AI tabanlı özetler ve daha dengeli alternatif önerileri gibi
+              bilgilendirme amaçlı araçlar sunar. Hizmet, tıbbi değerlendirme veya
+              profesyonel beslenme danışmanlığı yerine geçmez.
             </p>
           ),
         },
         {
-          title: "Kullanici Hesabi",
+          title: "3. Kullanıcı hesabı",
           body: (
             <p>
-              Hesap olustururken sagladiginiz bilgilerin dogru, guncel ve size ait
-              olmasi gerekir. Hesap bilgilerinizin gizliligini korumaktan ve
-              hesabiniz uzerinden gerceklesen islemlerden siz sorumlusunuz.
+              Hesap oluştururken paylaştığınız bilgilerin doğru, güncel ve size ait
+              olması gerekir. Hesap bilgilerinizin güvenliğini korumaktan ve hesabınız
+              üzerinden gerçekleşen işlemlerden siz sorumlusunuz.
             </p>
           ),
         },
         {
-          title: "Uygun Kullanim Kurallari",
+          title: "4. Uygun kullanım kuralları",
           body: (
-            <ul className="list-disc space-y-2 pl-5">
-              <li>Hizmeti hukuka aykiri, aldatıcı veya baskalarinin haklarini ihlal edecek sekilde kullanmamalısınız.</li>
-              <li>Yaniltici urun gonderimleri, otomatik kotuye kullanim, yetkisiz erisim girisimleri veya sistem isleyisini bozacak islemler yasaktir.</li>
-              <li>Fotograf, metin veya duzeltme gonderimlerinde kisisel veri, hassas veri veya hak ihlaline yol acabilecek icerikler paylasilmamalidir.</li>
+            <ul>
+              <li>Hizmet hukuka aykırı, aldatıcı veya başkalarının haklarını ihlal edecek şekilde kullanılmamalıdır.</li>
+              <li>Yanıltıcı ürün gönderimleri, otomatik kötüye kullanım ve yetkisiz erişim girişimleri yasaktır.</li>
+              <li>Gönderilen fotoğraf ve metinlerde kişisel veri veya üçüncü kişilere ait özel içerik paylaşılmamalıdır.</li>
             </ul>
           ),
         },
         {
-          title: "Urun Verileri ve Bilgi Dogrulugu",
+          title: "5. Ürün verileri ve doğruluk sınırları",
           body: (
             <p>
-              Uygulamadaki urun verileri OpenFoodFacts, kullanici gonderimleri,
-              etiket okumasi ve diger kaynaklar temelinde olusabilir. Bu bilgiler
-              eksik, guncel olmayan veya hatali olabilir. Kullanicilar resmi urun
-              etiketi, alerjen bilgisi, saklama kosullari ve son kullanma tarihini
-              bizzat kontrol etmekle sorumludur.
+              Uygulamadaki ürün verileri; açık veri kaynakları, kullanıcı gönderimleri,
+              ürün etiketleri ve sistem içi yorum katmanlarından oluşabilir. Bu
+              bilgiler eksik, güncel olmayan veya hatalı olabilir. Resmî ürün etiketi,
+              alerjen bilgisi ve son kullanma tarihi her zaman kullanıcı tarafından
+              ayrıca kontrol edilmelidir.
             </p>
           ),
         },
         {
-          title: "Saglik ve Beslenme Bilgilendirmesi",
+          title: "6. Yapay zekâ çıktıları",
           body: (
             <p>
-              LabelWise bilgilendirme amaclidir ve doktor, diyetisyen, eczaci veya
-              baska bir profesyonel tavsiyenin yerine gecmez. Alerji, intolerans,
-              kronik hastalik, hamilelik, ozel diyet veya cocuk beslenmesi gibi
-              durumlarda profesyonel gorus ve urun etiketi esas alinmalidir.
+              Yapay zekâ tabanlı açıklamalar ve özetler, kullanıcının karar vermesini
+              kolaylaştırmak için sunulur. Bu çıktılar hatalı veya eksik olabilir ve
+              tek başına nihai karar dayanağı olmamalıdır.
             </p>
           ),
         },
         {
-          title: "Yapay Zeka Ciktilari",
+          title: "7. Kullanıcı gönderimleri",
           body: (
             <p>
-              AI tabanli analizler ve icerik aciklamalari kullanicinin karar
-              vermesini kolaylastirmak icin sunulur. Bu ciktlar eksik veya hatali
-              olabilir ve tek basina nihai karar dayanak olusturmamalidir.
+              Kullanıcılar ürün ekleme, düzeltme, fotoğraf veya benzeri içerikler
+              gönderebilir. Bu gönderimler incelenebilir, düzenlenebilir,
+              reddedilebilir veya ürün veri tabanını geliştirmek amacıyla
+              kullanılabilir. Kullanıcı, paylaştığı içerik üzerinde gerekli haklara
+              sahip olduğunu beyan eder.
             </p>
           ),
         },
         {
-          title: "Kullanici Gonderimleri",
+          title: "8. Premium özellikler ve abonelikler",
           body: (
-            <p>
-              Kullanicilar urun ekleme, duzeltme, fotograf ve benzeri icerik
-              gonderebilir. Bu gonderimler incelenebilir, duzenlenebilir,
-              reddedilebilir veya urun veritabanini gelistirmek amaciyla
-              kullanilabilir. Kullanici, gonderdigi icerigin paylasimi icin gerekli
-              haklara sahip oldugunu beyan eder.
-            </p>
+            <>
+              <p>
+                Premium özellikler kademeli olarak sunulabilir. Tüm özellikler her
+                kullanıcı, sürüm veya dönemde aynı şekilde mevcut olmayabilir.
+              </p>
+              <p>
+                Abonelik ücretleri, vergiler ve yenileme koşulları satın alma anında
+                Google Play ekranında gösterildiği şekliyle uygulanır.
+              </p>
+            </>
           ),
         },
         {
-          title: "Premium Ozellikler ve Abonelikler",
+          title: "9. Üçüncü taraf hizmetler",
           body: (
             <p>
-              Premium ozellikler kullanima kademeli olarak sunulabilir. Tum
-              ozellikler her kullanici, ulke, surum veya donemde ayni sekilde
-              mevcut olmayabilir.
-            </p>
-          ),
-        },
-        {
-          title: "Odeme, Yenileme ve Iptal",
-          body: (
-            <p>
-              Abonelik fiyatlari, vergiler, yenileme kosullari ve mevcut teklifler
-              satin alma aninda Google Play tarafindan gosterildigi sekliyle
-              uygulanir. Kullanici aboneliklerini Google Play hesap ayarlari
-              uzerinden yonetir ve iptal eder.
-            </p>
-          ),
-        },
-        {
-          title: "Fikri Mulkiyet",
-          body: (
-            <p>
-              LabelWise markasi, tasarimi, yazi, grafik, yazilim bileşenleri ve
-              ilgili icerikler, aksi belirtilmedikce Caner Pala veya ilgili hak
-              sahiplerine aittir. Yetkisiz kopyalama, dagitma veya ticari kullanim
-              yasaktir.
-            </p>
-          ),
-        },
-        {
-          title: "Ucuncu Taraf Hizmetler",
-          body: (
-            <p>
-              LabelWise, Supabase, Firebase, OpenFoodFacts, OpenAI tabanli servisler
-              ve Google Play gibi ucuncu taraf hizmetlere dayanabilir. Bu servislerin
-              kesintisi, degisikligi veya politika farklari belirli islevleri
+              LabelWise; Supabase, Firebase, OpenFoodFacts, yapay zekâ servisleri ve
+              Google Play gibi üçüncü taraf altyapılara dayanabilir. Bu servislerdeki
+              kesinti, değişiklik veya politika farkları bazı özellikleri
               etkileyebilir.
             </p>
           ),
         },
         {
-          title: "Sorumlulugun Sinirlandirilmasi",
+          title: "10. Sorumluluğun sınırlandırılması",
           body: (
             <p>
-              Uygulanabilir mevzuat kapsaminda izin verilen olcude, LabelWise
-              hizmetten dogan dolayli zararlar, veri kaybi, ticari kayip veya yanlis
-              karar risklerinden tam olarak sorumlu tutulamaz. Hizmet "oldugu gibi"
-              ve "mevcut oldugu sekilde" sunulabilir.
+              Uygulanabilir mevzuat kapsamında izin verilen ölçüde, LabelWise hizmetten
+              doğan dolaylı zararlar, veri kaybı, ticari kayıp veya yanlış karar
+              risklerinden tamamen sorumlu tutulamaz. Hizmet “olduğu gibi” ve “mevcut
+              olduğu şekilde” sunulabilir.
             </p>
           ),
         },
         {
-          title: "Hizmette Degisiklikler",
+          title: "11. Hizmette değişiklikler",
           body: (
             <p>
-              Ozellikler, tasarim, fiyatlama, desteklenen planlar veya entegrasyonlar
-              onceden bildirim yapilarak veya yapilmaksizin degistirilebilir,
-              sinirlandirilabilir veya kaldirilabilir.
+              Özellikler, tasarım, fiyatlama, desteklenen planlar veya entegrasyonlar
+              önceden bildirim yapılarak ya da yapılmaksızın değiştirilebilir,
+              sınırlandırılabilir veya kaldırılabilir.
             </p>
           ),
         },
         {
-          title: "Hesabin Askiya Alinmasi veya Sonlandirilmasi",
+          title: "12. Hesabın askıya alınması",
           body: (
             <p>
-              Kotuye kullanim, hukuka aykiri faaliyet, guvenlik riski veya bu
-              kosullarin ihlali halinde hesap gecici olarak askiya alinabilir veya
-              sonlandirilabilir.
+              Kötüye kullanım, hukuka aykırı faaliyet, güvenlik riski veya bu
+              koşulların ihlali halinde hesap geçici olarak askıya alınabilir veya
+              sonlandırılabilir.
             </p>
           ),
         },
         {
-          title: "Uygulanacak Hukuk / Genel Hukumler",
+          title: "13. İletişim",
           body: (
-            <p>
-              Bu kosullar, uygulanabilir oldugu olcude Turkiye Cumhuriyeti hukuku
-              cercevesinde yorumlanir. Herhangi bir hukmun gecersiz sayilmasi, diger
-              hukumlerin gecerliligini etkilemez.
-            </p>
-          ),
-        },
-        {
-          title: "Iletisim",
-          body: (
-            <ul className="list-disc space-y-2 pl-5">
-              <li>Sahip / sorumlu: Caner Pala</li>
+            <ul>
+              <li>Sorumlu kişi: Caner Pala</li>
               <li>E-posta: canerpala66@gmail.com</li>
               <li>Web sitesi: https://labelwise.net</li>
             </ul>
