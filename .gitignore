@@ -56,3 +56,6 @@ android/app/upload-keystore.jks
 # Firebase local config
 android/app/google-services.json
 ios/Runner/GoogleService-Info.plist
+
+# Supabase local temp
+supabase/.temp/
