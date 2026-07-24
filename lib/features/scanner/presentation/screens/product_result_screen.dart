@@ -9,11 +9,14 @@ import 'package:labelwise/features/analysis/services/analysis_service.dart';
 import 'package:labelwise/features/analysis/services/labelwise_score_engine.dart';
 import 'package:labelwise/features/analysis/services/processing_profile_engine.dart';
 import 'package:labelwise/features/corrections/presentation/screens/correction_report_screen.dart';
+import 'package:labelwise/features/products/presentation/screens/healthier_alternatives_screen.dart';
+import 'package:labelwise/features/premium/data/entitlement_repository.dart';
 import 'package:labelwise/features/premium/presentation/screens/premium_screen.dart';
 import 'package:labelwise/features/scanner/data/product.dart';
 import 'package:labelwise/features/scanner/data/product_repository.dart';
 import 'package:labelwise/features/scanner/data/recent_scans_repository.dart';
 import 'package:labelwise/features/scanner/presentation/screens/submit_product_screen.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class ProductResultScreen extends StatefulWidget {
   const ProductResultScreen({required this.product, super.key});
@@ -30,9 +33,11 @@ class _ProductResultScreenState extends State<ProductResultScreen>
   final ProductRepository _productRepository = ProductRepository();
   final RecentScansRepository _recentScansRepository =
       const RecentScansRepository();
+  final EntitlementRepository _entitlementRepository = EntitlementRepository();
 
   late final AnimationController _entranceController;
   late final Future<String?>? _signedFrontImageUrl;
+  bool _isCheckingAlternativesAccess = false;
 
   @override
   void initState() {
@@ -68,6 +73,94 @@ class _ProductResultScreenState extends State<ProductResultScreen>
       await _recentScansRepository.saveProduct(widget.product);
     } on Object catch (error) {
       debugPrint('RecentScans: save failed error=$error');
+    }
+  }
+
+  Future<void> _handleAlternativesTap() async {
+    if (_isCheckingAlternativesAccess) {
+      return;
+    }
+
+    setState(() {
+      _isCheckingAlternativesAccess = true;
+    });
+
+    final currentUser = Supabase.instance.client.auth.currentUser;
+    final hasCurrentUser = currentUser != null;
+
+    try {
+      final entitlement = await _entitlementRepository.getCurrentEntitlement();
+      final hasActivePremium = entitlement?.hasActivePremium == true;
+      final entitlementSource =
+          entitlement?.entitlementSource?.trim().isNotEmpty == true
+          ? entitlement!.entitlementSource!.trim()
+          : 'none';
+
+      debugPrint(
+        'ProductResultScreen premium check: '
+        'currentUserPresent=$hasCurrentUser, '
+        'premiumActive=$hasActivePremium, '
+        'entitlementSource=$entitlementSource',
+      );
+
+      if (!mounted) return;
+
+      if (hasActivePremium) {
+        debugPrint(
+          'ProductResultScreen gating decision: show_alternatives',
+        );
+        await Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (_) => HealthierAlternativesScreen(product: widget.product),
+          ),
+        );
+        return;
+      }
+
+      debugPrint('ProductResultScreen gating decision: redirect_premium');
+      AnalyticsService.instance.logPremiumCtaClicked(
+        source: 'product_result_screen',
+      );
+      await Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => const PremiumScreen(
+            sourceScreen: 'product_result_screen',
+          ),
+        ),
+      );
+    } on EntitlementRepositoryException catch (error) {
+      debugPrint(
+        'ProductResultScreen premium check failed: '
+        'currentUserPresent=$hasCurrentUser, '
+        'error=${error.message}',
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Premium durumu şu anda kontrol edilemedi. Lütfen tekrar deneyin.',
+          ),
+        ),
+      );
+    } on Object catch (error) {
+      debugPrint(
+        'ProductResultScreen premium check unexpected error: '
+        'currentUserPresent=$hasCurrentUser, error=$error',
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Premium durumu şu anda kontrol edilemedi. Lütfen tekrar deneyin.',
+          ),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isCheckingAlternativesAccess = false;
+        });
+      }
     }
   }
 
@@ -270,18 +363,8 @@ class _ProductResultScreenState extends State<ProductResultScreen>
                     animation: _entranceController,
                     start: 0.46,
                     child: _PremiumAlternativesCard(
-                      onTap: () {
-                        AnalyticsService.instance.logPremiumCtaClicked(
-                          source: 'product_result_screen',
-                        );
-                        Navigator.of(context).push(
-                          MaterialPageRoute<void>(
-                            builder: (_) => const PremiumScreen(
-                              sourceScreen: 'product_result_screen',
-                            ),
-                          ),
-                        );
-                      },
+                      isLoading: _isCheckingAlternativesAccess,
+                      onTap: _handleAlternativesTap,
                     ),
                   ),
                 ],
@@ -2495,9 +2578,13 @@ class _AnalysisCardState extends State<_AnalysisCard> {
 }
 
 class _PremiumAlternativesCard extends StatelessWidget {
-  const _PremiumAlternativesCard({required this.onTap});
+  const _PremiumAlternativesCard({
+    required this.onTap,
+    required this.isLoading,
+  });
 
   final VoidCallback onTap;
+  final bool isLoading;
 
   @override
   Widget build(BuildContext context) {
@@ -2521,7 +2608,7 @@ class _PremiumAlternativesCard extends StatelessWidget {
           ],
         ),
         child: InkWell(
-          onTap: onTap,
+          onTap: isLoading ? null : onTap,
           borderRadius: BorderRadius.circular(24),
           child: Padding(
             padding: const EdgeInsets.all(22),
@@ -2610,7 +2697,7 @@ class _PremiumAlternativesCard extends StatelessWidget {
                         color: Colors.white.withValues(alpha: 0.10),
                       ),
                     ),
-                    child: const Padding(
+                    child: Padding(
                       padding: EdgeInsets.symmetric(
                         horizontal: 16,
                         vertical: 12,
@@ -2619,18 +2706,32 @@ class _PremiumAlternativesCard extends StatelessWidget {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Text(
-                            'Alternatifleri Gör',
-                            style: TextStyle(
+                            isLoading
+                                ? 'Premium kontrol ediliyor...'
+                                : 'Alternatifleri Gör',
+                            style: const TextStyle(
                               color: Colors.white,
                               fontWeight: FontWeight.w800,
                             ),
                           ),
-                          SizedBox(width: 8),
-                          Icon(
-                            Icons.arrow_forward_rounded,
-                            color: Colors.white,
-                            size: 18,
-                          ),
+                          const SizedBox(width: 8),
+                          if (isLoading)
+                            const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                  Colors.white,
+                                ),
+                              ),
+                            )
+                          else
+                            const Icon(
+                              Icons.arrow_forward_rounded,
+                              color: Colors.white,
+                              size: 18,
+                            ),
                         ],
                       ),
                     ),
