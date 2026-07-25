@@ -101,14 +101,18 @@ function getSafeAuthErrorDetails(error: unknown): SafeAuthError {
 export function AdminAuthForm() {
   const router = useRouter();
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [forgotPasswordMessage, setForgotPasswordMessage] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const [isResetPending, startResetTransition] = useTransition();
   const [envStatus, setEnvStatus] = useState<{
     urlPresent: boolean;
     anonKeyPresent: boolean;
   } | null>(null);
+  const [email, setEmail] = useState("");
 
   async function handleSubmit(formData: FormData) {
     setErrorMessage(null);
+    setForgotPasswordMessage(null);
     setEnvStatus(null);
     const email = `${formData.get("email") ?? ""}`.trim();
     const password = `${formData.get("password") ?? ""}`;
@@ -188,6 +192,46 @@ export function AdminAuthForm() {
     }
   }
 
+  async function handleForgotPassword() {
+    setErrorMessage(null);
+    setForgotPasswordMessage(null);
+    setEnvStatus(null);
+
+    const trimmedEmail = email.trim();
+
+    if (!trimmedEmail) {
+      setErrorMessage("Şifre sıfırlama için önce e-posta adresini gir.");
+      return;
+    }
+
+    try {
+      if (!hasSupabaseBrowserEnv()) {
+        const browserEnvStatus = getBrowserSupabaseEnvStatus();
+        setEnvStatus(browserEnvStatus);
+        setErrorMessage(
+          "Supabase public env eksik. NEXT_PUBLIC_SUPABASE_URL ve NEXT_PUBLIC_SUPABASE_ANON_KEY Production env olarak eklenip yeniden deploy edilmeli.",
+        );
+        return;
+      }
+
+      const supabase = createSupabaseBrowserClient();
+      const { error } = await supabase.auth.resetPasswordForEmail(trimmedEmail, {
+        redirectTo: `${window.location.origin}/admin/reset-password`,
+      });
+
+      if (error) {
+        setErrorMessage(mapAdminLoginError(getSafeAuthErrorDetails(error)));
+        return;
+      }
+
+      setForgotPasswordMessage(
+        "Şifre sıfırlama bağlantısı gönderildi. E-postanı kontrol edip bağlantıyı açabilirsin.",
+      );
+    } catch (error) {
+      setErrorMessage(mapAdminLoginError(getSafeAuthErrorDetails(error)));
+    }
+  }
+
   return (
     <form
       action={handleSubmit}
@@ -212,6 +256,8 @@ export function AdminAuthForm() {
             type="email"
             required
             autoComplete="email"
+            value={email}
+            onChange={(event) => setEmail(event.target.value)}
             className="rounded-2xl border border-white/10 bg-white/6 px-4 py-3 text-white outline-none placeholder:text-white/35 focus:border-[color:var(--gold)]"
             placeholder="ornek@labelwise.net"
           />
@@ -241,12 +287,27 @@ export function AdminAuthForm() {
         </div>
       ) : null}
 
+      {forgotPasswordMessage ? (
+        <div className="mt-4 rounded-2xl border border-emerald-400/18 bg-emerald-400/8 px-4 py-3 text-sm text-emerald-100">
+          <p>{forgotPasswordMessage}</p>
+        </div>
+      ) : null}
+
       <button
         type="submit"
         disabled={isPending}
         className="button-primary mt-8 w-full justify-center disabled:cursor-not-allowed disabled:opacity-60"
       >
         {isPending ? "Giris yapiliyor..." : "Giris Yap"}
+      </button>
+
+      <button
+        type="button"
+        disabled={isResetPending}
+        onClick={() => startResetTransition(handleForgotPassword)}
+        className="mt-4 w-full text-sm font-medium text-[color:var(--gold-soft)] underline underline-offset-4 disabled:cursor-not-allowed disabled:opacity-60"
+      >
+        {isResetPending ? "Sıfırlama bağlantısı hazırlanıyor..." : "Şifremi unuttum"}
       </button>
     </form>
   );

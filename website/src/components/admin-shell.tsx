@@ -29,6 +29,9 @@ export function AdminShell({ title, description, children }: AdminShellProps) {
               <Link href="/admin/submissions" className="button-secondary min-h-11 px-5">
                 Gonderimler
               </Link>
+              <Link href="/admin/imports" className="button-secondary min-h-11 px-5">
+                Urun Ice Aktarma
+              </Link>
             </nav>
           </div>
         </div>
