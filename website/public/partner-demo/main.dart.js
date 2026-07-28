@@ -31706,7 +31706,7 @@ var $async$NF=A.l(function(a,b){if(a===1)return A.m(b,r)
 for(;;)switch(s){case 0:if($.a4==null)A.WZ()
 $.a4.toString
 s=2
-return A.i($.O4().yj(".env"),$async$NF)
+return A.i($.O4().yj("web.env"),$async$NF)
 case 2:s=3
 return A.i(A.aO9(),$async$NF)
 case 3:q=$.O4().gMO().h(0,"SUPABASE_URL")

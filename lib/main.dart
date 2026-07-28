@@ -11,7 +11,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await dotenv.load(fileName: '.env');
+  await dotenv.load(fileName: kIsWeb ? 'web.env' : '.env');
   await _initializeFirebaseIfNeeded();
   debugPrint(
     'Env check: '

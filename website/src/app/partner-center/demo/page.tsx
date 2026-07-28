@@ -60,7 +60,12 @@ export default async function PartnerDemoPage() {
             <Link href="/partner-center/dashboard" className="button-secondary">
               Panele dön
             </Link>
-            <a href="/partner-demo/" target="_blank" rel="noreferrer" className="button-primary">
+            <a
+              href="/partner-demo/index.html"
+              target="_blank"
+              rel="noreferrer"
+              className="button-primary"
+            >
               Demo yeni sekmede açılsın
             </a>
           </div>
@@ -80,7 +85,7 @@ export default async function PartnerDemoPage() {
             <div className="bg-[radial-gradient(circle_at_top,rgba(61,128,93,0.18),transparent_42%)] p-2 sm:p-3">
               <div className="overflow-hidden rounded-[1.6rem] border border-white/8 bg-black">
                 <iframe
-                  src="/partner-demo/"
+                  src="/partner-demo/index.html"
                   title="LabelWise Partner Demo"
                   className="block h-[78vh] min-h-[720px] w-full bg-white md:h-[82vh]"
                   loading="eager"

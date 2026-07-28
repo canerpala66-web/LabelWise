@@ -1,6 +1,18 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  async rewrites() {
+    return [
+      {
+        source: "/partner-demo",
+        destination: "/partner-demo/index.html",
+      },
+      {
+        source: "/partner-demo/",
+        destination: "/partner-demo/index.html",
+      },
+    ];
+  },
   async headers() {
     return [
       {
