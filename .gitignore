@@ -48,10 +48,16 @@ app.*.map.json
 .env
 .env.*
 !.env.example
+web.env
+web.env.*
+!web.env.example
 android/key.properties
 android/app/upload-keystore.jks
 *.jks
 *.keystore
+
+website/public/partner-demo/assets/web.env
+website/public/partner-demo/assets/.env
 
 # Firebase local config
 android/app/google-services.json
