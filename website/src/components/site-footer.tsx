@@ -23,10 +23,19 @@ export function SiteFooter() {
           <p className="text-sm leading-7 text-[color:var(--text-soft)]">
             İletişim:{" "}
             <a
-              href="mailto:canerpala66@gmail.com"
+              href="mailto:labelwisetr@gmail.com"
               className="text-white transition-colors hover:text-[color:var(--gold-soft)]"
             >
-              canerpala66@gmail.com
+              labelwisetr@gmail.com
+            </a>
+          </p>
+          <p className="text-sm leading-7 text-[color:var(--text-soft)]">
+            Telefon:{" "}
+            <a
+              href="tel:+905528010914"
+              className="text-white transition-colors hover:text-[color:var(--gold-soft)]"
+            >
+              0552 801 09 14
             </a>
           </p>
         </div>

@@ -36,6 +36,33 @@ class LabelWiseScoreEngine {
     'Meyve Suyu',
   };
   static const _sugarFreeKeywords = {'zero', 'şekersiz', 'sugar free', 'light'};
+  static const _softDrinkKeywords = {
+    'cola',
+    'kola',
+    'pepsi',
+    'coca cola',
+    'coca-cola',
+    'fanta',
+    'sprite',
+    'gazoz',
+    'soft drink',
+    'carbonated',
+  };
+  static const _sugarIngredientKeywords = {
+    'seker',
+    'şeker',
+    'fruktoz',
+    'glukoz',
+    'glikoz',
+    'sukroz',
+    'high fructose',
+    'mısır şurubu',
+    'misir surubu',
+    'fruktoz glukoz surubu',
+    'glukoz fruktoz surubu',
+    'fructose glucose syrup',
+    'glucose fructose syrup',
+  };
 
   LabelWiseScoreResult calculate(Product product) {
     final category = _effectiveCategory(product);
@@ -105,11 +132,17 @@ class LabelWiseScoreEngine {
     }
 
     final searchableText = _normalizeText(
-      '${product.productName} ${product.ingredientsText}',
+      '${product.productName} ${product.brands} ${product.ingredientsText}',
     );
     final isSugarFree = _sugarFreeKeywords.any((keyword) {
       return ' $searchableText '.contains(' ${_normalizeText(keyword)} ');
     });
+    final isSugarSweetenedBeverage = _isSugarSweetenedBeverage(
+      product: product,
+      category: category,
+      searchableText: searchableText,
+      isSugarFree: isSugarFree,
+    );
     final caps = <String, int>{};
     final baseCategoryCap = category == 'Gazlı İçecek' && isSugarFree
         ? 68
@@ -124,6 +157,17 @@ class LabelWiseScoreEngine {
         caps['gazlı içecek şekeri'] = 35;
       } else if ((product.sugars ?? 0) >= 5) {
         caps['gazlı içecek şekeri'] = 42;
+      }
+    }
+    if (isSugarSweetenedBeverage) {
+      if (product.sugars == null) {
+        caps['şekerli içecek koruması'] = 45;
+      } else if (product.sugars! >= 10) {
+        caps['şekerli içecek koruması'] = 35;
+      } else if (product.sugars! >= 5) {
+        caps['şekerli içecek koruması'] = 42;
+      } else {
+        caps['şekerli içecek koruması'] = 45;
       }
     }
     if (category == 'Meyve Suyu' && (product.sugars ?? 0) >= 10) {
@@ -161,6 +205,9 @@ class LabelWiseScoreEngine {
 
     debugPrint('ScoreV3: penalties=$penalties');
     debugPrint('ScoreV3: bonuses=$bonuses');
+    debugPrint(
+      'ScoreV3: sugaryBeverage=$isSugarSweetenedBeverage sugarFree=$isSugarFree',
+    );
     debugPrint('ScoreV3: caps=$caps');
     debugPrint('ScoreV3: finalScore=$finalScore');
     debugPrint('ScoreV3: reasons=$reasons');
@@ -208,7 +255,9 @@ class LabelWiseScoreEngine {
   }
 
   String _effectiveCategory(Product product) {
-    final storedCategory = _canonicalCategory(product.category);
+    final storedCategory = ProductCategoryMapper.canonicalCategory(
+      product.category,
+    );
     if (storedCategory != null &&
         storedCategory != 'Belirsiz' &&
         storedCategory != 'Diğer') {
@@ -219,28 +268,6 @@ class LabelWiseScoreEngine {
       brand: product.brands,
       ingredientsText: product.ingredientsText,
     );
-  }
-
-  String? _canonicalCategory(String? value) {
-    final normalized = _normalizeCategory(value);
-    if (normalized.isEmpty) return null;
-    for (final category in ProductCategoryMapper.categories) {
-      if (_normalizeCategory(category) == normalized) return category;
-    }
-    return value?.trim();
-  }
-
-  String _normalizeCategory(String? value) {
-    return (value ?? '')
-        .trim()
-        .toLowerCase()
-        .replaceAll('ç', 'c')
-        .replaceAll('ğ', 'g')
-        .replaceAll('ı', 'i')
-        .replaceAll('ö', 'o')
-        .replaceAll('ş', 's')
-        .replaceAll('ü', 'u')
-        .replaceAll(RegExp(r'\s+'), ' ');
   }
 
   int _sugarPenalty(double? value) {
@@ -320,5 +347,40 @@ class LabelWiseScoreEngine {
         .replaceAll(RegExp(r'[-_/]+'), ' ')
         .replaceAll(RegExp(r'\s+'), ' ')
         .trim();
+  }
+
+  bool _isSugarSweetenedBeverage({
+    required Product product,
+    required String category,
+    required String searchableText,
+    required bool isSugarFree,
+  }) {
+    if (isSugarFree) return false;
+
+    final beverageCategory = {
+      'Gazlı İçecek',
+      'Enerji İçeceği',
+      'Meyve Suyu',
+      'Soğuk Çay',
+    }.contains(category);
+    final looksLikeSoftDrink = _softDrinkKeywords.any((keyword) {
+      return _containsNormalizedPhrase(searchableText, keyword);
+    });
+    final hasSugarIngredients = _sugarIngredientKeywords.any((keyword) {
+      return searchableText.contains(_normalizeText(keyword));
+    });
+
+    if ((product.sugars ?? 0) >= 5 &&
+        (beverageCategory || looksLikeSoftDrink)) {
+      return true;
+    }
+
+    return hasSugarIngredients && (beverageCategory || looksLikeSoftDrink);
+  }
+
+  bool _containsNormalizedPhrase(String text, String phrase) {
+    final normalizedText = ' $text ';
+    final normalizedPhrase = ' ${_normalizeText(phrase)} ';
+    return normalizedText.contains(normalizedPhrase);
   }
 }

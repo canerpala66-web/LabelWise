@@ -44,6 +44,10 @@ void main() {
         ProductCategoryMapper.canonicalCategory('Protein Bar'),
         'Sporcu Ürünü',
       );
+      expect(
+        ProductCategoryMapper.canonicalCategory('Gazlı İçecekler / Kola'),
+        'Gazlı İçecek',
+      );
     });
 
     final expectations = <String, String>{

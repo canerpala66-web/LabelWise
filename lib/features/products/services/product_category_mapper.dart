@@ -952,7 +952,13 @@ class ProductCategoryMapper {
     for (final category in categories) {
       if (normalizeCategory(category) == normalized) return category;
     }
-    return _categoryAliases[normalized] ?? value?.trim();
+    final aliased = _categoryAliases[normalized];
+    if (aliased != null) return aliased;
+
+    final classified = _classify(value ?? '');
+    if (classified != null) return classified.category;
+
+    return value?.trim();
   }
 
   static String inferCategory({

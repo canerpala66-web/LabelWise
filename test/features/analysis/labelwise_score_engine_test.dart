@@ -148,6 +148,44 @@ void main() {
     expect(zero.score, inInclusiveRange(55, 68));
   });
 
+  test('normalizes hierarchical cola categories before applying caps', () {
+    final result = engine.calculate(
+      _product(
+        name: 'Pepsi Kola Kutu 330 ml',
+        category: 'Gazlı İçecekler / Kola',
+        energy: 28,
+        fat: 0,
+        saturatedFat: 0,
+        sugars: 7,
+        salt: 0.01,
+      ),
+    );
+
+    expect(result.score, lessThanOrEqualTo(45));
+    expect(result.score, equals(42));
+  });
+
+  test(
+    'does not let sugary soda with missing sugar data score optimistically',
+    () {
+      final result = engine.calculate(
+        _product(
+          name: 'Pepsi Cola',
+          category: 'Gazlı İçecek',
+          energy: 28,
+          fat: 0,
+          saturatedFat: 0,
+          sugars: null,
+          salt: 0.01,
+          ingredients:
+              'Karbonatlı su, şeker, fruktoz-glukoz şurubu, renklendirici',
+        ),
+      );
+
+      expect(result.score, lessThanOrEqualTo(45));
+    },
+  );
+
   test('returns no score when all key nutrition fields are missing', () {
     final result = engine.calculate(
       const Product(
@@ -211,12 +249,13 @@ Product _product({
   required double? salt,
   double? fiber,
   double? protein,
+  String ingredients = '',
 }) {
   return Product(
     productName: name,
     brands: 'Test',
     imageUrl: null,
-    ingredientsText: '',
+    ingredientsText: ingredients,
     category: category,
     energyKcal: energy,
     fat: fat,

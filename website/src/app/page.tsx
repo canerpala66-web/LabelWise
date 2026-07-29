@@ -77,6 +77,61 @@ const premiumBenefits = [
   "Premium deneyim",
 ];
 
+const credibilityMetrics = [
+  {
+    value: "22.000+",
+    label: "ürün",
+    description: "Büyüyen ürün veritabanı",
+  },
+  {
+    value: "6.500+",
+    label: "doğrulanmış katkı",
+    description: "Admin ve editörler tarafından eklenen kayıtlar",
+  },
+  {
+    value: "12.000+",
+    label: "tarama",
+    description: "Kapalı beta ve test sürecinde yapılan ürün taramaları",
+  },
+  {
+    value: "17 tester",
+    label: "14 günlük test",
+    description: "Google Play kapalı test grubuyla yürütülen süreç",
+  },
+];
+
+const foundationColumns = [
+  {
+    title: "Güçlü temel",
+    items: [
+      "Çalışan Android kapalı beta ve 14 günlük Google Play kapalı test süreci",
+      "17 kişilik test grubu ve 12.000+ ürün taraması/test taraması",
+      "22.000+ ürünlük veritabanı ve 6.500+ admin/editör katkılı kayıt",
+      "AI destekli ürün açıklamaları, alternatif akışı ve Premium altyapısı",
+      "Eksik ürün gönderme, doğrulama süreci ve Partner Center hazırlığı",
+    ],
+  },
+  {
+    title: "Gelişim alanları",
+    items: [
+      "iOS uygulaması kapalı test tamamlandıktan sonra geliştirilmeye devam edecek",
+      "Ürün veritabanı sürekli genişletiliyor; yaklaşık 10.000 ürün verisi üzerinde geliştirme sürüyor",
+      "Marka bilinirliği ve partner ağı hâlâ erken aşamada büyüyor",
+      "Kapalı beta geri bildirimleriyle ürün deneyimi düzenli olarak iyileştiriliyor",
+    ],
+  },
+  {
+    title: "Nasıl kapatıyoruz?",
+    items: [
+      "iOS kullanan influencer ve iş birliği adayları için Web Demo ve Partner Center altyapısı geliştirildi",
+      "Eksik ürünler kullanıcı katkısı + doğrulama akışıyla sisteme alınabiliyor",
+      "Admin ve editör destekli kontrol süreci veri kalitesini güçlendiriyor",
+      "Partner Center ileride özel bağlantılar, demo erişimi ve performans istatistikleriyle genişletilecek",
+      "İletişim dili, tıbbi tavsiye vermeden sade ve güvenli bilgilendirme sunacak şekilde korunuyor",
+    ],
+  },
+];
+
 const trustItems = [
   "Genel bilgilendirme amaçlıdır.",
   "Tıbbi tavsiye değildir.",
@@ -106,6 +161,12 @@ export default function Home() {
                 AI destekli analizlerle daha bilinçli seçimler yap.
               </p>
 
+              <p className="mt-5 max-w-2xl text-sm leading-7 text-[color:var(--text-soft)] sm:text-base">
+                LabelWise, Türkiye&apos;de paketli gıda etiketlerini daha anlaşılır
+                hale getirmek amacıyla Caner Pala tarafından geliştirilen bağımsız bir
+                girişimdir.
+              </p>
+
               <div className="mt-8 flex flex-col gap-4 sm:flex-row">
                 <span className="button-primary">Google Play’de yakında</span>
                 <Link href="#how-it-works" className="button-secondary">
@@ -122,6 +183,20 @@ export default function Home() {
           <Reveal delay={140}>
             <HeroInteractiveStage />
           </Reveal>
+        </div>
+      </section>
+
+      <section className="mx-auto w-full max-w-7xl px-6 py-8 sm:px-8 lg:px-10">
+        <div className="metrics-grid">
+          {credibilityMetrics.map((metric, index) => (
+            <Reveal key={metric.label} delay={index * 70}>
+              <article className="metric-card">
+                <span className="metric-card__value">{metric.value}</span>
+                <strong className="metric-card__label">{metric.label}</strong>
+                <p className="metric-card__description">{metric.description}</p>
+              </article>
+            </Reveal>
+          ))}
         </div>
       </section>
 
@@ -299,6 +374,41 @@ export default function Home() {
         </div>
       </section>
 
+      <section
+        id="foundation"
+        className="mx-auto w-full max-w-7xl px-6 py-14 sm:px-8 lg:px-10"
+      >
+        <Reveal>
+          <div className="section-heading">
+            <span className="section-label">Güven veren temel yapı</span>
+            <h2 className="section-title">
+              LabelWise, yalnızca barkod tarayan bir arayüz değil; Türkiye&apos;de
+              paketli gıda etiketlerini daha anlaşılır hale getiren büyüyen bir bilgi
+              altyapısı olarak geliştiriliyor.
+            </h2>
+            <p className="section-description">
+              Kamuya açık söylemimiz net: abartısız, sakin ve güven veren. Kapalı
+              beta, doğrulama süreçleri ve büyüyen veri katmanı birlikte ilerliyor.
+            </p>
+          </div>
+        </Reveal>
+
+        <div className="foundation-grid mt-12">
+          {foundationColumns.map((column, index) => (
+            <Reveal key={column.title} delay={index * 90}>
+              <article className="foundation-card">
+                <h3>{column.title}</h3>
+                <ul>
+                  {column.items.map((item) => (
+                    <li key={item}>{item}</li>
+                  ))}
+                </ul>
+              </article>
+            </Reveal>
+          ))}
+        </div>
+      </section>
+
       <section className="mx-auto w-full max-w-7xl px-6 py-14 sm:px-8 lg:px-10">
         <div className="grid gap-8 lg:grid-cols-[1.02fr_0.98fr] lg:items-center">
           <Reveal>
@@ -315,6 +425,10 @@ export default function Home() {
               <p className="section-description mt-4">
                 Eksik ürünler kullanıcılar tarafından gönderilebilir, doğrulama
                 sürecinden sonra sisteme eklenir.
+              </p>
+              <p className="section-description mt-4">
+                Tüm ürünlerin doğrulandığı iddia edilmez; veri tabanı yerel katkı,
+                editör kontrolü ve API kaynaklarıyla kademeli olarak güçlendirilir.
               </p>
             </div>
           </Reveal>
@@ -337,6 +451,12 @@ export default function Home() {
                 Ön yüz, arka etiket, besin tablosu ve içerik verisi birlikte
                 değerlendirilir. Her gönderim doğrudan yayına alınmak yerine kalite
                 kontrolünden geçer.
+              </p>
+              <p className="section-description mt-4">
+                Google Play kapalı test süreci tamamlandıktan sonra iOS geliştirme
+                süreci tamamlanacak. Bu süre boyunca iOS kullanan influencer ve iş
+                birliği adaylarının ürünü inceleyebilmesi için Web Demo ve Partner
+                Center altyapısı geliştirildi.
               </p>
             </div>
           </Reveal>
@@ -362,6 +482,11 @@ export default function Home() {
                 LabelWise ürün yorumlarını daha anlaşılır hale getirmeyi amaçlar.
                 Tıbbi tavsiye vermez. Gizlilik, hesap silme ve abonelik koşulları açık
                 şekilde erişilebilir kalır.
+              </p>
+              <p className="section-description mt-4">
+                Partner Center, kapalı test sonrasında güvenilir iş birlikleri için
+                hazırlanıyor. İlerleyen süreçte özel bağlantılar, demo erişimi ve iş
+                birliği performansını ölçen istatistik alanlarıyla genişletilecektir.
               </p>
             </div>
 
@@ -392,14 +517,22 @@ export default function Home() {
               Daha bilinçli seçimler için etiketi anlaşılır hale getir.
             </h2>
             <p className="section-description mt-5">
-              LabelWise, Google Play açık erişim sürecine yaklaşırken güçlü bir marka,
-              ürün vitrini ve güvenli bilgi katmanı olarak hazır bekliyor.
+              LabelWise, Google Play kapalı test sürecini tamamlayıp Türkiye odaklı
+              ürün deneyimini daha da olgunlaştırırken; kullanıcılar, partnerler ve
+              potansiyel yatırımcılar için güvenilir bir temel oluşturmaya devam ediyor.
             </p>
-            <div className="mt-8 flex flex-col gap-4 sm:flex-row">
+            <div className="mt-8 flex flex-col gap-4 sm:flex-row sm:flex-wrap">
               <span className="button-primary">Google Play’de yakında</span>
               <Link href="/privacy" className="button-secondary">
                 Gizlilik politikasını incele
               </Link>
+              <a href="mailto:labelwisetr@gmail.com" className="button-secondary">
+                labelwisetr@gmail.com
+              </a>
+            </div>
+            <div className="contact-strip mt-8">
+              <a href="mailto:labelwisetr@gmail.com">labelwisetr@gmail.com</a>
+              <a href="tel:+905528010914">0552 801 09 14</a>
             </div>
           </div>
         </Reveal>

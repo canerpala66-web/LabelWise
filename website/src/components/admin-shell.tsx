@@ -32,6 +32,9 @@ export function AdminShell({ title, description, children }: AdminShellProps) {
               <Link href="/admin/imports" className="button-secondary min-h-11 px-5">
                 Urun Ice Aktarma
               </Link>
+              <Link href="/admin/product-finder" className="button-secondary min-h-11 px-5">
+                Urun Bulucu
+              </Link>
             </nav>
           </div>
         </div>

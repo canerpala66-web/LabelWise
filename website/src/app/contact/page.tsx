@@ -30,14 +30,20 @@ export default function ContactPage() {
           <p className="text-sm uppercase tracking-[0.28em] text-[color:var(--text-soft)]">
             İrtibat kişisi
           </p>
-          <p className="mt-4 font-display text-3xl text-[color:var(--green-deep)]">
+          <p className="mt-4 font-display text-3xl text-white">
             Caner Pala
           </p>
           <a
-            href="mailto:canerpala66@gmail.com"
-            className="mt-4 inline-flex text-base font-semibold text-[color:var(--green-deep)] hover:text-[color:var(--gold-deep)]"
+            href="mailto:labelwisetr@gmail.com"
+            className="mt-4 inline-flex text-base font-semibold text-white hover:text-[color:var(--gold-soft)]"
           >
-            canerpala66@gmail.com
+            labelwisetr@gmail.com
+          </a>
+          <a
+            href="tel:+905528010914"
+            className="mt-4 inline-flex text-base font-semibold text-[color:var(--text-muted)] hover:text-white"
+          >
+            0552 801 09 14
           </a>
         </div>
       </section>

@@ -1,6 +1,7 @@
 export function DatabaseVisionScene() {
   return (
     <div className="database-vision-scene">
+      <div className="database-vision-scene__aurora" aria-hidden="true" />
       <div className="database-vision-scene__grid" aria-hidden="true">
         {Array.from({ length: 18 }).map((_, index) => (
           <span
@@ -8,6 +9,17 @@ export function DatabaseVisionScene() {
             className={`database-vision-scene__node database-vision-scene__node--${(index % 6) + 1}`}
           />
         ))}
+      </div>
+
+      <div className="database-vision-scene__stats">
+        <div>
+          <strong>22.000+</strong>
+          <span>ürün verisi</span>
+        </div>
+        <div>
+          <strong>6.500+</strong>
+          <span>editör katkısı</span>
+        </div>
       </div>
 
       <div className="database-vision-scene__cluster">
