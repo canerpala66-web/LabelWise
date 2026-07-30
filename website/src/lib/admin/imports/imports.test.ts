@@ -223,6 +223,45 @@ describe("admin import normalization and validation", () => {
       "https://images.migrosone.com/sanalmarket/product/08010023/08010023_1-ae16d1.jpg",
     );
   });
+
+  it("detects nutrition table unavailable marker from verification notes", () => {
+    const normalized = normalizeImportRow({
+      rowNumber: 2,
+      source: {
+        barcode: "8690574114658",
+        product_name: "Bal 460 g",
+        brand: "Marka",
+        category: "Bal",
+        ingredients: "Bal",
+        data_source: "migros",
+        data_updated_at: "2026-07-30",
+        verification_notes: "nutrition_table_not_available:true",
+      },
+    });
+
+    expect(normalized.nutritionTableNotAvailable).toBe(true);
+  });
+
+  it("does not raise generic missing nutrition warning when nutrition table unavailable marker exists", () => {
+    const normalized = normalizeImportRow({
+      rowNumber: 2,
+      source: {
+        barcode: "8690574114658",
+        product_name: "Bal 460 g",
+        brand: "Marka",
+        category: "Bal",
+        ingredients: "Bal",
+        data_source: "migros",
+        data_updated_at: "2026-07-30",
+        verification_notes: "nutrition_table_not_available:true",
+      },
+    });
+
+    const preview = validateImportRow(normalized, null, false, new Date("2026-07-30T12:00:00+03:00"));
+    expect(preview.warnings.some((item) => item.code === "nutrition_table_not_available")).toBe(true);
+    expect(preview.warnings.some((item) => item.code === "missing_nutrition_data")).toBe(false);
+    expect(preview.warnings.some((item) => item.code === "manual_review")).toBe(false);
+  });
 });
 
 describe("admin import exports", () => {

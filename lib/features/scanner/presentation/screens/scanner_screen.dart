@@ -179,18 +179,23 @@ class _ScannerScreenState extends State<ScannerScreen> {
       );
       var analyticsSource = 'products_cache';
       var product = await _productRepository.getProductByBarcode(barcode);
+      debugPrint(
+        'Product lookup: fallback_openfoodfacts_called=${false.toString()}',
+      );
 
       if (product == null) {
         debugPrint('Cache miss: fetching from cache-openfoodfacts-product');
         analyticsSource = 'openfoodfacts_function';
+        debugPrint('Product lookup: fallback_openfoodfacts_called=true');
         product = await _productRepository.cacheOpenFoodFactsProductFromFunction(
           barcode: barcode,
         );
-      } else if (!product.hasNutritionData) {
+      } else if (product.shouldUseOpenFoodFactsFallback) {
         debugPrint(
           'Cache hit: incomplete nutrition, refreshing from cache-openfoodfacts-product',
         );
         analyticsSource = 'openfoodfacts_function';
+        debugPrint('Product lookup: fallback_openfoodfacts_called=true');
         final refreshedProduct = await _productRepository
             .cacheOpenFoodFactsProductFromFunction(
               barcode: barcode,
@@ -204,6 +209,7 @@ class _ScannerScreenState extends State<ScannerScreen> {
           'Cache hit: category missing, refreshing from cache-openfoodfacts-product',
         );
         analyticsSource = 'openfoodfacts_function';
+        debugPrint('Product lookup: fallback_openfoodfacts_called=true');
         final cachedProduct = product;
         final refreshedProduct = await _productRepository
             .cacheOpenFoodFactsProductFromFunction(

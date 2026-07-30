@@ -154,6 +154,103 @@ const solidAmbiguousBasisFixture = `
   </html>
 `;
 
+const alternateIngredientsFixture = `
+  <html>
+    <head>
+      <meta property="og:title" content="Kraker 100 g" />
+    </head>
+    <body>
+      <div class="accordion">
+        <h3>Ürün İçeriği</h3>
+        <div><span>Buğday unu,</span> <span>bitkisel yağ, tuz.</span></div>
+      </div>
+    </body>
+  </html>
+`;
+
+const allergenOnlyFixture = `
+  <html>
+    <head>
+      <meta property="og:title" content="Kraker 100 g" />
+    </head>
+    <body>
+      <div>Alerjen Bilgisi: Gluten içerir.</div>
+    </body>
+  </html>
+`;
+
+const zeroFatVariantFixture = `
+  <html>
+    <head>
+      <meta property="og:title" content="Soda 200 ml" />
+    </head>
+    <body>
+      <div class="desktop-only nutrition-wrapper">
+        <table>
+          <thead>
+            <tr>
+              <th class="cdk-column-key"><span>Besin Değeri</span></th>
+              <th class="cdk-column-value"><span>100 ml</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td><span>Toplam&nbsp;Yağ (g)</span></td><td><span>0,0</span></td></tr>
+            <tr><td><span>Doymuş Yağ Asitleri (g)</span></td><td><span>0</span></td></tr>
+            <tr><td><span>Tuz (g)</span></td><td><span>&lt;0.01</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </body>
+  </html>
+`;
+
+const attributeListIngredientsFixture = `
+  <html>
+    <head>
+      <meta property="og:title" content="Granola Bar 120 g" />
+    </head>
+    <body>
+      <dl>
+        <dt>İçerik Bilgisi</dt>
+        <dd>Yulaf ezmesi, bal, kakao nibs, bitkisel yağ.</dd>
+      </dl>
+    </body>
+  </html>
+`;
+
+const snickersMultipackFixture = `
+  <html>
+    <head>
+      <meta property="og:title" content="Snickers 2'li 80 g" />
+    </head>
+    <body>
+      <div>İçindekiler: Sütlü çikolata, yer fıstığı, karamel.</div>
+    </body>
+  </html>
+`;
+
+const twoByFortyFixture = `
+  <html>
+    <head>
+      <meta property="og:title" content="Protein Bar 2x40 g" />
+    </head>
+    <body>
+      <div>İçindekiler: Protein karışımı, kakao, aroma vericiler.</div>
+    </body>
+  </html>
+`;
+
+const sixByTwoHundredFixture = `
+  <html>
+    <head>
+      <meta property="og:title" content="Meyve Suyu 6x200 ml" />
+    </head>
+    <body>
+      <div>İçindekiler: Su, meyve suyu konsantresi.</div>
+    </body>
+  </html>
+`;
+
 describe("migros single product parser", () => {
   it("rejects non-Migros urls", () => {
     expect(validateMigrosProductUrl("https://example.com/product")).toBeNull();
@@ -307,6 +404,35 @@ describe("migros single product parser", () => {
     expect(candidate.ingredients).toBe("Su, şeker, karbondioksit, asitlik düzenleyici.");
   });
 
+  it("extracts ingredients from alternate Migros labels", () => {
+    const candidate = parseMigrosProductHtml(
+      alternateIngredientsFixture,
+      "https://www.migros.com.tr/kraker-p-abc123",
+    );
+    expect(candidate.ingredients).toBe("Buğday unu, bitkisel yağ, tuz.");
+    expect(candidate.raw_payload?.ingredients_extraction_strategy).toBeTruthy();
+    expect(candidate.raw_payload?.ingredients_label_detected).toBe("Ürün İçeriği");
+  });
+
+  it("does not treat allergen-only text as full ingredients", () => {
+    const candidate = parseMigrosProductHtml(
+      allergenOnlyFixture,
+      "https://www.migros.com.tr/kraker-p-abc123",
+    );
+    expect(candidate.ingredients).toBeNull();
+    expect(candidate.issue_list.some((item) => item.code === "ingredients_missing")).toBe(true);
+    expect(candidate.raw_payload?.ingredients_missing_reason).toBe("only_allergen_text_found");
+  });
+
+  it("extracts ingredients from attribute-list style container", () => {
+    const candidate = parseMigrosProductHtml(
+      attributeListIngredientsFixture,
+      "https://www.migros.com.tr/granola-bar-p-attr123",
+    );
+    expect(candidate.ingredients).toBe("Yulaf ezmesi, bal, kakao nibs, bitkisel yağ.");
+    expect(candidate.raw_payload?.ingredients_container_hint).toBe("attribute_list");
+  });
+
   it("parses embedded json nutrition when present", () => {
     const candidate = parseMigrosProductHtml(
       embeddedJsonNutritionFixture,
@@ -326,6 +452,8 @@ describe("migros single product parser", () => {
     );
     expect(candidate.energy_kcal_100g).toBe(28);
     expect(candidate.energy_kj_100g).toBe(119);
+    expect(candidate.fat_100g).toBe(0);
+    expect(candidate.saturated_fat_100g).toBe(0);
     expect(candidate.carbohydrates_100g).toBe(7);
     expect(candidate.sugars_100g).toBe(7);
     expect(candidate.salt_100g).toBe(0.01);
@@ -335,6 +463,19 @@ describe("migros single product parser", () => {
     expect(candidate.raw_payload?.discovered_product_id).toBe("7a3927");
   });
 
+  it("preserves explicit zero fat and saturated fat values from variant labels", () => {
+    const candidate = parseMigrosProductHtml(
+      zeroFatVariantFixture,
+      "https://www.migros.com.tr/soda-p-xyz123",
+    );
+    expect(candidate.fat_100g).toBe(0);
+    expect(candidate.saturated_fat_100g).toBe(0);
+    expect(candidate.salt_100g).toBe(0.01);
+    expect(candidate.issue_list.some((item) => item.code === "nutrition_missing")).toBe(false);
+    expect(candidate.raw_payload?.nutrition_zero_values_detected).toContain("Toplam Yağ (g)");
+    expect(candidate.raw_payload?.nutrition_zero_values_detected).toContain("Doymuş Yağ Asitleri (g)");
+  });
+
   it("creates 100ml nutrition basis suggestion for liquid product with ambiguous basis header", () => {
     const candidate = parseMigrosProductHtml(
       liveLikeNutritionTableFixture,
@@ -342,6 +483,33 @@ describe("migros single product parser", () => {
     );
     expect(candidate.nutrition_basis).toBeNull();
     expect(candidate.raw_payload?.nutrition_basis_suggestion).toBe("100ml");
+  });
+
+  it("parses quantity for Snickers 2'li 80 g style titles", () => {
+    const candidate = parseMigrosProductHtml(
+      snickersMultipackFixture,
+      "https://www.migros.com.tr/snickers-2li-80-g-p-snk123",
+    );
+    expect(candidate.quantity_value).toBe(80);
+    expect(candidate.quantity_unit).toBe("g");
+  });
+
+  it("parses total quantity from 2x40 g style titles", () => {
+    const candidate = parseMigrosProductHtml(
+      twoByFortyFixture,
+      "https://www.migros.com.tr/protein-bar-2x40-g-p-prt123",
+    );
+    expect(candidate.quantity_value).toBe(80);
+    expect(candidate.quantity_unit).toBe("g");
+  });
+
+  it("parses total quantity from 6x200 ml style titles", () => {
+    const candidate = parseMigrosProductHtml(
+      sixByTwoHundredFixture,
+      "https://www.migros.com.tr/meyve-suyu-6x200-ml-p-mys123",
+    );
+    expect(candidate.quantity_value).toBe(1200);
+    expect(candidate.quantity_unit).toBe("ml");
   });
 
   it("creates 100g nutrition basis suggestion for solid product with ambiguous basis header", () => {

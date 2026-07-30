@@ -13,6 +13,7 @@ import {
   parseNumeric,
   safeString,
 } from "@/lib/admin/imports/helpers";
+import { hasNutritionTableNotAvailableMarker } from "@/lib/admin/product-finder/nutrition-table-flag";
 import type { ImportRowInput, ParsedImportRow } from "@/lib/admin/imports/types";
 
 const aliases: Record<string, string> = {
@@ -114,6 +115,8 @@ function normalizeNutritionNested(source: Record<string, unknown>, field: string
 
 export function normalizeImportRow(row: ParsedImportRow): ImportRowInput {
   const source = row.source;
+  const verificationNotes = normalizeText(readField(source, "verification_notes"));
+  const notes = normalizeText(readField(source, "notes"));
 
   return {
     barcode: parseBarcode(readField(source, "barcode")) || null,
@@ -160,12 +163,13 @@ export function normalizeImportRow(row: ParsedImportRow): ImportRowInput {
     dataUpdatedAt: normalizeDate(readField(source, "data_updated_at")),
     packagingVersion: normalizeText(readField(source, "packaging_version")),
     isCurrent: parseBoolean(readField(source, "is_current"), true),
-    verificationNotes: normalizeText(readField(source, "verification_notes")),
+    verificationNotes,
     country: normalizeText(readField(source, "country")) ?? "TR",
     languageCode: normalizeText(readField(source, "language_code")) ?? "tr",
     externalId: normalizeText(readField(source, "external_id")),
-    notes: normalizeText(readField(source, "notes")),
+    notes,
     isVerified: parseBoolean(readField(source, "is_verified"), false),
     importAction: normalizeImportAction(readField(source, "import_action")),
+    nutritionTableNotAvailable: hasNutritionTableNotAvailableMarker(verificationNotes, notes),
   };
 }

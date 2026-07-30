@@ -325,15 +325,21 @@ export function validateImportRow(
 
   if (countCoreNutrition(row) < 5) {
     warnings.push(
-      buildMessage(
-        "warning",
-        "missing_nutrition_data",
-        "Temel besin değerlerinin önemli bir kısmı eksik.",
-      ),
+      row.nutritionTableNotAvailable
+        ? buildMessage(
+            "warning",
+            "nutrition_table_not_available",
+            "Besin tablosu kaynakta/ambalajda bulunmuyor olarak işaretlenmiş.",
+          )
+        : buildMessage(
+            "warning",
+            "missing_nutrition_data",
+            "Temel besin değerlerinin önemli bir kısmı eksik.",
+          ),
     );
   }
 
-  if (!hasCoreNutrition(row)) {
+  if (!hasCoreNutrition(row) && !row.nutritionTableNotAvailable) {
     warnings.push(
       buildMessage(
         "warning",

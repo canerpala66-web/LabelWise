@@ -743,6 +743,9 @@ class _ScoreReasonsCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (!product.hasNutritionData) {
+      final message = product.nutritionTableNotAvailable
+          ? 'Bu ürünün besin değerleri tablosu kaynakta/ambalajda bulunmuyor. Bu nedenle besin değerleri gösterilemiyor.'
+          : 'Beslenme verileri eksik olduğu için değerlendirme yapılamadı.';
       return Card(
         margin: EdgeInsets.zero,
         elevation: 0.5,
@@ -762,7 +765,7 @@ class _ScoreReasonsCard extends StatelessWidget {
               borderRadius: BorderRadius.circular(18),
             ),
             child: Text(
-              'Beslenme verileri eksik olduğu için değerlendirme yapılamadı.',
+              message,
               style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                 height: 1.5,
                 color: AppColors.mutedText,

@@ -13,7 +13,7 @@ class ProductRepository {
   static const _baseFields =
       'barcode, name, brand, image_url, ingredients_text, '
       'nutriscore_grade, source, ai_summary, ai_risk_level, '
-      'ai_generated_at, front_image_path';
+      'ai_generated_at, front_image_path, verification_notes, notes';
   static const _nutritionFields =
       'energy_kcal, fat, saturated_fat, sugars, fiber, protein, salt, '
       'fruits_vegetables_legumes_percent';
@@ -28,13 +28,25 @@ class ProductRepository {
       'protein, salt, source';
 
   Future<Product?> getProductByBarcode(String barcode) async {
-    final data = await _fetchProductData(barcode);
-
-    if (data == null) {
+    final normalizedBarcode = _normalizeBarcode(barcode);
+    if (normalizedBarcode.isEmpty) {
+      debugPrint('ProductRepository: barcode lookup skipped empty barcode');
       return null;
     }
 
-    return _productFromData(data, fallbackBarcode: barcode);
+    debugPrint('ProductRepository: normalized barcode=$normalizedBarcode');
+    debugPrint('ProductRepository: supabase_lookup_started');
+
+    final data = await _fetchProductData(normalizedBarcode);
+
+    if (data == null) {
+      debugPrint('ProductRepository: supabase_lookup_found=false');
+      return null;
+    }
+
+    debugPrint('ProductRepository: supabase_lookup_found=true');
+
+    return _productFromData(data, fallbackBarcode: normalizedBarcode);
   }
 
   Future<Product?> cacheOpenFoodFactsProductFromFunction({
@@ -406,6 +418,10 @@ class ProductRepository {
         .select(fields)
         .eq('barcode', barcode)
         .maybeSingle();
+  }
+
+  String _normalizeBarcode(String barcode) {
+    return barcode.trim();
   }
 
   Future<void> _upsertWithSchemaFallback({

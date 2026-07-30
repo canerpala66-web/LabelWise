@@ -48,6 +48,7 @@ export const productFinderIssueCodes = [
   "low_match_confidence",
   "stale_source_data",
   "unverified_source",
+  "nutrition_table_not_available",
 ] as const;
 
 export type ProductFinderIssueCode = (typeof productFinderIssueCodes)[number];
@@ -100,6 +101,12 @@ export type ProductFinderCandidate = {
   edited_fields: string[];
   nutrition_basis: "100g" | "100ml" | null;
   match_confidence: number | null;
+  category_suggestion: string | null;
+  category_suggestion_reason: string;
+  category_suggestion_confidence: "high" | "medium" | null;
+  nutrition_basis_suggestion: "100g" | "100ml" | null;
+  nutrition_basis_suggestion_reason: string;
+  nutrition_table_not_available: boolean;
 };
 
 export type ProductFinderSummary = {

@@ -1,4 +1,5 @@
 import { importTemplateHeaders } from "@/lib/admin/imports/constants";
+import { appendNutritionTableNotAvailableMarker } from "@/lib/admin/product-finder/nutrition-table-flag";
 import type { ProductFinderCandidate } from "@/lib/admin/product-finder/types";
 
 export function mapCandidateToImportRow(candidate: ProductFinderCandidate) {
@@ -27,7 +28,9 @@ export function mapCandidateToImportRow(candidate: ProductFinderCandidate) {
     data_updated_at: candidate.data_updated_at,
     packaging_version: candidate.packaging_version,
     is_current: candidate.is_current ? "true" : "false",
-    verification_notes: candidate.verification_notes,
+    verification_notes: candidate.nutrition_table_not_available
+      ? appendNutritionTableNotAvailableMarker(candidate.verification_notes)
+      : candidate.verification_notes,
     country: candidate.country,
     language_code: candidate.language_code,
     external_id: candidate.external_id,

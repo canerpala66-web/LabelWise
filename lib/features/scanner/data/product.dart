@@ -24,6 +24,9 @@ class Product {
     this.frontImagePath,
     this.category,
     this.aiAnalysisVersion,
+    this.verificationNotes,
+    this.notes,
+    this.nutritionTableNotAvailable = false,
   });
 
   final String productName;
@@ -48,17 +51,24 @@ class Product {
   final String? frontImagePath;
   final String? category;
   final String? aiAnalysisVersion;
+  final String? verificationNotes;
+  final String? notes;
+  final bool nutritionTableNotAvailable;
 
   bool get hasNutritionData => [
     energyKcal,
     fat,
     saturatedFat,
+    carbohydrates,
     sugars,
     fiber,
     protein,
     salt,
     fruitsVegetablesLegumesPercent,
   ].any((value) => value != null);
+
+  bool get shouldUseOpenFoodFactsFallback =>
+      !hasNutritionData && !nutritionTableNotAvailable;
 
   factory Product.fromJson(Map<String, dynamic> json, {String barcode = ''}) {
     final tags = json['nutriscore_2023_tags'];
@@ -118,6 +128,12 @@ class Product {
       ),
       frontImagePath: _nonEmptyString(json['front_image_path']),
       category: category,
+      verificationNotes: _nonEmptyString(json['verification_notes']),
+      notes: _nonEmptyString(json['notes']),
+      nutritionTableNotAvailable: _hasNutritionTableNotAvailableMarker([
+        json['verification_notes'],
+        json['notes'],
+      ]),
     );
   }
 
@@ -159,5 +175,16 @@ class Product {
           return item.isNotEmpty;
         })
         .toList(growable: false);
+  }
+
+  static bool _hasNutritionTableNotAvailableMarker(Iterable<Object?> values) {
+    for (final value in values) {
+      final text = _nonEmptyString(value);
+      if (text != null &&
+          text.toLowerCase().contains('nutrition_table_not_available:true')) {
+        return true;
+      }
+    }
+    return false;
   }
 }

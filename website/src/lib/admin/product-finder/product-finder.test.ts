@@ -19,6 +19,11 @@ import {
 } from "./identity";
 import { normalizeIdentity } from "./identity-normalizer";
 import { createHydratedCandidateFromImportRow, createMockCandidate } from "./mock";
+import {
+  applyCandidateSuggestions,
+  applySuggestionsToCandidates,
+  getCandidateSuggestionState,
+} from "./candidate-suggestions";
 import { mapSourceCandidateToProductFinderCandidate } from "./source-candidate-mapper";
 import { parseProductUrlTextarea } from "./url-input";
 import { mockBarcodeIdentityProvider, mockProductDetailProvider } from "./adapters/mock-provider";
@@ -306,6 +311,22 @@ describe("product finder provider foundation", () => {
 
     expect(row.data_updated_at).toBe("2026-07-30");
     expect(matrix[1]?.[importTemplateHeaders.indexOf("data_updated_at")]).toBe("2026-07-30");
+  });
+
+  it("exports nutrition table unavailable marker in verification notes", () => {
+    let candidate = createHydratedCandidateFromImportRow({
+      barcode: "8690574114658",
+      product_name: "Bal",
+      brand: "Marka",
+      category: "Bal",
+      ingredients: "Bal",
+      data_source: "migros",
+      source_url: "https://www.migros.com.tr/bal-p-1",
+      data_updated_at: "2026-07-30",
+    });
+    candidate = updateCandidateField(candidate, "nutrition_table_not_available", "true");
+    const row = mapCandidateToImportRow(candidate);
+    expect(String(row.verification_notes)).toContain("nutrition_table_not_available:true");
   });
 
   it("migros candidate without barcode is not exportable", () => {
@@ -606,6 +627,53 @@ bu-bir-url-degil
     expect(candidate.status).toBe("rejected");
     expect(candidate.issue_list.some((item) => item.code === "invalid_barcode")).toBe(true);
   });
+
+  it("preserves category and nutrition basis suggestions in source candidate mapping", () => {
+    const candidate = mapSourceCandidateToProductFinderCandidate(
+      {
+        barcode: "",
+        product_name: "Pepsi Kola Kutu",
+        brand: "Pepsi",
+        category: null,
+        ingredients: "Su, şeker",
+        quantity_value: 330,
+        quantity_unit: "ml",
+        quantity_display: "330 ml",
+        energy_kcal_100g: 42,
+        energy_kj_100g: 176,
+        fat_100g: 0,
+        saturated_fat_100g: 0,
+        carbohydrates_100g: 10.6,
+        sugars_100g: 10.6,
+        fiber_100g: 0,
+        protein_100g: 0,
+        salt_100g: 0.02,
+        sodium_100g: null,
+        nutrition_basis: null,
+        image_front_url: null,
+        image_source_url: null,
+        source_name: "migros",
+        source_url: "https://www.migros.com.tr/pepsi-kola-kutu-330-ml-p-7a3927",
+        source_product_id: "7a3927",
+        data_updated_at: "2026-07-30",
+        match_confidence: 92,
+        issue_list: [],
+        raw_payload: {
+          category_suggestion: "Gazlı İçecek",
+          category_suggestion_reason: "ürün adındaki kola sinyaliyle önerildi",
+          category_suggestion_confidence: "high",
+          nutrition_basis_suggestion: "100ml",
+          nutrition_basis_suggestion_reason: "miktar birimi ml olduğu için önerildi",
+        },
+      },
+      { candidateId: "finder-url-suggestions" },
+    );
+
+    expect(candidate.category_suggestion).toBe("Gazlı İçecek");
+    expect(candidate.category_suggestion_reason).toContain("kola");
+    expect(candidate.nutrition_basis_suggestion).toBe("100ml");
+    expect(candidate.nutrition_basis_suggestion_reason).toContain("ml");
+  });
 });
 
 describe("product finder validation", () => {
@@ -638,6 +706,17 @@ describe("product finder validation", () => {
     let candidate = revalidateCandidate(createMockCandidate("153"));
     candidate = updateCandidateField(candidate, "barcode", "8690504030012");
 
+    expect(candidate.issue_list.some((item) => item.code === "invalid_barcode")).toBe(false);
+    expect(candidate.status).toBe("needs_review");
+  });
+
+  it("applying a discovered barcode keeps the row in manual review flow", () => {
+    let candidate = revalidateCandidate(createMockCandidate(""));
+    candidate = updateCandidateField(candidate, "product_name", "Pepsi Kola Kutu");
+    candidate = updateCandidateField(candidate, "brand", "Pepsi");
+    candidate = updateCandidateField(candidate, "barcode", "8690574114658");
+
+    expect(candidate.barcode).toBe("8690574114658");
     expect(candidate.issue_list.some((item) => item.code === "invalid_barcode")).toBe(false);
     expect(candidate.status).toBe("needs_review");
   });
@@ -684,6 +763,94 @@ describe("product finder validation", () => {
     candidate = approveCandidate(candidate);
     expect(candidate.is_verified).toBe(true);
     expect(candidate.approved_for_export).toBe(true);
+  });
+
+  it("uses nutrition_missing without nutrition table unavailable flag", () => {
+    const candidate = revalidateCandidate(createMockCandidate("8690504030012"));
+    expect(candidate.issue_list.some((item) => item.code === "nutrition_missing")).toBe(true);
+    expect(candidate.issue_list.some((item) => item.code === "nutrition_table_not_available")).toBe(false);
+  });
+
+  it("uses nutrition_table_not_available flag instead of nutrition_missing", () => {
+    let candidate = createMockCandidate("8690504030012");
+    candidate = updateCandidateField(candidate, "nutrition_table_not_available", "true");
+    expect(candidate.issue_list.some((item) => item.code === "nutrition_table_not_available")).toBe(true);
+    expect(candidate.issue_list.some((item) => item.code === "nutrition_missing")).toBe(false);
+    expect(candidate.verification_notes).toContain("nutrition_table_not_available:true");
+  });
+});
+
+describe("product finder candidate suggestions", () => {
+  it("detects applicable row-level suggestions", () => {
+    const candidate = {
+      ...createMockCandidate(""),
+      product_name: "Pepsi Kola Kutu",
+      category_suggestion: "Gazlı İçecek",
+      category_suggestion_reason: "ürün adındaki kola sinyaliyle önerildi",
+      nutrition_basis_suggestion: "100ml" as const,
+      nutrition_basis_suggestion_reason: "miktar birimi ml olduğu için önerildi",
+    };
+
+    const state = getCandidateSuggestionState(candidate);
+    expect(state.canApplyCategory).toBe(true);
+    expect(state.canApplyNutritionBasis).toBe(true);
+    expect(state.hasAnySuggestion).toBe(true);
+  });
+
+  it("applies row-level category and nutrition basis suggestions when fields are empty", () => {
+    const candidate = {
+      ...createMockCandidate(""),
+      category_suggestion: "Gazlı İçecek",
+      category_suggestion_reason: "ürün adındaki kola sinyaliyle önerildi",
+      nutrition_basis_suggestion: "100ml" as const,
+      nutrition_basis_suggestion_reason: "miktar birimi ml olduğu için önerildi",
+    };
+
+    const applied = applyCandidateSuggestions(candidate);
+    expect(applied.candidate.category).toBe("Gazlı İçecek");
+    expect(applied.candidate.nutrition_basis).toBe("100ml");
+    expect(applied.candidate.issue_list.some((item) => item.code === "category_missing")).toBe(false);
+    expect(applied.candidate.issue_list.some((item) => item.code === "nutrition_basis_missing")).toBe(false);
+    expect(applied.counts.categoryApplied).toBe(1);
+    expect(applied.counts.nutritionBasisApplied).toBe(1);
+  });
+
+  it("does not overwrite existing category or nutrition basis", () => {
+    const candidate = {
+      ...createMockCandidate(""),
+      category: "Hazır İçecek",
+      nutrition_basis: "100g" as const,
+      category_suggestion: "Gazlı İçecek",
+      nutrition_basis_suggestion: "100ml" as const,
+    };
+
+    const applied = applyCandidateSuggestions(candidate);
+    expect(applied.candidate.category).toBe("Hazır İçecek");
+    expect(applied.candidate.nutrition_basis).toBe("100g");
+    expect(applied.counts.categoryApplied).toBe(0);
+    expect(applied.counts.nutritionBasisApplied).toBe(0);
+  });
+
+  it("bulk applies suggestions across multiple candidates and returns counts", () => {
+    const first = {
+      ...createMockCandidate(""),
+      category_suggestion: "Gazlı İçecek",
+      nutrition_basis_suggestion: "100ml" as const,
+    };
+    const second = {
+      ...createMockCandidate(""),
+      category: "Bisküvi",
+      category_suggestion: "Kraker",
+      nutrition_basis_suggestion: "100g" as const,
+    };
+
+    const applied = applySuggestionsToCandidates([first, second]);
+    expect(applied.candidates[0]?.category).toBe("Gazlı İçecek");
+    expect(applied.candidates[0]?.nutrition_basis).toBe("100ml");
+    expect(applied.candidates[1]?.category).toBe("Bisküvi");
+    expect(applied.candidates[1]?.nutrition_basis).toBe("100g");
+    expect(applied.counts.categoryApplied).toBe(1);
+    expect(applied.counts.nutritionBasisApplied).toBe(2);
   });
 });
 

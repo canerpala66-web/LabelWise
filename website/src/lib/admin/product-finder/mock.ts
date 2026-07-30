@@ -51,6 +51,12 @@ export function createMockCandidate(barcode: string): ProductFinderCandidate {
     edited_fields: [],
     nutrition_basis: null,
     match_confidence: null,
+    category_suggestion: null,
+    category_suggestion_reason: "",
+    category_suggestion_confidence: null,
+    nutrition_basis_suggestion: null,
+    nutrition_basis_suggestion_reason: "",
+    nutrition_table_not_available: false,
   };
 }
 

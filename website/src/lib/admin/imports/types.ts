@@ -40,6 +40,7 @@ export type ValidationCode =
   | "stale_data"
   | "stale_update_attempt"
   | "missing_nutrition_data"
+  | "nutrition_table_not_available"
   | "invalid_numeric_value"
   | "negative_numeric_value"
   | "manual_review"
@@ -95,6 +96,7 @@ export type ImportRowInput = {
   notes: string | null;
   isVerified: boolean;
   importAction: "upsert" | "insert" | "update";
+  nutritionTableNotAvailable: boolean;
 };
 
 export type ExistingProductSnapshot = {

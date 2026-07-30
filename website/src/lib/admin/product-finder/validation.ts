@@ -4,6 +4,11 @@ import {
   parseNumeric,
   safeString,
 } from "@/lib/admin/imports/helpers";
+import {
+  appendNutritionTableNotAvailableMarker,
+  hasNutritionTableNotAvailableMarker,
+  removeNutritionTableNotAvailableMarker,
+} from "@/lib/admin/product-finder/nutrition-table-flag";
 import type {
   ProductFinderCandidate,
   ProductFinderIssue,
@@ -38,6 +43,9 @@ function strictVerifiedReady(candidate: ProductFinderCandidate) {
 
 function buildIssues(candidate: ProductFinderCandidate): ProductFinderIssue[] {
   const issues: ProductFinderIssue[] = [];
+  const nutritionTableNotAvailable =
+    candidate.nutrition_table_not_available ||
+    hasNutritionTableNotAvailableMarker(candidate.verification_notes, candidate.notes);
 
   if (!/^\d{8,14}$/.test(candidate.barcode)) {
     issues.push({
@@ -88,11 +96,19 @@ function buildIssues(candidate: ProductFinderCandidate): ProductFinderIssue[] {
   }
 
   if (!hasCoreNutrition(candidate)) {
-    issues.push({
-      code: "nutrition_missing",
-      message: "Çekirdek besin değerleri eksik.",
-      severity: "warning",
-    });
+    if (nutritionTableNotAvailable) {
+      issues.push({
+        code: "nutrition_table_not_available",
+        message: "Besin tablosu kaynakta/ambalajda bulunmuyor.",
+        severity: "warning",
+      });
+    } else {
+      issues.push({
+        code: "nutrition_missing",
+        message: "Çekirdek besin değerleri eksik.",
+        severity: "warning",
+      });
+    }
   }
 
   if (!safeString(candidate.source_url)) {
@@ -117,6 +133,9 @@ function buildIssues(candidate: ProductFinderCandidate): ProductFinderIssue[] {
 export function revalidateCandidate(
   candidate: ProductFinderCandidate,
 ): ProductFinderCandidate {
+  const nutritionTableNotAvailable =
+    candidate.nutrition_table_not_available ||
+    hasNutritionTableNotAvailableMarker(candidate.verification_notes, candidate.notes);
   const issue_list = buildIssues(candidate);
   const ingredients_status = safeString(candidate.ingredients)
     ? "present"
@@ -147,6 +166,10 @@ export function revalidateCandidate(
 
   return {
     ...candidate,
+    nutrition_table_not_available: nutritionTableNotAvailable,
+    verification_notes: nutritionTableNotAvailable
+      ? appendNutritionTableNotAvailableMarker(candidate.verification_notes)
+      : removeNutritionTableNotAvailableMarker(candidate.verification_notes),
     issue_list,
     ingredients_status,
     is_verified:
@@ -188,6 +211,8 @@ export function updateCandidateField(
     (next[field] as unknown) = parseNumeric(value);
   } else if (field === "is_current" || field === "is_verified") {
     (next[field] as unknown) = parseBoolean(value);
+  } else if (field === "nutrition_table_not_available") {
+    next.nutrition_table_not_available = parseBoolean(value);
   } else if (field === "nutrition_basis") {
     const parsed = safeString(value);
     next.nutrition_basis =

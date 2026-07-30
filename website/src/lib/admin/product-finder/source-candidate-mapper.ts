@@ -1,4 +1,5 @@
 import type { SourceCandidate } from "@/lib/admin/product-finder/providers";
+import { appendNutritionTableNotAvailableMarker, hasNutritionTableNotAvailableMarker } from "@/lib/admin/product-finder/nutrition-table-flag";
 import type { ProductFinderCandidate } from "@/lib/admin/product-finder/types";
 import { createMockCandidate } from "@/lib/admin/product-finder/mock";
 import { revalidateCandidate } from "@/lib/admin/product-finder/validation";
@@ -13,6 +14,21 @@ export function mapSourceCandidateToProductFinderCandidate(
 ): ProductFinderCandidate {
   const today = new Date().toISOString().slice(0, 10);
   const base = createMockCandidate(sourceCandidate.barcode || "");
+  const rawPayload =
+    sourceCandidate.raw_payload && typeof sourceCandidate.raw_payload === "object"
+      ? (sourceCandidate.raw_payload as {
+          category_suggestion?: string | null;
+          category_suggestion_reason?: string | null;
+          category_suggestion_confidence?: "high" | "medium" | null;
+          nutrition_basis_suggestion?: "100g" | "100ml" | null;
+          nutrition_basis_suggestion_reason?: string | null;
+        })
+      : {};
+  const nutritionTableNotAvailable = hasNutritionTableNotAvailableMarker(
+    typeof sourceCandidate.raw_payload === "object" && sourceCandidate.raw_payload
+      ? JSON.stringify(sourceCandidate.raw_payload)
+      : null,
+  );
 
   return revalidateCandidate({
     ...base,
@@ -44,8 +60,17 @@ export function mapSourceCandidateToProductFinderCandidate(
     language_code: "tr",
     is_verified: false,
     import_action: "upsert",
+    verification_notes: nutritionTableNotAvailable
+      ? appendNutritionTableNotAvailableMarker(base.verification_notes)
+      : base.verification_notes,
     nutrition_basis: sourceCandidate.nutrition_basis,
     match_confidence: sourceCandidate.match_confidence ?? null,
+    category_suggestion: rawPayload.category_suggestion ?? null,
+    category_suggestion_reason: rawPayload.category_suggestion_reason ?? "",
+    category_suggestion_confidence: rawPayload.category_suggestion_confidence ?? null,
+    nutrition_basis_suggestion: rawPayload.nutrition_basis_suggestion ?? null,
+    nutrition_basis_suggestion_reason: rawPayload.nutrition_basis_suggestion_reason ?? "",
+    nutrition_table_not_available: nutritionTableNotAvailable,
     issue_list: sourceCandidate.issue_list,
     status: "needs_review",
     approved_for_export: false,

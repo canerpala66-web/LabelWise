@@ -19,6 +19,11 @@ import {
 import type { ProductFinderCandidate } from "@/lib/admin/product-finder/types";
 import type { SourceCandidate } from "@/lib/admin/product-finder/providers";
 import {
+  applyCandidateSuggestions,
+  applySuggestionsToCandidates,
+  getCandidateSuggestionState,
+} from "@/lib/admin/product-finder/candidate-suggestions";
+import {
   approveCandidate,
   rejectCandidate,
   summarizeCandidates,
@@ -68,6 +73,56 @@ type UrlParseApiResult = {
   status: "parsed" | "unsupported_domain" | "invalid_url" | "source_error";
   candidate: SourceCandidate | null;
   issues: ProductFinderCandidate["issue_list"];
+};
+
+type UrlParseApiSummary = {
+  total_input_lines: number;
+  unique_urls: number;
+  parsed: number;
+  source_error: number;
+  invalid_url: number;
+  unsupported_domain: number;
+  rejected_non_product_url: number;
+  duplicate_count: number;
+};
+
+type BarcodeDiscoveryEvidence = {
+  title: string;
+  snippet: string;
+  url: string;
+  domain: string;
+};
+
+type BarcodeDiscoveryCandidate = {
+  barcode: string;
+  score: number;
+  confidence: "high" | "medium" | "low";
+  evidence: BarcodeDiscoveryEvidence[];
+  reasons: string[];
+  warnings: string[];
+};
+
+type BarcodeDiscoveryResult = {
+  id: string;
+  status:
+    | "high_confidence"
+    | "medium_confidence"
+    | "low_confidence"
+    | "not_found"
+    | "search_not_configured"
+    | "source_error"
+    | "skipped_existing_barcode";
+  barcode_candidates: BarcodeDiscoveryCandidate[];
+  queries: string[];
+};
+
+type BarcodeDiscoverySummary = {
+  total: number;
+  with_candidates: number;
+  not_found: number;
+  search_not_configured: number;
+  source_error: number;
+  skipped_existing_barcode: number;
 };
 
 function buildUrlCandidateId(url: string, index: number) {
@@ -432,6 +487,15 @@ export function AdminProductFinderClient() {
   const [marketLoading, setMarketLoading] = useState(false);
   const [urlLoading, setUrlLoading] = useState(false);
   const [urlError, setUrlError] = useState("");
+  const [urlSummary, setUrlSummary] = useState<UrlParseApiSummary | null>(null);
+  const [suggestionSummary, setSuggestionSummary] = useState("");
+  const [barcodeDiscoveryLoading, setBarcodeDiscoveryLoading] = useState(false);
+  const [barcodeDiscoveryError, setBarcodeDiscoveryError] = useState("");
+  const [barcodeDiscoverySummary, setBarcodeDiscoverySummary] =
+    useState<BarcodeDiscoverySummary | null>(null);
+  const [barcodeDiscoveryResults, setBarcodeDiscoveryResults] = useState<
+    Record<string, BarcodeDiscoveryResult>
+  >({});
 
   const editingCandidate =
     candidates.find((candidate) => candidate.id === editingId) ?? null;
@@ -748,6 +812,8 @@ export function AdminProductFinderClient() {
 
     setUrlLoading(true);
     setUrlError("");
+    setUrlSummary(null);
+    setSuggestionSummary("");
     setError("");
 
     try {
@@ -762,6 +828,7 @@ export function AdminProductFinderClient() {
       const payload = (await response.json()) as {
         error?: string;
         results?: UrlParseApiResult[];
+        summary?: UrlParseApiSummary;
       };
 
       if (response.status === 401 || response.status === 403) {
@@ -782,6 +849,7 @@ export function AdminProductFinderClient() {
           }),
         );
 
+      setUrlSummary(payload.summary ?? null);
       setCandidates((current) => [...mappedCandidates, ...current]);
     } catch {
       setUrlError("Ürün linkleri çözümlenemedi.");
@@ -793,6 +861,97 @@ export function AdminProductFinderClient() {
   function setCandidate(next: ProductFinderCandidate) {
     setCandidates((current) =>
       current.map((candidate) => (candidate.id === next.id ? next : candidate)),
+    );
+  }
+
+  async function handleBarcodeDiscovery() {
+    const targetCandidates = candidates.filter(
+      (candidate) => !candidate.barcode && hasMeaningfulText(candidate.product_name),
+    );
+
+    if (targetCandidates.length === 0) {
+      setBarcodeDiscoveryError("Barkodu eksik ve aranabilir aday bulunamadı.");
+      return;
+    }
+
+    setBarcodeDiscoveryLoading(true);
+    setBarcodeDiscoveryError("");
+    setBarcodeDiscoverySummary(null);
+    setError("");
+
+    try {
+      const response = await fetch("/api/admin/product-finder/barcode-discovery/resolve", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          candidates: targetCandidates.map((candidate) => ({
+            id: candidate.id,
+            barcode: candidate.barcode,
+            brand: candidate.brand,
+            product_name: candidate.product_name,
+            quantity_value: candidate.quantity_value,
+            quantity_unit: candidate.quantity_unit,
+            source_url: candidate.source_url,
+          })),
+        }),
+      });
+
+      const payload = (await response.json()) as {
+        error?: string;
+        results?: BarcodeDiscoveryResult[];
+        summary?: BarcodeDiscoverySummary;
+      };
+
+      if (response.status === 401 || response.status === 403) {
+        setBarcodeDiscoveryError("Yetki kontrolü başarısız, sayfayı yenileyin veya tekrar giriş yapın.");
+        return;
+      }
+
+      if (!response.ok || !payload.results || !payload.summary) {
+        setBarcodeDiscoveryError(payload.error || "Barkod adayları getirilemedi.");
+        return;
+      }
+
+      setBarcodeDiscoveryResults((current) => ({
+        ...current,
+        ...Object.fromEntries(payload.results!.map((item) => [item.id, item])),
+      }));
+      setBarcodeDiscoverySummary(payload.summary);
+    } catch {
+      setBarcodeDiscoveryError("Barkod adayları getirilemedi.");
+    } finally {
+      setBarcodeDiscoveryLoading(false);
+    }
+  }
+
+  function handleApplyDiscoveredBarcode(
+    candidate: ProductFinderCandidate,
+    barcodeCandidate: BarcodeDiscoveryCandidate,
+  ) {
+    const updated = updateCandidateField(candidate, "barcode", barcodeCandidate.barcode);
+    setCandidate(updated);
+    setSuggestionSummary(`Barkod adayı uygulandı: ${barcodeCandidate.barcode}. Satır hâlâ manuel onay bekliyor.`);
+  }
+
+  function handleApplySuggestions(candidate: ProductFinderCandidate) {
+    const applied = applyCandidateSuggestions(candidate);
+    setCandidate(applied.candidate);
+
+    if (applied.counts.categoryApplied || applied.counts.nutritionBasisApplied) {
+      const messageParts = [];
+      if (applied.counts.categoryApplied) messageParts.push("kategori önerisi uygulandı");
+      if (applied.counts.nutritionBasisApplied) messageParts.push("besin bazı önerisi uygulandı");
+      setSuggestionSummary(`1 satır güncellendi: ${messageParts.join(", ")}.`);
+    } else {
+      setSuggestionSummary("Bu satırda uygulanacak yeni öneri yok.");
+    }
+  }
+
+  function handleApplyAllSuggestions() {
+    const applied = applySuggestionsToCandidates(candidates);
+    setCandidates(applied.candidates);
+    setSuggestionSummary(
+      `${applied.counts.categoryApplied} kategori önerisi, ${applied.counts.nutritionBasisApplied} besin bazı önerisi uygulandı.`,
     );
   }
 
@@ -901,6 +1060,20 @@ export function AdminProductFinderClient() {
               {urlError ? (
                 <div className="rounded-2xl border border-amber-300/20 bg-amber-200/10 px-4 py-3 text-sm text-[color:var(--gold-soft)]">
                   {urlError}
+                </div>
+              ) : null}
+
+              {urlSummary ? (
+                <div className="rounded-2xl border border-white/8 bg-white/[0.03] px-4 py-3 text-sm text-[color:var(--text-muted)]">
+                  {urlSummary.total_input_lines} link işlendi: {urlSummary.parsed} başarılı,{" "}
+                  {urlSummary.invalid_url} geçersiz, {urlSummary.rejected_non_product_url} ürün dışı / desteklenmeyen,{" "}
+                  {urlSummary.source_error} kaynak hatası, {urlSummary.duplicate_count} tekrar temizlendi.
+                </div>
+              ) : null}
+
+              {suggestionSummary ? (
+                <div className="rounded-2xl border border-emerald-300/15 bg-emerald-200/10 px-4 py-3 text-sm text-emerald-50">
+                  {suggestionSummary}
                 </div>
               ) : null}
             </div>
@@ -1236,6 +1409,15 @@ export function AdminProductFinderClient() {
 
             <button
               type="button"
+              onClick={() => void handleBarcodeDiscovery()}
+              className="button-secondary min-h-11 px-5 disabled:cursor-not-allowed disabled:opacity-60"
+              disabled={barcodeDiscoveryLoading}
+            >
+              {barcodeDiscoveryLoading ? "Barkod adayları aranıyor..." : "Barkod adaylarını bul"}
+            </button>
+
+            <button
+              type="button"
               onClick={() => void handleIdentityResolve()}
               className="button-secondary min-h-11 px-5 disabled:cursor-not-allowed disabled:opacity-60"
               disabled={identityLoading}
@@ -1268,8 +1450,31 @@ export function AdminProductFinderClient() {
             >
               Onaylananları XLSX indir
             </button>
+
+            <button
+              type="button"
+              onClick={handleApplyAllSuggestions}
+              className="button-secondary min-h-11 px-5"
+            >
+              Tüm önerileri uygula
+            </button>
           </div>
         </div>
+
+        {barcodeDiscoveryError ? (
+          <div className="mt-5 rounded-2xl border border-amber-300/20 bg-amber-200/10 px-4 py-3 text-sm text-[color:var(--gold-soft)]">
+            {barcodeDiscoveryError}
+          </div>
+        ) : null}
+
+        {barcodeDiscoverySummary ? (
+          <div className="mt-5 rounded-2xl border border-white/8 bg-white/[0.03] px-4 py-3 text-sm text-[color:var(--text-muted)]">
+            {barcodeDiscoverySummary.total} aday işlendi: {barcodeDiscoverySummary.with_candidates} barkod adayı bulundu,{" "}
+            {barcodeDiscoverySummary.not_found} bulunamadı,{" "}
+            {barcodeDiscoverySummary.search_not_configured + barcodeDiscoverySummary.source_error} yapılandırma/kaynak hatası,{" "}
+            {barcodeDiscoverySummary.skipped_existing_barcode} barkodlu satır atlandı.
+          </div>
+        ) : null}
 
         <div className="mt-6 overflow-x-auto rounded-2xl">
           <table className="min-w-[1120px] text-left">
@@ -1330,6 +1535,135 @@ export function AdminProductFinderClient() {
                         </span>
                       ))}
                     </div>
+
+                    {(() => {
+                      const suggestionState = getCandidateSuggestionState(candidate);
+                      const barcodeDiscovery = barcodeDiscoveryResults[candidate.id];
+                      const hasBarcodeSuggestions =
+                        barcodeDiscovery && barcodeDiscovery.barcode_candidates.length > 0;
+
+                      if (!suggestionState.hasAnySuggestion && !hasBarcodeSuggestions) return null;
+
+                      return (
+                        <div className="mt-3 space-y-3">
+                          {hasBarcodeSuggestions ? (
+                            <div className="rounded-2xl border border-sky-300/15 bg-sky-200/10 p-3 text-xs text-sky-50">
+                              <div className="space-y-3">
+                                <div className="flex items-center justify-between gap-3">
+                                  <div>
+                                    <div className="font-semibold">Barkod adayları</div>
+                                    <div className="mt-1 text-sky-100/80">
+                                      Barkod otomatik yazılmaz. Kaynağı kontrol edip manuel uygula.
+                                    </div>
+                                  </div>
+                                  {barcodeDiscovery?.status === "low_confidence" ? (
+                                    <span className="rounded-full border border-sky-200/20 px-2 py-1 text-[10px] uppercase tracking-[0.16em] text-sky-100/80">
+                                      Düşük güven
+                                    </span>
+                                  ) : null}
+                                </div>
+
+                                {barcodeDiscovery?.barcode_candidates.map((item) => (
+                                  <div
+                                    key={`${candidate.id}-${item.barcode}`}
+                                    className="rounded-2xl border border-white/10 bg-black/10 p-3"
+                                  >
+                                    <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                                      <div className="space-y-2">
+                                        <div className="text-sm font-semibold text-white">{item.barcode}</div>
+                                        <div className="flex flex-wrap gap-2 text-[11px] uppercase tracking-[0.14em] text-sky-100/80">
+                                          <span>{item.confidence}</span>
+                                          <span>score {item.score}</span>
+                                        </div>
+                                        {item.reasons.length > 0 ? (
+                                          <div className="text-sky-100/80">
+                                            {item.reasons.join(" • ")}
+                                          </div>
+                                        ) : null}
+                                        {item.warnings.length > 0 ? (
+                                          <div className="text-[color:var(--gold-soft)]">
+                                            {item.warnings.join(" • ")}
+                                          </div>
+                                        ) : null}
+                                      </div>
+
+                                      <button
+                                        type="button"
+                                        className="button-secondary min-h-9 px-3 text-xs"
+                                        onClick={() => handleApplyDiscoveredBarcode(candidate, item)}
+                                      >
+                                        Bu barkodu uygula
+                                      </button>
+                                    </div>
+
+                                    <div className="mt-3 space-y-2">
+                                      {item.evidence.map((evidence, index) => (
+                                        <div
+                                          key={`${candidate.id}-${item.barcode}-${index}`}
+                                          className="rounded-xl border border-white/8 bg-white/[0.03] p-3 text-[11px] text-white/82"
+                                        >
+                                          <div className="font-semibold text-white">
+                                            {evidence.domain || "Kaynak"}
+                                          </div>
+                                          <div className="mt-1">{evidence.title}</div>
+                                          {evidence.snippet ? (
+                                            <div className="mt-1 text-sky-100/80">{evidence.snippet}</div>
+                                          ) : null}
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          ) : barcodeDiscovery?.status === "not_found" ? (
+                            <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-3 text-xs text-[color:var(--text-muted)]">
+                              Barkod adayı bulunamadı.
+                            </div>
+                          ) : barcodeDiscovery?.status === "search_not_configured" ? (
+                            <div className="rounded-2xl border border-amber-300/20 bg-amber-200/10 p-3 text-xs text-[color:var(--gold-soft)]">
+                              Barkod arama servisi yapılandırılmamış.
+                            </div>
+                          ) : barcodeDiscovery?.status === "source_error" ? (
+                            <div className="rounded-2xl border border-amber-300/20 bg-amber-200/10 p-3 text-xs text-[color:var(--gold-soft)]">
+                              Kaynak hatası nedeniyle barkod adayı üretilemedi.
+                            </div>
+                          ) : null}
+
+                          {suggestionState.hasAnySuggestion ? (
+                            <div className="rounded-2xl border border-emerald-300/15 bg-emerald-200/10 p-3 text-xs text-emerald-50">
+                              <div className="space-y-2">
+                            {suggestionState.canApplyCategory ? (
+                              <div>
+                                <div className="font-semibold">Kategori önerisi: {candidate.category_suggestion}</div>
+                                {candidate.category_suggestion_reason ? (
+                                  <div className="text-emerald-100/80">{candidate.category_suggestion_reason}</div>
+                                ) : null}
+                              </div>
+                            ) : null}
+
+                            {suggestionState.canApplyNutritionBasis ? (
+                              <div>
+                                <div className="font-semibold">Besin bazı önerisi: {candidate.nutrition_basis_suggestion}</div>
+                                {candidate.nutrition_basis_suggestion_reason ? (
+                                  <div className="text-emerald-100/80">{candidate.nutrition_basis_suggestion_reason}</div>
+                                ) : null}
+                              </div>
+                            ) : null}
+
+                            <button
+                              type="button"
+                              className="button-secondary min-h-9 px-3 text-xs"
+                              onClick={() => handleApplySuggestions(candidate)}
+                            >
+                              Önerileri uygula
+                            </button>
+                              </div>
+                            </div>
+                          ) : null}
+                        </div>
+                      );
+                    })()}
                   </td>
                   <td className="px-4 py-4 text-sm text-[color:var(--text-muted)]">
                     {candidate.is_verified ? "true" : "false"}
@@ -1485,6 +1819,57 @@ export function AdminProductFinderClient() {
                           100ml
                         </option>
                       </select>
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="mb-2 text-white">besin tablosu durumu</dt>
+                    <dd className="space-y-3">
+                      <label className="flex items-start gap-3 text-sm text-[color:var(--text-muted)]">
+                        <input
+                          type="checkbox"
+                          checked={draftCandidate.nutrition_table_not_available}
+                          disabled={
+                            [
+                              draftCandidate.energy_kcal_100g,
+                              draftCandidate.fat_100g,
+                              draftCandidate.saturated_fat_100g,
+                              draftCandidate.carbohydrates_100g,
+                              draftCandidate.sugars_100g,
+                              draftCandidate.protein_100g,
+                              draftCandidate.salt_100g,
+                            ].some((value) => value != null)
+                          }
+                          onChange={(event) =>
+                            setDraftCandidate(
+                              updateCandidateField(
+                                draftCandidate,
+                                "nutrition_table_not_available",
+                                event.target.checked ? "true" : "false",
+                              ),
+                            )
+                          }
+                          className="mt-1 h-4 w-4 rounded border border-white/20 bg-white/5"
+                        />
+                        <span>
+                          Besin tablosu kaynakta/ambalajda yok
+                          <span className="mt-1 block text-xs text-[color:var(--text-soft)]">
+                            İşaretlenirse bu ürün için besin değerleri girilmeyecek; kullanıcıya kaynakta besin tablosu olmadığı gösterilecek.
+                          </span>
+                        </span>
+                      </label>
+                      {[
+                        draftCandidate.energy_kcal_100g,
+                        draftCandidate.fat_100g,
+                        draftCandidate.saturated_fat_100g,
+                        draftCandidate.carbohydrates_100g,
+                        draftCandidate.sugars_100g,
+                        draftCandidate.protein_100g,
+                        draftCandidate.salt_100g,
+                      ].some((value) => value != null) ? (
+                        <p className="text-xs leading-5 text-[color:var(--gold-soft)]">
+                          Besin değerleri doluyken bu seçenek devre dışıdır.
+                        </p>
+                      ) : null}
                     </dd>
                   </div>
                   <div>

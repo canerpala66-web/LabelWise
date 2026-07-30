@@ -46,6 +46,36 @@ export function detectVariantTokens(value: string | null | undefined) {
 
 export function parseQuantityFromText(value: string | null | undefined) {
   const normalized = normalizeText(value).replace(",", ".");
+  const multiPackMatch = normalized.match(
+    /(\d+)\s*(?:x|\*)\s*(\d+(?:\.\d+)?)\s*(kg|g|gr|l|lt|ml)\b/,
+  );
+  if (multiPackMatch) {
+    const packCount = Number(multiPackMatch[1]);
+    const unitValue = Number(multiPackMatch[2]);
+    const rawUnit = multiPackMatch[3];
+    const quantityUnit =
+      rawUnit === "gr" ? "g" : rawUnit === "lt" ? "l" : rawUnit;
+
+    if (Number.isFinite(packCount) && Number.isFinite(unitValue)) {
+      return {
+        quantity_value: Number((packCount * unitValue).toFixed(3)),
+        quantity_unit: quantityUnit,
+      };
+    }
+  }
+
+  const explicitTotalMatch = normalized.match(/(\d+(?:\.\d+)?)\s*(kg|g|gr|l|lt|ml)\b\.?/);
+  if (explicitTotalMatch) {
+    const quantityValue = Number(explicitTotalMatch[1]);
+    const rawUnit = explicitTotalMatch[2];
+    const quantityUnit =
+      rawUnit === "gr" ? "g" : rawUnit === "lt" ? "l" : rawUnit;
+
+    if (Number.isFinite(quantityValue)) {
+      return { quantity_value: quantityValue, quantity_unit: quantityUnit };
+    }
+  }
+
   const match = normalized.match(/(\d+(?:\.\d+)?)\s*(kg|g|gr|l|lt|ml)\b/);
   if (!match) {
     return null;

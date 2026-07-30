@@ -7,6 +7,40 @@ type RequestBody = {
   urls?: unknown;
 };
 
+type UrlParseResult = {
+  url: string;
+  status: "parsed" | "source_error";
+  candidate: Awaited<ReturnType<typeof fetchMigrosProductByUrl>> | null;
+  issues: Array<{
+    code: "source_error";
+    message: string;
+    severity: "warning";
+  }> | Awaited<ReturnType<typeof fetchMigrosProductByUrl>>["issue_list"];
+};
+
+async function mapWithConcurrency<T, R>(
+  items: T[],
+  limit: number,
+  worker: (item: T, index: number) => Promise<R>,
+) {
+  const results = new Array<R>(items.length);
+  let cursor = 0;
+
+  async function runWorker() {
+    while (cursor < items.length) {
+      const index = cursor;
+      cursor += 1;
+      results[index] = await worker(items[index], index);
+    }
+  }
+
+  await Promise.all(
+    Array.from({ length: Math.min(limit, items.length) }, () => runWorker()),
+  );
+
+  return results;
+}
+
 export async function POST(request: NextRequest) {
   try {
     await requireAdminUserForApi();
@@ -42,8 +76,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "En fazla 100 ürün URL’si gönderilebilir." }, { status: 400 });
   }
 
-  const results = await Promise.all(
-    parsed.urls.map(async (item) => {
+  const results = await mapWithConcurrency(parsed.urls, 4, async (item): Promise<UrlParseResult> => {
       try {
         const candidate = await fetchMigrosProductByUrl(item.url);
         candidate.barcode = "";
@@ -67,20 +100,23 @@ export async function POST(request: NextRequest) {
           ],
         };
       }
-    }),
-  );
+    });
+
+  const summary = {
+    total_input_lines: parsed.rawCount,
+    unique_urls: parsed.parsedCount + parsed.unsupportedCount + parsed.invalidCount,
+    parsed: results.filter((item) => item.status === "parsed").length,
+    source_error: results.filter((item) => item.status === "source_error").length,
+    invalid_url: parsed.invalidCount,
+    unsupported_domain: 0,
+    rejected_non_product_url: parsed.unsupportedCount,
+    duplicate_count: parsed.duplicatesRemoved,
+  };
 
   return NextResponse.json(
     {
       results,
-      summary: {
-        total: results.length,
-        parsed: results.filter((item) => item.status === "parsed").length,
-        source_error: results.filter((item) => item.status === "source_error").length,
-        invalid: parsed.invalidCount,
-        unsupported_domain: parsed.unsupportedCount,
-        duplicates_removed: parsed.duplicatesRemoved,
-      },
+      summary,
     },
     {
       status: 200,

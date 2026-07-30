@@ -50,10 +50,27 @@ type MigrosParsedData = {
     has_nutrition_like_numbers: boolean;
     has_embedded_json_candidates: boolean;
     has_ingredients_text: boolean;
+    ingredients_extraction_strategy: string | null;
+    ingredients_label_detected: string | null;
+    ingredients_container_hint: string | null;
+    ingredients_found: boolean;
+    ingredients_missing_reason: string | null;
     suspected_client_side_nutrition: boolean;
     possible_nutrition_keys_found: string[];
+    nutrition_rows_detected: number;
+    nutrition_labels_detected: string[];
+    nutrition_unmapped_labels: string[];
+    nutrition_zero_values_detected: string[];
   };
   discardedDirtyFields: string[];
+};
+
+type IngredientExtractionResult = {
+  value: string | null;
+  strategy: string | null;
+  label: string | null;
+  containerHint: string | null;
+  missingReason: string | null;
 };
 
 const DIRTY_FIELD_PATTERNS = [
@@ -94,6 +111,8 @@ function decodeHtml(value: string) {
   return value
     .replace(/&quot;/g, '"')
     .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
     .replace(/&#39;/g, "'")
     .replace(/&uuml;/g, "ü")
     .replace(/&Uuml;/g, "Ü")
@@ -115,11 +134,22 @@ function removeCommentsScriptsAndStyles(html: string) {
 }
 
 function stripTags(value: string) {
-  return decodeHtml(value).replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+  return decodeHtml(value.replace(/<[^>]+>/g, " ")).replace(/\s+/g, " ").trim();
 }
 
 function sanitizeVisibleText(html: string) {
   return stripTags(removeCommentsScriptsAndStyles(html));
+}
+
+function normalizeLabel(value: string) {
+  return decodeHtml(value)
+    .toLowerCase()
+    .replace(/&nbsp;/g, " ")
+    .replace(/\u00a0/g, " ")
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
 }
 
 function extractScriptContents(html: string) {
@@ -157,10 +187,10 @@ function flattenJsonLdProducts(value: unknown): Array<Record<string, unknown>> {
 
 function matchMetaContent(html: string, key: string) {
   const regex = new RegExp(
-    `<meta[^>]+(?:property|name)=["']${key}["'][^>]+content=["']([^"']+)["'][^>]*>`,
+    `<meta[^>]+(?:property|name)=([\"'])${key}\\1[^>]+content=([\"'])([\\s\\S]*?)\\2[^>]*>`,
     "i",
   );
-  return safeString(regex.exec(html)?.[1] ?? "");
+  return safeString(regex.exec(html)?.[3] ?? "");
 }
 
 function matchFirst(value: string, regex: RegExp) {
@@ -226,6 +256,106 @@ function extractSectionText(html: string, labels: string[]) {
   return "";
 }
 
+const INGREDIENT_LABELS = [
+  "İçindekiler",
+  "İçerik",
+  "Ürün İçeriği",
+  "İçerik Bilgisi",
+  "Kullanılan Malzemeler",
+  "Bileşenler",
+  "Ingredients",
+  "Malzemeler",
+] as const;
+
+const ALLERGEN_LABELS = ["Alerjen", "Alerjen Bilgisi"] as const;
+
+function cleanExtractedIngredientValue(raw: string) {
+  const cleaned = stripTags(raw)
+    .replace(/^[\s*•·:\-–—()\[\]]+/, "")
+    .replace(/^(içindekiler|icerik|urun icerigi|icerik bilgisi|kullanilan malzemeler|bilesenler|ingredients|malzemeler)\s*[:：-]?\s*/i, "")
+    .replace(/^[\s*•·:\-–—()\[\]]+/, "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (!cleaned) return null;
+  if (/^(stok|teslimat|kargo|kampanya|indirim|sepet|favori)/i.test(cleaned)) return null;
+  return cleaned;
+}
+
+function extractIngredients(html: string) {
+  const cleanHtml = removeCommentsScriptsAndStyles(html);
+
+  for (const label of INGREDIENT_LABELS) {
+    const section = extractSectionText(cleanHtml, [label]);
+    const cleaned = cleanExtractedIngredientValue(section);
+    if (cleaned) {
+      return {
+        value: cleaned,
+        strategy: "section_label",
+        label,
+        containerHint: "section_text",
+        missingReason: null,
+      } satisfies IngredientExtractionResult;
+    }
+
+    const blockPattern = new RegExp(
+      `${label}\\s*[:：-]?\\s*(?:</[^>]+>\\s*)?(?:<[^>]+>\\s*){0,6}([\\s\\S]{0,900}?)(?:<\\/p>|<\\/div>|<\\/li>|<\\/section>|<h\\d|<strong|<b|Alerjen|Besin\\s*Değerleri|Enerji|Saklama\\s*Koşulları|Kullanım\\s*Önerileri)`,
+      "i",
+    );
+    const blockMatch = blockPattern.exec(cleanHtml)?.[1] ?? "";
+    const blockValue = cleanExtractedIngredientValue(blockMatch);
+    if (blockValue) {
+      return {
+        value: blockValue,
+        strategy: "block_match",
+        label,
+        containerHint: "html_block",
+        missingReason: null,
+      } satisfies IngredientExtractionResult;
+    }
+  }
+
+  const attributePatterns = [
+    /<(?:li|div|p|dd)[^>]*>\s*(?:<[^>]+>\s*)?(İçindekiler|İçerik|Ürün İçeriği|İçerik Bilgisi|Kullanılan Malzemeler|Bileşenler|Ingredients|Malzemeler)\s*[:：-]?\s*([\s\S]{0,700}?)<\/(?:li|div|p|dd)>/i,
+    /<(?:dt|strong|b)[^>]*>\s*(İçindekiler|İçerik|Ürün İçeriği|İçerik Bilgisi|Kullanılan Malzemeler|Bileşenler|Ingredients|Malzemeler)\s*[:：-]?\s*<\/(?:dt|strong|b)>\s*<(?:dd|div|p)[^>]*>([\s\S]{0,700}?)<\/(?:dd|div|p)>/i,
+  ];
+
+  for (const pattern of attributePatterns) {
+    const match = cleanHtml.match(pattern);
+    const label = match?.[1] ? stripTags(match[1]) : null;
+    const body = match?.[2] ? cleanExtractedIngredientValue(match[2]) : null;
+    if (label && body) {
+      return {
+        value: body,
+        strategy: "attribute_pair",
+        label,
+        containerHint: "attribute_list",
+        missingReason: null,
+      } satisfies IngredientExtractionResult;
+    }
+  }
+
+  for (const allergenLabel of ALLERGEN_LABELS) {
+    if (new RegExp(allergenLabel, "i").test(cleanHtml)) {
+      return {
+        value: null,
+        strategy: null,
+        label: allergenLabel,
+        containerHint: "allergen_only",
+        missingReason: "only_allergen_text_found",
+      } satisfies IngredientExtractionResult;
+    }
+  }
+
+  return {
+    value: null,
+    strategy: null,
+    label: null,
+    containerHint: null,
+    missingReason: "no_explicit_ingredients_section",
+  } satisfies IngredientExtractionResult;
+}
+
 function extractCleanCategory(html: string, productJson: Record<string, unknown> | undefined, discardedDirtyFields: string[]) {
   const jsonCategory = cleanField(
     safeString((productJson?.category as string | undefined) ?? ""),
@@ -281,6 +411,13 @@ function parseNutritionFromText(text: string) {
   };
 }
 
+type NormalizedNutritionRow = {
+  rawKey: string;
+  normalizedKey: string;
+  valueText: string;
+  valueNumber: number | null;
+};
+
 function findNutritionKeys(text: string) {
   const keyPatterns = [
     ["nutrition", /\bnutrition\b/i],
@@ -330,25 +467,89 @@ function extractNutritionTableRows(html: string) {
   return { basisText, rows };
 }
 
+function normalizeNutritionRows(rows: Array<{ key: string; value: string }>): NormalizedNutritionRow[] {
+  return rows.map((row) => ({
+    rawKey: row.key,
+    normalizedKey: normalizeLabel(row.key),
+    valueText: safeString(row.value),
+    valueNumber: (() => {
+      const raw = safeString(row.value).replace(/\u00a0/g, " ").replace(/&nbsp;/g, " ");
+      const lessThanMatch = raw.match(/<\s*(\d+(?:[.,]\d+)?)/);
+      if (lessThanMatch) {
+        return parseNumeric((lessThanMatch[1] ?? "").replace(",", "."));
+      }
+      return parseNumeric(raw);
+    })(),
+  }));
+}
+
 function parseNutritionFromTableRows(rows: Array<{ key: string; value: string }>, basisText: string | null) {
-  const valueFor = (pattern: RegExp) => {
-    const row = rows.find((entry) => pattern.test(entry.key));
-    return row ? parseNumeric(row.value) : null;
+  const normalizedRows = normalizeNutritionRows(rows);
+
+  const fatPatterns = [/^yag(?: g)?$/, /^toplam yag(?: g)?$/, /^fat$/, /^total fat$/];
+  const saturatedFatPatterns = [
+    /^doymus yag(?: g)?$/,
+    /^doymus yag asitleri(?: g)?$/,
+    /^doymus yaglar(?: g)?$/,
+    /^saturated fat$/,
+    /^saturates$/,
+  ];
+  const carbohydratePatterns = [/^karbonhidrat(?: g)?$/];
+  const sugarPatterns = [/^seker(?:ler)?(?: g)?$/];
+  const fiberPatterns = [/^lif(?: g)?$/];
+  const proteinPatterns = [/^protein(?: g)?$/];
+  const saltPatterns = [/^tuz(?: g)?$/];
+  const sodiumPatterns = [/^sodyum(?: g| mg)?$/];
+  const energyKcalPatterns = [/^enerji kcal$/, /^enerji kcal kcal$/, /^enerji kcal g?$/, /^enerji kcal ml?$/, /^enerji kcal$/];
+  const energyKjPatterns = [/^enerji kj$/, /^enerji kj g?$/, /^enerji kj ml?$/];
+
+  const valueFor = (patterns: RegExp[]) => {
+    const row = normalizedRows.find((entry) => patterns.some((pattern) => pattern.test(entry.normalizedKey)));
+    return row?.valueNumber ?? null;
   };
+
+  const zeroLabels = normalizedRows
+    .filter((row) => row.valueNumber === 0)
+    .map((row) => row.rawKey);
+  const mappedLabels = normalizedRows
+    .filter((row) =>
+      [
+        ...fatPatterns,
+        ...saturatedFatPatterns,
+        ...carbohydratePatterns,
+        ...sugarPatterns,
+        ...fiberPatterns,
+        ...proteinPatterns,
+        ...saltPatterns,
+        ...sodiumPatterns,
+        ...energyKcalPatterns,
+        ...energyKjPatterns,
+      ].some((pattern) => pattern.test(row.normalizedKey)),
+    )
+    .map((row) => row.rawKey);
+  const unmappedLabels = normalizedRows
+    .filter((row) => !mappedLabels.includes(row.rawKey))
+    .map((row) => row.rawKey);
 
   return {
     basis: parseNutritionBasis(basisText ?? ""),
     nutrition: {
-      energy_kcal_100g: valueFor(/Enerji\s*\(kcal\)/i),
-      energy_kj_100g: valueFor(/Enerji\s*\(kJ\)/i),
-      fat_100g: valueFor(/^Yağ\s*\(g\)$/i),
-      saturated_fat_100g: valueFor(/Doymuş\s*yağ\s*\(g\)/i),
-      carbohydrates_100g: valueFor(/Karbonhidrat\s*\(g\)/i),
-      sugars_100g: valueFor(/Şeker\s*\(g\)|Şekerler\s*\(g\)/i),
-      fiber_100g: valueFor(/Lif\s*\(g\)/i),
-      protein_100g: valueFor(/Protein\s*\(g\)/i),
-      salt_100g: valueFor(/Tuz\s*\(g\)/i),
-      sodium_100g: valueFor(/Sodyum\s*\(g|mg\)/i),
+      energy_kcal_100g: valueFor(energyKcalPatterns),
+      energy_kj_100g: valueFor(energyKjPatterns),
+      fat_100g: valueFor(fatPatterns),
+      saturated_fat_100g: valueFor(saturatedFatPatterns),
+      carbohydrates_100g: valueFor(carbohydratePatterns),
+      sugars_100g: valueFor(sugarPatterns),
+      fiber_100g: valueFor(fiberPatterns),
+      protein_100g: valueFor(proteinPatterns),
+      salt_100g: valueFor(saltPatterns),
+      sodium_100g: valueFor(sodiumPatterns),
+    },
+    debug: {
+      rowsDetected: normalizedRows.length,
+      labelsDetected: normalizedRows.map((row) => row.rawKey),
+      unmappedLabels,
+      zeroValueLabels: zeroLabels,
     },
   };
 }
@@ -425,11 +626,8 @@ function parseMigrosHtml(html: string, url: URL): MigrosParsedData {
         : "";
 
   const category = extractCleanCategory(html, productJson, discardedDirtyFields);
-  const ingredients = cleanField(
-    extractSectionText(html, ["İçindekiler", "İçerik", "Ürün İçeriği"]) || null,
-    "ingredients",
-    discardedDirtyFields,
-  );
+  const ingredientResult = extractIngredients(html);
+  const ingredients = cleanField(ingredientResult.value, "ingredients", discardedDirtyFields);
 
   const visibleText = sanitizeVisibleText(html);
   const scriptContents = extractScriptContents(html);
@@ -501,6 +699,11 @@ function parseMigrosHtml(html: string, url: URL): MigrosParsedData {
       has_nutrition_like_numbers: hasNutritionLikeNumbers,
       has_embedded_json_candidates: hasEmbeddedJsonCandidates,
       has_ingredients_text: Boolean(ingredients),
+      ingredients_extraction_strategy: ingredientResult.strategy,
+      ingredients_label_detected: ingredientResult.label,
+      ingredients_container_hint: ingredientResult.containerHint,
+      ingredients_found: Boolean(ingredients),
+      ingredients_missing_reason: ingredients ? null : ingredientResult.missingReason,
       suspected_client_side_nutrition:
         !chosenHasValues &&
         (hasBesinDegerleriText ||
@@ -508,6 +711,10 @@ function parseMigrosHtml(html: string, url: URL): MigrosParsedData {
           hasEmbeddedJsonCandidates ||
           /(Besin Değerleri|tab|accordion|mat-tab|nutrition)/i.test(html)),
       possible_nutrition_keys_found: possibleNutritionKeysFound,
+      nutrition_rows_detected: tableNutrition.debug.rowsDetected,
+      nutrition_labels_detected: tableNutrition.debug.labelsDetected,
+      nutrition_unmapped_labels: tableNutrition.debug.unmappedLabels,
+      nutrition_zero_values_detected: tableNutrition.debug.zeroValueLabels,
     },
     discardedDirtyFields,
   };
@@ -668,8 +875,17 @@ export function parseMigrosProductHtml(html: string, url: string): SourceCandida
       has_nutrition_like_numbers: parsed.debug.has_nutrition_like_numbers,
       has_embedded_json_candidates: parsed.debug.has_embedded_json_candidates,
       has_ingredients_text: parsed.debug.has_ingredients_text,
+      ingredients_extraction_strategy: parsed.debug.ingredients_extraction_strategy,
+      ingredients_label_detected: parsed.debug.ingredients_label_detected,
+      ingredients_container_hint: parsed.debug.ingredients_container_hint,
+      ingredients_found: parsed.debug.ingredients_found,
+      ingredients_missing_reason: parsed.debug.ingredients_missing_reason,
       suspected_client_side_nutrition: parsed.debug.suspected_client_side_nutrition,
       possible_nutrition_keys_found: parsed.debug.possible_nutrition_keys_found,
+      nutrition_rows_detected: parsed.debug.nutrition_rows_detected,
+      nutrition_labels_detected: parsed.debug.nutrition_labels_detected,
+      nutrition_unmapped_labels: parsed.debug.nutrition_unmapped_labels,
+      nutrition_zero_values_detected: parsed.debug.nutrition_zero_values_detected,
     },
   };
 }
