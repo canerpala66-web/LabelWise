@@ -12,6 +12,13 @@ const pepsiInput = {
   quantity_unit: "ml",
 };
 
+const pepsiZeroInput = {
+  brand: "Pepsi",
+  product_name: "Pepsi Cola Zero",
+  quantity_value: 1.5,
+  quantity_unit: "L",
+};
+
 function createResult(
   overrides: Partial<SearchProviderResult>,
 ): SearchProviderResult {
@@ -27,11 +34,23 @@ function createResult(
 
 describe("barcode discovery", () => {
   it("builds deterministic queries", () => {
-    expect(buildBarcodeDiscoveryQueries(pepsiInput)).toEqual([
-      "Pepsi Pepsi Kola Kutu 330 ml barkod",
-      "Pepsi Pepsi Kola Kutu 330 ml barcode",
-      "Pepsi Pepsi Kola Kutu 330 ml 869",
-    ]);
+    const queries = buildBarcodeDiscoveryQueries(pepsiInput);
+    expect(queries).toContain("Pepsi Pepsi Kola Kutu 330 ml barkod");
+    expect(queries).toContain("Pepsi Pepsi Kola Kutu 330 ml barcode");
+    expect(queries).toContain("Pepsi Pepsi Kola Kutu 330 ml EAN");
+    expect(queries).toContain("Pepsi Pepsi Kola Kutu 330 ml 869");
+    expect(queries.length).toBeLessThanOrEqual(8);
+  });
+
+  it("expands Pepsi Cola Zero 1.5 L queries with quantity and variant aliases", () => {
+    const queries = buildBarcodeDiscoveryQueries(pepsiZeroInput);
+
+    expect(queries).toContain("Pepsi Pepsi Cola Zero 1.5 L barkod");
+    expect(queries).toContain("Pepsi Pepsi Kola Zero 1,5 L barkod");
+    expect(queries).toContain("Pepsi Pepsi Zero Sugar 1.5 L barkod");
+    expect(queries).toContain("Pepsi Pepsi Zero Şekersiz 1,5 Lt barkod");
+    expect(queries).toContain("Pepsi Pepsi Zero 1500 ml barkod");
+    expect(queries.length).toBeLessThanOrEqual(8);
   });
 
   it("extracts EAN-like barcode from title", () => {
@@ -113,5 +132,41 @@ describe("barcode discovery", () => {
     ]);
 
     expect(results[0]?.confidence).toBe("high");
+  });
+
+  it("boosts score when exact variant and quantity aliases match", () => {
+    const results = extractBarcodeCandidatesFromResults(pepsiZeroInput, [
+      createResult({
+        title: "Pepsi Zero Sugar 1500 ml barkod 8690574114658",
+        snippet: "Pepsi Zero Sugar 1500 ml ürün barkodu 8690574114658",
+      }),
+    ]);
+
+    expect(results[0]?.score ?? 0).toBeGreaterThanOrEqual(0.84);
+    expect(results[0]?.reasons).toContain("zero variant matched");
+  });
+
+  it("lowers confidence for conflicting variant evidence", () => {
+    const results = extractBarcodeCandidatesFromResults(pepsiZeroInput, [
+      createResult({
+        title: "Pepsi Max 1.5 L barkod 8690574114658",
+        snippet: "Pepsi Max 1.5 L ürün barkodu 8690574114658",
+      }),
+    ]);
+
+    expect(results[0]?.warnings).toContain("variant conflict");
+    expect(results[0]?.confidence).not.toBe("high");
+  });
+
+  it("lowers confidence for conflicting quantity evidence", () => {
+    const results = extractBarcodeCandidatesFromResults(pepsiZeroInput, [
+      createResult({
+        title: "Pepsi Cola Zero 1 L barkod 8690574114658",
+        snippet: "Pepsi Cola Zero 1 L ürün barkodu 8690574114658",
+      }),
+    ]);
+
+    expect(results[0]?.warnings).toContain("quantity mismatch");
+    expect(results[0]?.confidence).not.toBe("high");
   });
 });

@@ -39,6 +39,10 @@ import {
 import { mapSourceCandidateToProductFinderCandidate } from "@/lib/admin/product-finder/source-candidate-mapper";
 import type { ProductIdentityResult } from "@/lib/admin/product-finder/providers";
 import { parseProductUrlTextarea } from "@/lib/admin/product-finder/url-input";
+import {
+  ensureUniqueCandidateId,
+  normalizeCandidateSourceUrl,
+} from "@/lib/admin/product-finder/candidate-id";
 
 type IdentityApiResult = {
   barcode: string;
@@ -109,31 +113,22 @@ type BarcodeDiscoveryResult = {
     | "medium_confidence"
     | "low_confidence"
     | "not_found"
-    | "search_not_configured"
-    | "source_error"
+    | "openai_web_search_not_configured"
+    | "openai_search_error"
     | "skipped_existing_barcode";
   barcode_candidates: BarcodeDiscoveryCandidate[];
   queries: string[];
+  notes?: string;
 };
 
 type BarcodeDiscoverySummary = {
   total: number;
   with_candidates: number;
   not_found: number;
-  search_not_configured: number;
-  source_error: number;
+  openai_web_search_not_configured: number;
+  openai_search_error: number;
   skipped_existing_barcode: number;
 };
-
-function buildUrlCandidateId(url: string, index: number) {
-  const safeSlug = url
-    .replace(/^https?:\/\//, "")
-    .replace(/[^a-z0-9]+/gi, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 48);
-
-  return `finder-url-${index + 1}-${safeSlug || "candidate"}`;
-}
 
 function hasMeaningfulText(value: string | null | undefined) {
   return Boolean(value?.trim());
@@ -489,6 +484,7 @@ export function AdminProductFinderClient() {
   const [urlError, setUrlError] = useState("");
   const [urlSummary, setUrlSummary] = useState<UrlParseApiSummary | null>(null);
   const [suggestionSummary, setSuggestionSummary] = useState("");
+  const [urlDuplicateExistingCount, setUrlDuplicateExistingCount] = useState(0);
   const [barcodeDiscoveryLoading, setBarcodeDiscoveryLoading] = useState(false);
   const [barcodeDiscoveryError, setBarcodeDiscoveryError] = useState("");
   const [barcodeDiscoverySummary, setBarcodeDiscoverySummary] =
@@ -813,6 +809,7 @@ export function AdminProductFinderClient() {
     setUrlLoading(true);
     setUrlError("");
     setUrlSummary(null);
+    setUrlDuplicateExistingCount(0);
     setSuggestionSummary("");
     setError("");
 
@@ -843,14 +840,44 @@ export function AdminProductFinderClient() {
 
       const mappedCandidates = payload.results
         .filter((item) => item.status === "parsed" && item.candidate)
-        .map((item, index) =>
-          mapSourceCandidateToProductFinderCandidate(item.candidate!, {
-            candidateId: buildUrlCandidateId(item.url, index),
-          }),
-        );
+        .map((item) => mapSourceCandidateToProductFinderCandidate(item.candidate!));
 
       setUrlSummary(payload.summary ?? null);
-      setCandidates((current) => [...mappedCandidates, ...current]);
+      let duplicateExistingCount = 0;
+      setCandidates((current) => {
+        const existingUrls = new Set(
+          current
+            .map((candidate) => normalizeCandidateSourceUrl(candidate.source_url))
+            .filter(Boolean),
+        );
+        const existingIds = new Set(current.map((candidate) => candidate.id));
+        const uniqueNewCandidates: ProductFinderCandidate[] = [];
+
+        for (const candidate of mappedCandidates) {
+          const normalizedSourceUrl = normalizeCandidateSourceUrl(candidate.source_url);
+          if (normalizedSourceUrl && existingUrls.has(normalizedSourceUrl)) {
+            duplicateExistingCount += 1;
+            continue;
+          }
+
+          const uniqueId = ensureUniqueCandidateId(candidate.id, [
+            ...existingIds,
+            ...uniqueNewCandidates.map((item) => item.id),
+          ]);
+
+          uniqueNewCandidates.push(
+            uniqueId === candidate.id ? candidate : { ...candidate, id: uniqueId },
+          );
+
+          if (normalizedSourceUrl) {
+            existingUrls.add(normalizedSourceUrl);
+          }
+          existingIds.add(uniqueId);
+        }
+
+        return [...uniqueNewCandidates, ...current];
+      });
+      setUrlDuplicateExistingCount(duplicateExistingCount);
     } catch {
       setUrlError("Ürün linkleri çözümlenemedi.");
     } finally {
@@ -1068,6 +1095,9 @@ export function AdminProductFinderClient() {
                   {urlSummary.total_input_lines} link işlendi: {urlSummary.parsed} başarılı,{" "}
                   {urlSummary.invalid_url} geçersiz, {urlSummary.rejected_non_product_url} ürün dışı / desteklenmeyen,{" "}
                   {urlSummary.source_error} kaynak hatası, {urlSummary.duplicate_count} tekrar temizlendi.
+                  {urlDuplicateExistingCount > 0
+                    ? ` ${urlDuplicateExistingCount} link zaten aday listesinde vardı, tekrar eklenmedi.`
+                    : ""}
                 </div>
               ) : null}
 
@@ -1471,7 +1501,7 @@ export function AdminProductFinderClient() {
           <div className="mt-5 rounded-2xl border border-white/8 bg-white/[0.03] px-4 py-3 text-sm text-[color:var(--text-muted)]">
             {barcodeDiscoverySummary.total} aday işlendi: {barcodeDiscoverySummary.with_candidates} barkod adayı bulundu,{" "}
             {barcodeDiscoverySummary.not_found} bulunamadı,{" "}
-            {barcodeDiscoverySummary.search_not_configured + barcodeDiscoverySummary.source_error} yapılandırma/kaynak hatası,{" "}
+            {barcodeDiscoverySummary.openai_web_search_not_configured + barcodeDiscoverySummary.openai_search_error} yapılandırma/kaynak hatası,{" "}
             {barcodeDiscoverySummary.skipped_existing_barcode} barkodlu satır atlandı.
           </div>
         ) : null}
@@ -1618,15 +1648,15 @@ export function AdminProductFinderClient() {
                             </div>
                           ) : barcodeDiscovery?.status === "not_found" ? (
                             <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-3 text-xs text-[color:var(--text-muted)]">
-                              Barkod adayı bulunamadı.
+                              Farklı ad varyantlarıyla sonuç bulunamadı. Ürünün adı/gramajı çok farklı yazılmış olabilir.
                             </div>
-                          ) : barcodeDiscovery?.status === "search_not_configured" ? (
+                          ) : barcodeDiscovery?.status === "openai_web_search_not_configured" ? (
                             <div className="rounded-2xl border border-amber-300/20 bg-amber-200/10 p-3 text-xs text-[color:var(--gold-soft)]">
-                              Barkod arama servisi yapılandırılmamış.
+                              OpenAI web search yapılandırılmamış. OPENAI_API_KEY gerekli.
                             </div>
-                          ) : barcodeDiscovery?.status === "source_error" ? (
+                          ) : barcodeDiscovery?.status === "openai_search_error" ? (
                             <div className="rounded-2xl border border-amber-300/20 bg-amber-200/10 p-3 text-xs text-[color:var(--gold-soft)]">
-                              Kaynak hatası nedeniyle barkod adayı üretilemedi.
+                              OpenAI web search aracı kullanılamıyor. Barkod adayları üretilemedi.
                             </div>
                           ) : null}
 

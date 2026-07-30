@@ -1,15 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdminUserForApi } from "@/lib/admin/auth";
 import {
-  buildBarcodeDiscoveryQueries,
-  extractBarcodeCandidatesFromResults,
   type BarcodeDiscoveryInput,
 } from "@/lib/admin/product-finder/barcode-discovery";
 import {
-  isSerperConfigured,
-  searchWithSerper,
-  type SearchProviderResult,
-} from "@/lib/admin/product-finder/search-provider";
+  discoverBarcodeCandidatesWithOpenAi,
+  isOpenAiBarcodeDiscoveryConfigured,
+} from "@/lib/admin/product-finder/openai-barcode-discovery";
 
 type RequestCandidate = {
   id?: unknown;
@@ -30,8 +27,8 @@ type CandidateStatus =
   | "medium_confidence"
   | "low_confidence"
   | "not_found"
-  | "search_not_configured"
-  | "source_error"
+  | "openai_web_search_not_configured"
+  | "openai_search_error"
   | "skipped_existing_barcode";
 
 function asText(value: unknown) {
@@ -75,109 +72,95 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "En fazla 100 candidate gönderilebilir." }, { status: 400 });
   }
 
-  const serperConfigured = isSerperConfigured();
+  const openAiConfigured = isOpenAiBarcodeDiscoveryConfigured();
 
-  const results = await Promise.all(
-    candidates.map(async (rawCandidate) => {
-      const candidate = rawCandidate as RequestCandidate;
-      const id = asText(candidate.id);
-      const barcode = asText(candidate.barcode);
-      const input: BarcodeDiscoveryInput = {
-        brand: asText(candidate.brand),
-        product_name: asText(candidate.product_name),
-        quantity_value: asNumber(candidate.quantity_value),
-        quantity_unit: asText(candidate.quantity_unit),
-        source_url: asText(candidate.source_url),
-      };
+  const results: Array<{
+    id: string;
+    status: CandidateStatus;
+    barcode_candidates: Awaited<
+      ReturnType<typeof discoverBarcodeCandidatesWithOpenAi>
+    >["candidates"];
+    queries: string[];
+    notes?: string;
+  }> = [];
 
-      if (barcode) {
-        return {
-          id,
-          status: "skipped_existing_barcode" as const,
-          barcode_candidates: [],
-          queries: [] as string[],
-        };
-      }
+  for (const rawCandidate of candidates) {
+    const candidate = rawCandidate as RequestCandidate;
+    const id = asText(candidate.id);
+    const barcode = asText(candidate.barcode);
+    const input: BarcodeDiscoveryInput = {
+      brand: asText(candidate.brand),
+      product_name: asText(candidate.product_name),
+      quantity_value: asNumber(candidate.quantity_value),
+      quantity_unit: asText(candidate.quantity_unit),
+      source_url: asText(candidate.source_url),
+    };
 
-      if (!input.product_name) {
-        return {
-          id,
-          status: "not_found" as const,
-          barcode_candidates: [],
-          queries: [] as string[],
-        };
-      }
-
-      const queries = buildBarcodeDiscoveryQueries(input);
-
-      if (queries.length === 0) {
-        return {
-          id,
-          status: "not_found" as const,
-          barcode_candidates: [],
-          queries,
-        };
-      }
-
-      if (!serperConfigured) {
-        return {
-          id,
-          status: "search_not_configured" as const,
-          barcode_candidates: [],
-          queries,
-        };
-      }
-
-      const mergedResults: SearchProviderResult[] = [];
-      let sawSourceError = false;
-
-      for (const query of queries) {
-        const response = await searchWithSerper(query);
-
-        if (response.status === "ok") {
-          mergedResults.push(...response.results);
-          continue;
-        }
-
-        if (response.status === "source_unavailable") {
-          return {
-            id,
-            status: "search_not_configured" as const,
-            barcode_candidates: [],
-            queries,
-          };
-        }
-
-        sawSourceError = true;
-      }
-
-      const barcodeCandidates = extractBarcodeCandidatesFromResults(input, mergedResults);
-
-      if (barcodeCandidates.length === 0) {
-        return {
-          id,
-          status: sawSourceError ? ("source_error" as const) : ("not_found" as const),
-          barcode_candidates: [],
-          queries,
-        };
-      }
-
-      const topConfidence = barcodeCandidates[0]?.confidence ?? "low";
-      const status: CandidateStatus =
-        topConfidence === "high"
-          ? "high_confidence"
-          : topConfidence === "medium"
-            ? "medium_confidence"
-            : "low_confidence";
-
-      return {
+    if (barcode) {
+      results.push({
         id,
-        status,
-        barcode_candidates: barcodeCandidates,
-        queries,
-      };
-    }),
-  );
+        status: "skipped_existing_barcode",
+        barcode_candidates: [],
+        queries: [],
+      });
+      continue;
+    }
+
+    if (!input.product_name) {
+      results.push({
+        id,
+        status: "not_found",
+        barcode_candidates: [],
+        queries: [],
+      });
+      continue;
+    }
+
+    if (!openAiConfigured) {
+      results.push({
+        id,
+        status: "openai_web_search_not_configured",
+        barcode_candidates: [],
+        queries: [],
+      });
+      continue;
+    }
+
+    const discoveryResult = await discoverBarcodeCandidatesWithOpenAi(input);
+    const barcodeCandidates = discoveryResult.candidates;
+
+    if (barcodeCandidates.length === 0) {
+      results.push({
+        id,
+        status:
+          discoveryResult.status === "openai_web_search_not_configured"
+            ? "openai_web_search_not_configured"
+            : discoveryResult.status === "openai_search_error"
+              ? "openai_search_error"
+              : "not_found",
+        barcode_candidates: [],
+        queries: [],
+        notes: discoveryResult.notes,
+      });
+      continue;
+    }
+
+    const topConfidence = barcodeCandidates[0]?.confidence ?? "low";
+    const status: CandidateStatus =
+      topConfidence === "high"
+        ? "high_confidence"
+        : topConfidence === "medium"
+          ? "medium_confidence"
+          : "low_confidence";
+
+    results.push({
+      id,
+      status,
+      barcode_candidates: barcodeCandidates,
+      queries: [],
+      notes: discoveryResult.notes,
+    });
+  }
 
   return NextResponse.json(
     {
@@ -188,9 +171,11 @@ export async function POST(request: NextRequest) {
           ["high_confidence", "medium_confidence", "low_confidence"].includes(item.status),
         ).length,
         not_found: results.filter((item) => item.status === "not_found").length,
-        search_not_configured: results.filter((item) => item.status === "search_not_configured")
+        openai_web_search_not_configured: results.filter(
+          (item) => item.status === "openai_web_search_not_configured",
+        ).length,
+        openai_search_error: results.filter((item) => item.status === "openai_search_error")
           .length,
-        source_error: results.filter((item) => item.status === "source_error").length,
         skipped_existing_barcode: results.filter(
           (item) => item.status === "skipped_existing_barcode",
         ).length,

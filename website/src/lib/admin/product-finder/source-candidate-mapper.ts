@@ -3,6 +3,7 @@ import { appendNutritionTableNotAvailableMarker, hasNutritionTableNotAvailableMa
 import type { ProductFinderCandidate } from "@/lib/admin/product-finder/types";
 import { createMockCandidate } from "@/lib/admin/product-finder/mock";
 import { revalidateCandidate } from "@/lib/admin/product-finder/validation";
+import { buildUrlCandidateId } from "@/lib/admin/product-finder/candidate-id";
 
 type MapSourceCandidateOptions = {
   candidateId?: string;
@@ -32,7 +33,14 @@ export function mapSourceCandidateToProductFinderCandidate(
 
   return revalidateCandidate({
     ...base,
-    id: options.candidateId ?? base.id,
+    id:
+      options.candidateId ??
+      buildUrlCandidateId({
+        sourceName: sourceCandidate.source_name,
+        sourceProductId: sourceCandidate.source_product_id,
+        sourceUrl: sourceCandidate.source_url,
+        productName: sourceCandidate.product_name,
+      }),
     barcode: sourceCandidate.barcode || "",
     product_name: sourceCandidate.product_name ?? "",
     brand: sourceCandidate.brand ?? "",

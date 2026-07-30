@@ -26,6 +26,11 @@ import {
 } from "./candidate-suggestions";
 import { mapSourceCandidateToProductFinderCandidate } from "./source-candidate-mapper";
 import { parseProductUrlTextarea } from "./url-input";
+import {
+  buildUrlCandidateId,
+  ensureUniqueCandidateId,
+  normalizeCandidateSourceUrl,
+} from "./candidate-id";
 import { mockBarcodeIdentityProvider, mockProductDetailProvider } from "./adapters/mock-provider";
 import { webSearchIdentityProvider } from "./adapters/web-search-identity";
 import { resolveBarcodeIdentity, resolveBarcodeIdentityBatch } from "./barcode-identity-resolver";
@@ -626,6 +631,41 @@ bu-bir-url-degil
     expect(candidate.barcode).toBe("");
     expect(candidate.status).toBe("rejected");
     expect(candidate.issue_list.some((item) => item.code === "invalid_barcode")).toBe(true);
+  });
+
+  it("builds stable unique URL-based candidate ids from source metadata", () => {
+    const superFreshId = buildUrlCandidateId({
+      sourceName: "migros",
+      sourceProductId: "7a3927",
+      sourceUrl: "https://www.migros.com.tr/superfresh-parmak-patates-1-kg-p-7a3927",
+      productName: "SuperFresh Parmak Patates 1 kg",
+    });
+    const pepsiId = buildUrlCandidateId({
+      sourceName: "migros",
+      sourceProductId: "8b1111",
+      sourceUrl: "https://www.migros.com.tr/pepsi-zero-1-5-l-p-8b1111",
+      productName: "Pepsi Zero 1.5 L",
+    });
+
+    expect(superFreshId).toContain("finder-url-migros-7a3927");
+    expect(pepsiId).toContain("finder-url-migros-8b1111");
+    expect(superFreshId).not.toBe(pepsiId);
+  });
+
+  it("normalizes source url and prevents same-url duplicate detection misses", () => {
+    expect(
+      normalizeCandidateSourceUrl("https://www.migros.com.tr/test-p-1#section"),
+    ).toBe("https://www.migros.com.tr/test-p-1");
+  });
+
+  it("regenerates duplicate candidate ids defensively", () => {
+    const preferred = "finder-url-migros-7a3927-abc123";
+    const unique = ensureUniqueCandidateId(preferred, [
+      preferred,
+      `${preferred}-2`,
+    ]);
+
+    expect(unique).toBe(`${preferred}-3`);
   });
 
   it("preserves category and nutrition basis suggestions in source candidate mapping", () => {
