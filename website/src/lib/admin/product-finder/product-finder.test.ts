@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import * as xlsx from "xlsx";
 import { importTemplateHeaders } from "@/lib/admin/imports/constants";
+import { calculateMatchConfidence } from "./confidence";
 import {
   parseBarcodeCsv,
   parseBarcodeCsvDetailed,
@@ -10,7 +11,19 @@ import {
   parseBarcodeTextarea,
 } from "./csv";
 import { buildExportMatrix, mapCandidateToImportRow } from "./export";
-import { createMockCandidate } from "./mock";
+import {
+  compareQuantity,
+  detectVariantTokens,
+  normalizeText,
+  parseQuantityFromText,
+} from "./identity";
+import { createHydratedCandidateFromImportRow, createMockCandidate } from "./mock";
+import { mockBarcodeIdentityProvider, mockProductDetailProvider } from "./adapters/mock-provider";
+import {
+  isEligibleForMockResolution,
+  resolveProductFinderCandidate,
+  resolutionToProductFinderCandidate,
+} from "./resolver";
 import {
   approveCandidate,
   normalizeInputBarcodes,
@@ -19,6 +32,208 @@ import {
   updateCandidateField,
   validateBarcodeBatch,
 } from "./validation";
+
+describe("product finder provider foundation", () => {
+  it("normalizes Turkish text safely", () => {
+    expect(normalizeText("Gazlı İçecek Şekersiz")).toBe("gazli icecek sekersiz");
+  });
+
+  it("parses quantity from text", () => {
+    expect(parseQuantityFromText("330 ml")).toEqual({
+      quantity_value: 330,
+      quantity_unit: "ml",
+    });
+    expect(parseQuantityFromText("1 L")).toEqual({
+      quantity_value: 1,
+      quantity_unit: "l",
+    });
+    expect(parseQuantityFromText("400 g")).toEqual({
+      quantity_value: 400,
+      quantity_unit: "g",
+    });
+    expect(parseQuantityFromText("1 kg")).toEqual({
+      quantity_value: 1,
+      quantity_unit: "kg",
+    });
+  });
+
+  it("compares equivalent quantities correctly", () => {
+    expect(compareQuantity(1000, "ml", 1, "L")).toMatchObject({
+      same: true,
+      comparable: true,
+    });
+    expect(compareQuantity(1000, "g", 1, "kg")).toMatchObject({
+      same: true,
+      comparable: true,
+    });
+  });
+
+  it("detects quantity mismatch", () => {
+    expect(compareQuantity(330, "ml", 1, "L")).toMatchObject({
+      same: false,
+      comparable: true,
+    });
+    expect(compareQuantity(400, "g", 630, "g")).toMatchObject({
+      same: false,
+      comparable: true,
+    });
+  });
+
+  it("detects variant tokens", () => {
+    expect(detectVariantTokens("Pepsi Max")).toContain("max");
+    expect(detectVariantTokens("Coca-Cola Zero")).toContain("zero");
+    expect(detectVariantTokens("Laktozsuz süt")).toContain("laktozsuz");
+    expect(detectVariantTokens("Glutensiz ürün")).toContain("glutensiz");
+  });
+
+  it("gives higher match confidence for same brand/name/quantity", async () => {
+    const identity = await mockBarcodeIdentityProvider.lookupBarcode({ barcode: "8690574114658" });
+    const candidates = identity
+      ? await mockProductDetailProvider.searchProduct(identity)
+      : [];
+
+    const confidence = identity && candidates[0]
+      ? calculateMatchConfidence(identity, candidates[0])
+      : { score: 0, reasons: [] };
+
+    expect(confidence.score).toBeGreaterThanOrEqual(80);
+  });
+
+  it("lowers confidence for quantity mismatch", async () => {
+    const identity = await mockBarcodeIdentityProvider.lookupBarcode({ barcode: "8690574114658" });
+    const candidates = identity
+      ? await mockProductDetailProvider.searchProduct(identity)
+      : [];
+
+    const mismatched = { ...candidates[0], quantity_value: 1000, quantity_unit: "ml" };
+    const confidence = identity && mismatched
+      ? calculateMatchConfidence(identity, mismatched)
+      : { score: 0, reasons: [] };
+
+    expect(confidence.score).toBeLessThan(80);
+    expect(confidence.reasons).toContain("quantity_mismatch");
+  });
+
+  it("resolver chooses the higher priority source when candidates are otherwise equal", async () => {
+    const resolution = await resolveProductFinderCandidate(
+      { barcode: "8690574114658" },
+      [mockBarcodeIdentityProvider],
+      [
+        mockProductDetailProvider,
+        {
+          ...mockProductDetailProvider,
+          id: "mock-detail-late",
+          label: "Mock Detail Late",
+          priority: 50,
+        },
+      ],
+    );
+
+    expect(resolution.selected_candidate?.source_url).toContain("mock.local");
+    expect(resolution.source_attempts.length).toBeGreaterThan(1);
+  });
+
+  it("resolver marks needs_review on quantity mismatch", async () => {
+    const resolution = await resolveProductFinderCandidate(
+      { barcode: "8690574114658" },
+      [mockBarcodeIdentityProvider],
+      [
+        {
+          ...mockProductDetailProvider,
+          async searchProduct(identity) {
+            const result = await mockProductDetailProvider.searchProduct(identity);
+            return [{ ...result[0], quantity_value: 1000, quantity_unit: "ml" }];
+          },
+        },
+      ],
+    );
+
+    expect(resolution.status).toBe("needs_review");
+    expect(resolution.issues.some((item) => item.code === "quantity_mismatch")).toBe(true);
+  });
+
+  it("mock provider resolves to hydrated product finder candidate", async () => {
+    const resolution = await resolveProductFinderCandidate(
+      { barcode: "8690574114658" },
+      [mockBarcodeIdentityProvider],
+      [mockProductDetailProvider],
+    );
+    const candidate = resolutionToProductFinderCandidate(resolution);
+
+    expect(candidate.product_name).toBe("Pepsi Kola Kutu");
+    expect(candidate.brand).toBe("Pepsi");
+    expect(candidate.quantity_value).toBe(330);
+    expect(candidate.sugars_100g).toBe(10.6);
+  });
+
+  it("textarea-created placeholder candidate is eligible for mock resolution", () => {
+    const candidate = createMockCandidate("8690574114658");
+    expect(isEligibleForMockResolution(candidate)).toBe(true);
+  });
+
+  it("needs_review candidate is eligible for mock resolution", () => {
+    const candidate = revalidateCandidate(createMockCandidate("5000112664478"));
+    expect(candidate.status).toBe("needs_review");
+    expect(isEligibleForMockResolution(candidate)).toBe(true);
+  });
+
+  it("invalid barcode candidate is not eligible for mock resolution", () => {
+    const candidate = revalidateCandidate(createMockCandidate("153"));
+    expect(isEligibleForMockResolution(candidate)).toBe(false);
+  });
+
+  it("approved or export_ready candidate is not eligible for mock resolution", () => {
+    let candidate = createMockCandidate("8690574114658");
+    candidate = updateCandidateField(candidate, "product_name", "Pepsi Kola Kutu");
+    candidate = updateCandidateField(candidate, "ingredients", "Su, şeker");
+    candidate = updateCandidateField(candidate, "brand", "Pepsi");
+    candidate = updateCandidateField(candidate, "data_source", "product_packaging");
+    candidate = updateCandidateField(candidate, "data_updated_at", "2026-07-30");
+    candidate = approveCandidate(candidate);
+    expect(isEligibleForMockResolution(candidate)).toBe(false);
+  });
+
+  it("full hydrated candidate with meaningful data is not eligible for mock resolution", () => {
+    const candidate = createHydratedCandidateFromImportRow({
+      barcode: "8690574114658",
+      product_name: "Pepsi Kola Kutu",
+      brand: "Pepsi",
+      ingredients: "Su, şeker",
+      quantity_value: "330",
+      quantity_unit: "ml",
+      energy_kcal_100g: "42",
+      sugars_100g: "10.6",
+      image_front_url: "https://img.test/1.jpg",
+      data_source: "product_packaging",
+      source_url: "https://example.com",
+      data_updated_at: "2026-07-30",
+    });
+
+    expect(isEligibleForMockResolution(candidate)).toBe(false);
+  });
+
+  it("mock resolving 8690574114658 fills Pepsi-like fields", async () => {
+    const resolution = await resolveProductFinderCandidate(
+      { barcode: "8690574114658" },
+      [mockBarcodeIdentityProvider],
+      [mockProductDetailProvider],
+    );
+    const candidate = resolutionToProductFinderCandidate(resolution);
+    expect(candidate.product_name).toBe("Pepsi Kola Kutu");
+    expect(candidate.brand).toBe("Pepsi");
+  });
+
+  it("mock resolving 5000112664478 fills Coca-Cola-like fields", async () => {
+    const resolution = await resolveProductFinderCandidate(
+      { barcode: "5000112664478" },
+      [mockBarcodeIdentityProvider],
+      [mockProductDetailProvider],
+    );
+    const candidate = resolutionToProductFinderCandidate(resolution);
+    expect(candidate.product_name).toBe("Coca-Cola Original Taste");
+    expect(candidate.brand).toBe("Coca-Cola");
+  });
+});
 
 describe("product finder parsing", () => {
   it("deduplicates and normalizes textarea barcodes", () => {

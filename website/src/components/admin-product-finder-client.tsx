@@ -22,6 +22,12 @@ import {
   updateCandidateField,
   validateBarcodeBatch,
 } from "@/lib/admin/product-finder/validation";
+import { mockBarcodeIdentityProvider, mockProductDetailProvider } from "@/lib/admin/product-finder/adapters/mock-provider";
+import {
+  isEligibleForMockResolution,
+  resolveProductFinderCandidate,
+  resolutionToProductFinderCandidate,
+} from "@/lib/admin/product-finder/resolver";
 
 const filters = [
   ["all", "Tümü"],
@@ -241,6 +247,32 @@ export function AdminProductFinderClient() {
     setError("");
   }
 
+  async function handleMockResolve() {
+    const barcodeOnlyCandidates = candidates.filter(isEligibleForMockResolution);
+
+    if (barcodeOnlyCandidates.length === 0) {
+      setError("Mock kaynaklarla doldurulacak eksik barkod adayı bulunamadı.");
+      return;
+    }
+
+    const resolved = await Promise.all(
+      barcodeOnlyCandidates.map(async (candidate) => {
+        const resolution = await resolveProductFinderCandidate(
+          { barcode: candidate.barcode },
+          [mockBarcodeIdentityProvider],
+          [mockProductDetailProvider],
+        );
+        return resolutionToProductFinderCandidate(resolution);
+      }),
+    );
+
+    const resolvedMap = new Map(resolved.map((candidate) => [candidate.barcode, candidate]));
+    setCandidates((current) =>
+      current.map((candidate) => resolvedMap.get(candidate.barcode) ?? candidate),
+    );
+    setError("");
+  }
+
   function setCandidate(next: ProductFinderCandidate) {
     setCandidates((current) =>
       current.map((candidate) => (candidate.id === next.id ? next : candidate)),
@@ -440,6 +472,14 @@ export function AdminProductFinderClient() {
 
             <button
               type="button"
+              onClick={() => void handleMockResolve()}
+              className="button-secondary min-h-11 px-5"
+            >
+              Mock kaynaklarla doldur
+            </button>
+
+            <button
+              type="button"
               onClick={() => void handleExportXlsx()}
               className="button-secondary min-h-11 px-5"
             >
@@ -449,10 +489,10 @@ export function AdminProductFinderClient() {
         </div>
 
         <div className="mt-6 overflow-x-auto rounded-2xl">
-          <table className="min-w-[1080px] text-left">
+          <table className="min-w-[1120px] text-left">
             <thead className="bg-white/[0.03] text-xs uppercase tracking-[0.24em] text-[color:var(--text-soft)]">
               <tr>
-                <th className="px-4 py-4">Durum</th>
+                <th className="px-5 py-4">Durum</th>
                 <th className="px-4 py-4">Barkod</th>
                 <th className="px-4 py-4">Marka</th>
                 <th className="px-4 py-4">Ürün adı</th>
@@ -467,7 +507,7 @@ export function AdminProductFinderClient() {
             <tbody>
               {filteredCandidates.map((candidate) => (
                 <tr key={candidate.id} className="border-t border-white/8 align-top">
-                  <td className="px-4 py-4 text-sm text-white/82">{candidate.status}</td>
+                  <td className="px-5 py-4 text-sm text-white/82">{candidate.status}</td>
                   <td className="px-4 py-4 text-sm text-white">{candidate.barcode}</td>
                   <td className="px-4 py-4 text-sm text-[color:var(--text-muted)]">
                     {candidate.brand || "—"}
