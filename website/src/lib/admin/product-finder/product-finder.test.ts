@@ -17,13 +17,19 @@ import {
   normalizeText,
   parseQuantityFromText,
 } from "./identity";
+import { normalizeIdentity } from "./identity-normalizer";
 import { createHydratedCandidateFromImportRow, createMockCandidate } from "./mock";
+import { mapSourceCandidateToProductFinderCandidate } from "./source-candidate-mapper";
+import { parseProductUrlTextarea } from "./url-input";
 import { mockBarcodeIdentityProvider, mockProductDetailProvider } from "./adapters/mock-provider";
+import { webSearchIdentityProvider } from "./adapters/web-search-identity";
+import { resolveBarcodeIdentity, resolveBarcodeIdentityBatch } from "./barcode-identity-resolver";
 import {
   isEligibleForMockResolution,
   resolveProductFinderCandidate,
   resolutionToProductFinderCandidate,
 } from "./resolver";
+import type { SourceCandidate } from "./providers";
 import {
   approveCandidate,
   normalizeInputBarcodes,
@@ -84,6 +90,41 @@ describe("product finder provider foundation", () => {
     expect(detectVariantTokens("Coca-Cola Zero")).toContain("zero");
     expect(detectVariantTokens("Laktozsuz süt")).toContain("laktozsuz");
     expect(detectVariantTokens("Glutensiz ürün")).toContain("glutensiz");
+  });
+
+  it("normalizes messy identity fields into reviewable output", () => {
+    const normalized = normalizeIdentity({
+      barcode: "8690574114658",
+      rawName: "Pepsi Kola 330ML",
+      productName: "Pepsi Kola 330ML",
+      brand: "Pepsi",
+      quantityText: "330ML",
+      sourceName: "openfoodfacts",
+      sourceUrl: "https://world.openfoodfacts.org/product/8690574114658",
+    });
+
+    expect(normalized.brand).toBe("Pepsi");
+    expect(normalized.product_name).toBe("Pepsi Kola");
+    expect(normalized.quantity_value).toBe(330);
+    expect(normalized.quantity_unit).toBe("ml");
+    expect(normalized.quantity_display).toBe("330 ml");
+  });
+
+  it("marks low-confidence identity when quantity and brand are weak", () => {
+    const normalized = normalizeIdentity({
+      barcode: "12345678",
+      rawName: "Marka",
+      productName: "Marka",
+      brand: "",
+      quantityText: "",
+      sourceName: "openfoodfacts",
+    });
+
+    expect(normalized.issues.some((issue) => issue.code === "brand_missing")).toBe(true);
+    expect(normalized.issues.some((issue) => issue.code === "quantity_missing")).toBe(true);
+    expect(
+      normalized.issues.some((issue) => issue.code === "low_identity_confidence"),
+    ).toBe(true);
   });
 
   it("gives higher match confidence for same brand/name/quantity", async () => {
@@ -164,6 +205,144 @@ describe("product finder provider foundation", () => {
     expect(candidate.brand).toBe("Pepsi");
     expect(candidate.quantity_value).toBe(330);
     expect(candidate.sugars_100g).toBe(10.6);
+  });
+
+  it("resolves barcode identity from providers without product detail fetch", async () => {
+    const result = await resolveBarcodeIdentity(
+      { barcode: "8690574114658" },
+      [mockBarcodeIdentityProvider],
+    );
+
+    expect(result.status).toBe("resolved");
+    expect(result.identity?.product_name).toBe("Pepsi Kola Kutu");
+    expect(result.identity?.quantity_display).toBe("330 ml");
+  });
+
+  it("returns invalid status for malformed barcodes in identity resolver", async () => {
+    const result = await resolveBarcodeIdentity({ barcode: "153" }, [mockBarcodeIdentityProvider]);
+    expect(result.status).toBe("invalid");
+    expect(result.issues.some((issue) => issue.code === "invalid_barcode")).toBe(true);
+  });
+
+  it("builds identity batch summary safely", async () => {
+    const batch = await resolveBarcodeIdentityBatch(
+      ["8690574114658", "153"],
+      [mockBarcodeIdentityProvider],
+    );
+
+    expect(batch.summary.total).toBe(2);
+    expect(batch.summary.resolved).toBe(1);
+    expect(batch.summary.invalid).toBe(1);
+  });
+
+  it("web search provider returns not configured issue cleanly when no key exists", async () => {
+    const result = await resolveBarcodeIdentity(
+      { barcode: "8690574114658" },
+      [webSearchIdentityProvider],
+    );
+
+    expect(result.status).toBe("not_found");
+    expect(
+      result.issues.some((issue) => issue.code === "web_search_not_configured"),
+    ).toBe(true);
+    expect(
+      result.source_attempts?.some((attempt) => attempt.providerId === "web-search-identity"),
+    ).toBe(true);
+  });
+
+  it("maps source candidate to product finder candidate", () => {
+    const sourceCandidate: SourceCandidate = {
+      source_name: "migros",
+      source_url: "https://www.migros.com.tr/test",
+      source_product_id: "migros-123",
+      barcode: "",
+      brand: "Pepsi",
+      product_name: "Pepsi Kola Kutu",
+      quantity_value: 330,
+      quantity_unit: "ml",
+      quantity_display: "330 ml",
+      variant: null,
+      category: "Gazlı İçecek",
+      ingredients: "Su, şeker",
+      nutrition_basis: "100ml",
+      energy_kcal_100g: 42,
+      energy_kj_100g: 176,
+      fat_100g: 0,
+      saturated_fat_100g: 0,
+      carbohydrates_100g: 10.6,
+      sugars_100g: 10.6,
+      fiber_100g: 0,
+      protein_100g: 0,
+      salt_100g: 0.03,
+      sodium_100g: 0.012,
+      image_front_url: "https://img.test/1.jpg",
+      image_source_url: "https://img.test/1.jpg",
+      data_updated_at: "2026-07-30",
+      match_confidence: 82,
+      issue_list: [],
+    };
+
+    const candidate = mapSourceCandidateToProductFinderCandidate(sourceCandidate);
+    expect(candidate.product_name).toBe("Pepsi Kola Kutu");
+    expect(candidate.data_source).toBe("migros");
+    expect(candidate.serving_size).toBe("330 ml");
+  });
+
+  it("exports data_updated_at as ISO date string", () => {
+    const candidate = createHydratedCandidateFromImportRow({
+      barcode: "8690574114658",
+      product_name: "Pepsi Kola Kutu",
+      brand: "Pepsi",
+      category: "Gazlı İçecek",
+      ingredients: "Su, şeker",
+      quantity_value: "330",
+      quantity_unit: "ml",
+      data_source: "migros",
+      source_url: "https://www.migros.com.tr/pepsi-kola-kutu-330-ml-p-7a3927",
+      data_updated_at: "2026-07-30",
+    });
+    const row = mapCandidateToImportRow(candidate);
+    const matrix = buildExportMatrix([{ ...candidate, approved_for_export: true }]);
+
+    expect(row.data_updated_at).toBe("2026-07-30");
+    expect(matrix[1]?.[importTemplateHeaders.indexOf("data_updated_at")]).toBe("2026-07-30");
+  });
+
+  it("migros candidate without barcode is not exportable", () => {
+    const sourceCandidate: SourceCandidate = {
+      source_name: "migros",
+      source_url: "https://www.migros.com.tr/test",
+      source_product_id: "migros-123",
+      barcode: "",
+      brand: "Pepsi",
+      product_name: "Pepsi Kola Kutu",
+      quantity_value: 330,
+      quantity_unit: "ml",
+      quantity_display: "330 ml",
+      variant: null,
+      category: "Gazlı İçecek",
+      ingredients: "Su, şeker",
+      nutrition_basis: "100ml",
+      energy_kcal_100g: 42,
+      energy_kj_100g: 176,
+      fat_100g: 0,
+      saturated_fat_100g: 0,
+      carbohydrates_100g: 10.6,
+      sugars_100g: 10.6,
+      fiber_100g: 0,
+      protein_100g: 0,
+      salt_100g: 0.03,
+      sodium_100g: 0.012,
+      image_front_url: "https://img.test/1.jpg",
+      image_source_url: "https://img.test/1.jpg",
+      data_updated_at: "2026-07-30",
+      match_confidence: 82,
+      issue_list: [],
+    };
+
+    const candidate = mapSourceCandidateToProductFinderCandidate(sourceCandidate);
+    expect(candidate.approved_for_export).toBe(false);
+    expect(candidate.issue_list.some((item) => item.code === "invalid_barcode")).toBe(true);
   });
 
   it("textarea-created placeholder candidate is eligible for mock resolution", () => {
@@ -358,6 +537,74 @@ describe("product finder parsing", () => {
 
     expect(batch.ok).toBe(false);
     expect(batch.error).toBe("En fazla 100 benzersiz barkod işlenebilir.");
+  });
+
+  it("parses Migros product detail URLs from textarea and removes duplicates", () => {
+    const parsed = parseProductUrlTextarea(`
+https://www.migros.com.tr/pepsi-kola-kutu-330-ml-p-7a3927
+https://www.migros.com.tr/pepsi-kola-kutu-330-ml-p-7a3927
+https://www.migros.com.tr/coca-cola-1-l-p-123abc
+    `);
+
+    expect(parsed.rawCount).toBe(3);
+    expect(parsed.parsedCount).toBe(2);
+    expect(parsed.duplicatesRemoved).toBe(1);
+    expect(parsed.urls.map((item) => item.url)).toEqual([
+      "https://www.migros.com.tr/pepsi-kola-kutu-330-ml-p-7a3927",
+      "https://www.migros.com.tr/coca-cola-1-l-p-123abc",
+    ]);
+  });
+
+  it("rejects Migros search/category URLs and invalid rows from textarea parsing", () => {
+    const parsed = parseProductUrlTextarea(`
+https://www.migros.com.tr/arama?q=pepsi
+https://example.com/pepsi
+bu-bir-url-degil
+    `);
+
+    expect(parsed.parsedCount).toBe(0);
+    expect(parsed.unsupportedCount).toBe(2);
+    expect(parsed.invalidCount).toBe(1);
+  });
+
+  it("maps URL parsed candidates with empty barcode into review flow", () => {
+    const candidate = mapSourceCandidateToProductFinderCandidate(
+      {
+        barcode: "",
+        product_name: "Pepsi Kola Kutu",
+        brand: "Pepsi",
+        category: "Gazlı İçecek",
+        ingredients: "Su, şeker",
+        quantity_value: 330,
+        quantity_unit: "ml",
+        quantity_display: "330 ml",
+        energy_kcal_100g: 42,
+        energy_kj_100g: 176,
+        fat_100g: 0,
+        saturated_fat_100g: 0,
+        carbohydrates_100g: 10.6,
+        sugars_100g: 10.6,
+        fiber_100g: 0,
+        protein_100g: 0,
+        salt_100g: 0.02,
+        sodium_100g: null,
+        nutrition_basis: "100ml",
+        image_front_url: "https://img.test/pepsi.jpg",
+        source_name: "migros",
+        source_url: "https://www.migros.com.tr/pepsi-kola-kutu-330-ml-p-7a3927",
+        source_product_id: "7a3927",
+        match_confidence: null,
+        issue_list: [],
+        raw_payload: null,
+        data_updated_at: "2026-07-30",
+      },
+      { candidateId: "finder-url-test" },
+    );
+
+    expect(candidate.id).toBe("finder-url-test");
+    expect(candidate.barcode).toBe("");
+    expect(candidate.status).toBe("rejected");
+    expect(candidate.issue_list.some((item) => item.code === "invalid_barcode")).toBe(true);
   });
 });
 

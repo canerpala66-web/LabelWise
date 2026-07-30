@@ -21,15 +21,22 @@ export type ProductIdentityInput = {
 export type ProductIdentityResult = {
   providerId: string;
   barcode: string;
+  raw_name: string | null;
   brand: string | null;
   product_name: string | null;
   quantity_value: number | null;
   quantity_unit: string | null;
+  quantity_display: string | null;
   variant: string | null;
   source_name: string;
   source_url: string | null;
   confidence: number;
   issues: ProductFinderIssue[];
+  evidence_results?: Array<{
+    title: string;
+    domain: string;
+    url: string;
+  }>;
 };
 
 export type SourceCandidate = {

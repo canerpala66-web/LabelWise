@@ -2,10 +2,11 @@ import { describe, expect, it } from "vitest";
 import * as XLSX from "xlsx";
 import { buildRowIssuesCsv } from "./export";
 import { buildImportTemplateCsv } from "./template";
-import { safeString } from "./helpers";
+import { parseDateInput, safeString } from "./helpers";
 import { normalizeImportRow } from "./normalize";
 import { parseCsv, parseJson, parseXlsx } from "./parse";
 import { detectDuplicateBarcodes } from "./preview";
+import { mapImportRowToProduct } from "./products";
 import { validateImportRow } from "./validate";
 
 describe("admin import parsing", () => {
@@ -155,6 +156,72 @@ describe("admin import normalization and validation", () => {
     );
 
     expect(preview.warnings.some((item) => item.code === "stale_update_attempt")).toBe(true);
+  });
+
+  it("accepts same-day ISO date without future-date error", () => {
+    const normalized = normalizeImportRow({
+      rowNumber: 2,
+      source: {
+        barcode: "8690504030012",
+        product_name: "Ornek Icecek 330 ml",
+        brand: "Ornek",
+        category: "Icecek",
+        ingredients: "Su, şeker",
+        data_source: "migros",
+        data_updated_at: "2026-07-30",
+      },
+    });
+
+    const preview = validateImportRow(normalized, null, false, new Date("2026-07-30T20:30:00+03:00"));
+    expect(preview.errors.some((item) => item.code === "future_update_date")).toBe(false);
+  });
+
+  it("rejects tomorrow date", () => {
+    const normalized = normalizeImportRow({
+      rowNumber: 2,
+      source: {
+        barcode: "8690504030012",
+        product_name: "Ornek Icecek 330 ml",
+        brand: "Ornek",
+        category: "Icecek",
+        ingredients: "Su, şeker",
+        data_source: "migros",
+        data_updated_at: "2026-07-31",
+      },
+    });
+
+    const preview = validateImportRow(normalized, null, false, new Date("2026-07-30T01:00:00+03:00"));
+    expect(preview.errors.some((item) => item.code === "future_update_date")).toBe(true);
+  });
+
+  it("parses Turkish display date safely", () => {
+    const parsed = parseDateInput("30.07.2026");
+    expect(parsed).not.toBeNull();
+    expect(parsed?.getFullYear()).toBe(2026);
+    expect(parsed?.getMonth()).toBe(6);
+    expect(parsed?.getDate()).toBe(30);
+  });
+
+  it("maps image_front_url to product image_url payload", () => {
+    const normalized = normalizeImportRow({
+      rowNumber: 2,
+      source: {
+        barcode: "8690574114658",
+        product_name: "Pepsi Kola Kutu 330 ml",
+        brand: "Pepsi",
+        category: "Gazlı İçecek",
+        ingredients: "Su, şeker",
+        image_front_url:
+          "https://images.migrosone.com/sanalmarket/product/08010023/08010023_1-ae16d1.jpg",
+        data_source: "migros",
+        data_updated_at: "2026-07-30",
+      },
+    });
+
+    const payload = mapImportRowToProduct(normalized);
+    expect(payload.image_url).toBe(
+      "https://images.migrosone.com/sanalmarket/product/08010023/08010023_1-ae16d1.jpg",
+    );
   });
 });
 

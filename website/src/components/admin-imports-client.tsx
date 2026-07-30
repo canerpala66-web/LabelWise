@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { RemoteImagePreview } from "@/components/remote-image-preview";
 import { importModeOptions } from "@/lib/admin/imports/constants";
 import { formatDate } from "@/lib/admin/imports/helpers";
 import type {
@@ -392,11 +393,12 @@ export function AdminImportsClient() {
                       <td className="px-4 py-4 text-sm text-white/82">{row.rowNumber}</td>
                       <td className="px-4 py-4">
                         {row.normalized.imageFrontUrl ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img
+                          <RemoteImagePreview
                             src={row.normalized.imageFrontUrl}
                             alt={row.normalized.productName ?? "Ürün görseli"}
-                            className="h-14 w-14 rounded-2xl border border-white/10 bg-white/5 object-cover"
+                            size={56}
+                            compactLabel="Görsel yok"
+                            failedLabel="Görsel yüklenemedi"
                           />
                         ) : (
                           <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-white/8 bg-white/5 text-[10px] text-[color:var(--text-soft)]">

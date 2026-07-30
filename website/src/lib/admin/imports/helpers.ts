@@ -89,6 +89,20 @@ export function parseDateInput(value: unknown) {
     return null;
   }
 
+  const isoMatch = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (isoMatch) {
+    const [, year, month, day] = isoMatch;
+    const date = new Date(Number(year), Number(month) - 1, Number(day));
+    return Number.isNaN(date.getTime()) ? null : date;
+  }
+
+  const trMatch = raw.match(/^(\d{2})\.(\d{2})\.(\d{4})$/);
+  if (trMatch) {
+    const [, day, month, year] = trMatch;
+    const date = new Date(Number(year), Number(month) - 1, Number(day));
+    return Number.isNaN(date.getTime()) ? null : date;
+  }
+
   const normalized = raw.includes("T")
     ? raw
     : raw.replace(/\./g, "-").replace(/\//g, "-");

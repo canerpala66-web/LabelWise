@@ -10,7 +10,9 @@ import type {
   ValidationMessage,
 } from "@/lib/admin/imports/types";
 
-const now = new Date("2026-07-25T00:00:00.000Z");
+function toDateOnlyStamp(date: Date) {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+}
 
 function buildMessage(
   severity: "error" | "warning",
@@ -203,9 +205,11 @@ export function validateImportRow(
   row: ImportRowInput,
   existingProduct: ExistingProductSnapshot | null,
   duplicateInFile: boolean,
+  currentDate = new Date(),
 ): Omit<PreviewRow, "rowNumber" | "raw"> {
   const errors: ValidationMessage[] = [];
   const warnings: ValidationMessage[] = [];
+  const todayStamp = toDateOnlyStamp(currentDate);
 
   if (!row.barcode) {
     errors.push(buildMessage("error", "missing_barcode", "Barkod zorunludur.", "barcode"));
@@ -250,11 +254,12 @@ export function validateImportRow(
     if (!parsedDate) {
       errors.push(buildMessage("error", "invalid_update_date", "Veri tarihi geçerli değil.", "data_updated_at"));
     } else {
-      if (parsedDate.getTime() > now.getTime() + 24 * 60 * 60 * 1000) {
+      const parsedStamp = toDateOnlyStamp(parsedDate);
+      if (parsedStamp > todayStamp) {
         errors.push(buildMessage("error", "future_update_date", "Gelecekteki tarih kabul edilmez.", "data_updated_at"));
       }
 
-      const ageDays = Math.floor((now.getTime() - parsedDate.getTime()) / (24 * 60 * 60 * 1000));
+      const ageDays = Math.floor((todayStamp - parsedStamp) / (24 * 60 * 60 * 1000));
       if (ageDays > 365 * 3) {
         warnings.push(
           buildMessage(
@@ -276,7 +281,7 @@ export function validateImportRow(
       }
 
       const existingDate = parseDateInput(existingProduct?.data_updated_at);
-      if (existingDate && parsedDate.getTime() < existingDate.getTime()) {
+      if (existingDate && parsedStamp < toDateOnlyStamp(existingDate)) {
         warnings.push(
           buildMessage(
             "warning",
