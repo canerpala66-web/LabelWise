@@ -54,7 +54,7 @@ void main() {
       ),
     );
 
-    expect(result.score, inInclusiveRange(35, 60));
+    expect(result.score, inInclusiveRange(20, 55));
   });
 
   test('caps chocolate even when its nutrition penalties are modest', () {
@@ -120,7 +120,7 @@ void main() {
     expect(result.category, 'Çok Dengeli Seçim');
   });
 
-  test('caps regular cola and Cola Zero separately', () {
+  test('keeps regular cola below zero cola and both below clean dairy', () {
     final regular = engine.calculate(
       _product(
         name: 'Coca-Cola',
@@ -144,8 +144,23 @@ void main() {
       ),
     );
 
-    expect(regular.score, inInclusiveRange(20, 40));
-    expect(zero.score, inInclusiveRange(55, 68));
+    final milk = engine.calculate(
+      _product(
+        name: 'Sade Süt',
+        category: 'Süt',
+        energy: 61,
+        fat: 3.3,
+        saturatedFat: 2.1,
+        sugars: 4.7,
+        protein: 3.2,
+        salt: 0.1,
+      ),
+    );
+
+    expect(regular.score, lessThanOrEqualTo(45));
+    expect(zero.score, lessThanOrEqualTo(60));
+    expect(zero.score, greaterThan(regular.score!));
+    expect(zero.score, lessThan(milk.score!));
   });
 
   test('normalizes hierarchical cola categories before applying caps', () {
@@ -162,7 +177,7 @@ void main() {
     );
 
     expect(result.score, lessThanOrEqualTo(45));
-    expect(result.score, equals(42));
+    expect(result.score, lessThan(35));
   });
 
   test(

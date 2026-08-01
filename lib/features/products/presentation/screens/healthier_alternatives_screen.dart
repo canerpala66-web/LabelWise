@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:labelwise/features/analysis/services/labelwise_score_engine.dart';
+import 'package:labelwise/features/analysis/services/labelwise_score_service.dart';
 import 'package:labelwise/features/products/models/product_alternative.dart';
 import 'package:labelwise/features/products/services/product_alternatives_service.dart';
 import 'package:labelwise/features/scanner/data/product.dart';
@@ -33,9 +33,7 @@ class _HealthierAlternativesScreenState
     super.initState();
     debugPrint('AlternativesDebug: screen opened');
     _service = ProductAlternativesService();
-    _currentScore = const LabelWiseScoreEngine()
-        .calculate(widget.product)
-        .score;
+    _currentScore = LabelWiseScoreService.instance.calculate(widget.product).score;
     _alternatives = _currentScore == null
         ? null
         : _service.findAlternatives(widget.product);

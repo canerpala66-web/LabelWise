@@ -1,7 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
-import 'package:labelwise/features/analysis/services/labelwise_score_engine.dart';
+import 'package:labelwise/features/analysis/services/labelwise_score_service.dart';
 import 'package:labelwise/features/scanner/data/product.dart';
 import 'package:labelwise/features/scanner/data/recent_scan.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -37,7 +37,7 @@ class RecentScansRepository {
     final barcode = product.barcode.trim();
     if (barcode.isEmpty) return;
 
-    final score = const LabelWiseScoreEngine().calculate(product).score;
+    final score = LabelWiseScoreService.instance.calculate(product).score;
     final currentScans = await getRecentScans();
     final duplicateFound = currentScans.any((scan) => scan.barcode == barcode);
     debugPrint('RecentScans: saving barcode=$barcode');

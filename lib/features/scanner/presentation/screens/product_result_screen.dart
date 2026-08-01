@@ -6,7 +6,7 @@ import 'package:labelwise/features/analysis/models/analysis_result.dart';
 import 'package:labelwise/features/analysis/models/labelwise_score_result.dart';
 import 'package:labelwise/features/analysis/models/processing_profile_result.dart';
 import 'package:labelwise/features/analysis/services/analysis_service.dart';
-import 'package:labelwise/features/analysis/services/labelwise_score_engine.dart';
+import 'package:labelwise/features/analysis/services/labelwise_score_service.dart';
 import 'package:labelwise/features/analysis/services/processing_profile_engine.dart';
 import 'package:labelwise/features/corrections/presentation/screens/correction_report_screen.dart';
 import 'package:labelwise/features/products/presentation/screens/healthier_alternatives_screen.dart';
@@ -208,7 +208,7 @@ class _ProductResultScreenState extends State<ProductResultScreen>
       'Nutrition: incomplete data warning reason='
       '${hasInsufficientNutrition ? '3+ scoring-critical fields missing' : 'none'}',
     );
-    final scoreResult = const LabelWiseScoreEngine().calculate(product);
+    final scoreResult = LabelWiseScoreService.instance.calculate(product);
     final processingProfile = const ProcessingProfileEngine().evaluate(product);
 
     return Scaffold(
@@ -403,7 +403,7 @@ class _ProductResultScreenState extends State<ProductResultScreen>
   }
 
   String _scoreBandFromProduct(Product product) {
-    final score = const LabelWiseScoreEngine().calculate(product).score;
+    final score = LabelWiseScoreService.instance.calculate(product).score;
     if (score == null) return 'unknown';
     if (score <= 24) return '0_24';
     if (score <= 44) return '25_44';

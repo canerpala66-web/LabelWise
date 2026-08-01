@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:labelwise/features/analysis/services/labelwise_score_engine.dart';
+import 'package:labelwise/features/analysis/services/labelwise_score_service.dart';
 import 'package:labelwise/core/analytics/analytics_service.dart';
 import 'package:labelwise/core/crashlytics/crashlytics_service.dart';
 import 'package:labelwise/core/theme/app_tokens.dart';
@@ -318,7 +318,7 @@ class _ScannerScreenState extends State<ScannerScreen> {
   }
 
   String _scoreBandFromProduct(Product product) {
-    final score = const LabelWiseScoreEngine().calculate(product).score;
+    final score = LabelWiseScoreService.instance.calculate(product).score;
     if (score == null) return 'unknown';
     if (score <= 24) return '0_24';
     if (score <= 44) return '25_44';

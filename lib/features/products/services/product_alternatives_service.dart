@@ -1,5 +1,5 @@
 import 'package:flutter/foundation.dart';
-import 'package:labelwise/features/analysis/services/labelwise_score_engine.dart';
+import 'package:labelwise/features/analysis/services/labelwise_score_service.dart';
 import 'package:labelwise/features/products/models/product_alternative.dart';
 import 'package:labelwise/features/products/services/product_category_mapper.dart';
 import 'package:labelwise/features/scanner/data/product.dart';
@@ -12,14 +12,11 @@ class ProductAlternativesService {
   ProductAlternativesService({
     ProductRepository? repository,
     ProductCategoryFetcher? fetchProducts,
-    LabelWiseScoreEngine scoreEngine = const LabelWiseScoreEngine(),
   }) : _fetchProducts =
            fetchProducts ??
-           (repository ?? ProductRepository()).fetchProductsByCategory,
-       _scoreEngine = scoreEngine;
+           (repository ?? ProductRepository()).fetchProductsByCategory;
 
   final ProductCategoryFetcher _fetchProducts;
-  final LabelWiseScoreEngine _scoreEngine;
 
   Future<List<ProductAlternative>> findAlternatives(Product current) async {
     final rawCategory = current.category;
@@ -30,7 +27,7 @@ class ProductAlternativesService {
       rawCategory,
     );
     final currentGroup = _alternativeGroup(current);
-    final currentScore = _scoreEngine.calculate(current).score;
+    final currentScore = LabelWiseScoreService.instance.calculate(current).score;
 
     debugPrint('AlternativesDebug: current barcode=${current.barcode}');
     debugPrint('AlternativesDebug: current name=${current.productName}');
@@ -103,7 +100,7 @@ class ProductAlternativesService {
         }
         compatibleCandidateCount++;
 
-        final candidateScore = _scoreEngine.calculate(candidate).score;
+        final candidateScore = LabelWiseScoreService.instance.calculate(candidate).score;
         debugPrint('AlternativesDebug: candidate score=$candidateScore');
         if (candidateScore == null) {
           debugPrint(
