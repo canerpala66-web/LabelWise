@@ -3,6 +3,7 @@ import Link from "next/link";
 
 const navItems = [
   { href: "/", label: "Ana Sayfa" },
+  { href: "/blog", label: "Blog" },
   { href: "/#how-it-works", label: "Nasıl çalışır?" },
   { href: "/#premium", label: "Premium" },
   { href: "/#trust", label: "Güven" },

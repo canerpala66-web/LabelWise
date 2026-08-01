@@ -9,6 +9,9 @@ class AnalysisPromptBuilder {
     required String labelwiseCategory,
     required String? productCategory,
     required List<String> scoreReasons,
+    String? processingLevel,
+    String? processingLabel,
+    List<String> processingReasons = const [],
     required String? nutriscoreGrade,
     required double? energyKcal,
     required double? fat,
@@ -61,8 +64,10 @@ Required tone by LabelWise Score:
 - 60-69: cautious; careful consumption is more suitable.
 - 45-59: frequent consumption should give way to occasional consumption.
 - 25-44: rare consumption may be more suitable.
-- 0-24: calmly explain that the nutrition profile is weak.
+- 0-19: clearly cautious. Do not casually say occasional use is fine.
+- 20-39: weak/limited-consumption language is acceptable.
 Do not say "nadir tüketim" for a score of 80 or above unless the supplied category and score reasons clearly require caution.
+If low sugar/low calorie is positive but the category and processing profile are weak, mention that positive briefly but explain why the overall score stays low.
 
 Product name: $productName
 Brand: $brand
@@ -70,6 +75,9 @@ Product category: ${_textValue(productCategory)}
 LabelWise Score: ${labelwiseScore ?? 'Unavailable'}
 LabelWise Score category: $labelwiseCategory
 LabelWise Score reasons: ${scoreReasons.isEmpty ? 'Unavailable' : scoreReasons.take(4).join('; ')}
+Processing level: ${_textValue(processingLevel)}
+Processing label: ${_textValue(processingLabel)}
+Processing reasons: ${processingReasons.isEmpty ? 'Unavailable' : processingReasons.take(3).join('; ')}
 Nutri-Score: ${_textValue(nutriscoreGrade)}
 Energy: ${_nutritionValue(energyKcal, 'kcal')}
 Fat: ${_nutritionValue(fat, 'g')}

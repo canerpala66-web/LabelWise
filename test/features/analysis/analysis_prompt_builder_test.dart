@@ -21,6 +21,9 @@ void main() {
       labelwiseCategory: 'İyi Seçim',
       productCategory: 'Bisküvi',
       scoreReasons: const ['Şeker yüksek', 'Kategori nedeniyle sınırlandı'],
+      processingLevel: 'c',
+      processingLabel: 'Çok işlenmiş olabilir',
+      processingReasons: const ['Tatlandırıcı veya aroma sinyali bulundu'],
       nutriscoreGrade: 'C',
       energyKcal: energyKcal,
       fat: fat,
@@ -67,7 +70,7 @@ void main() {
     expect(prompt, contains('Data completeness: limited'));
   });
 
-  test('anchors interpretation to Score v3 without listing values', () {
+  test('anchors interpretation to Score v5 with processing context', () {
     final prompt = build();
 
     expect(prompt, contains('LabelWise Score is the primary deterministic'));
@@ -78,5 +81,8 @@ void main() {
         'LabelWise Score reasons: Şeker yüksek; Kategori nedeniyle sınırlandı',
       ),
     );
+    expect(prompt, contains('Processing level: c'));
+    expect(prompt, contains('Processing label: Çok işlenmiş olabilir'));
+    expect(prompt, contains('0-19: clearly cautious'));
   });
 }

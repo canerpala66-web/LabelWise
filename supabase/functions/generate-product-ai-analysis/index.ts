@@ -8,7 +8,7 @@ const corsHeaders = {
   "Content-Type": "application/json",
 } as const;
 
-const analysisVersion = "v4";
+const analysisVersion = "v5";
 const openAiEndpoint = "https://api.openai.com/v1/responses";
 const openAiModel = "gpt-4.1-mini";
 const productSelectFields =
@@ -33,6 +33,16 @@ type ProductRecord = {
   ai_risk_level?: string | null;
   ai_generated_at?: string | null;
   ai_analysis_version?: string | null;
+};
+
+type ScoreContext = {
+  score?: number | null;
+  score_category?: string | null;
+  score_reasons?: string[] | null;
+  product_category?: string | null;
+  processing_level?: string | null;
+  processing_label?: string | null;
+  processing_reasons?: string[] | null;
 };
 
 function jsonResponse(body: unknown, status = 200): Response {
@@ -79,6 +89,36 @@ function optionalText(value: unknown): string | null {
     : null;
 }
 
+function parseScoreContext(value: unknown): ScoreContext | null {
+  if (!value || typeof value !== "object") return null;
+  const input = value as Record<string, unknown>;
+  return {
+    score: typeof input.score === "number" && Number.isFinite(input.score)
+      ? input.score
+      : null,
+    score_category: optionalText(input.score_category),
+    score_reasons: Array.isArray(input.score_reasons)
+      ? input.score_reasons
+        .filter((item): item is string =>
+          typeof item === "string" && item.trim().length > 0
+        )
+        .map((item) => item.trim())
+        .slice(0, 4)
+      : null,
+    product_category: optionalText(input.product_category),
+    processing_level: optionalText(input.processing_level),
+    processing_label: optionalText(input.processing_label),
+    processing_reasons: Array.isArray(input.processing_reasons)
+      ? input.processing_reasons
+        .filter((item): item is string =>
+          typeof item === "string" && item.trim().length > 0
+        )
+        .map((item) => item.trim())
+        .slice(0, 3)
+      : null,
+  };
+}
+
 function normalizeRiskLevel(value: unknown): "düşük" | "orta" | "yüksek" {
   const normalized = typeof value === "string" ? value.trim().toLowerCase() : "";
   if (normalized === "düşük" || normalized === "low") return "düşük";
@@ -109,7 +149,11 @@ function containsForbiddenLanguage(summary: string): boolean {
   ].some((item) => normalized.includes(item));
 }
 
-function buildPrompt(barcode: string, product: ProductRecord | null): string {
+function buildPrompt(
+  barcode: string,
+  product: ProductRecord | null,
+  scoreContext: ScoreContext | null,
+): string {
   if (product == null) {
     return `
 You are LabelWise.
@@ -134,11 +178,22 @@ Return JSON only:
   const ingredients = optionalText(product.ingredients_text) ?? "Bilinmiyor";
   const category = optionalText(product.category) ?? "Bilinmiyor";
   const nutriScore = optionalText(product.nutriscore_grade) ?? "Bilinmiyor";
+  const labelwiseScore = scoreContext?.score ?? null;
+  const labelwiseCategory = scoreContext?.score_category ?? "Bilinmiyor";
+  const scoreReasons = scoreContext?.score_reasons?.length
+    ? scoreContext.score_reasons.join("; ")
+    : "Bilinmiyor";
+  const processingLevel = scoreContext?.processing_level ?? "Bilinmiyor";
+  const processingLabel = scoreContext?.processing_label ?? "Bilinmiyor";
+  const processingReasons = scoreContext?.processing_reasons?.length
+    ? scoreContext.processing_reasons.join("; ")
+    : "Bilinmiyor";
 
   return `
 You are LabelWise.
 You help Turkish consumers make faster and better food choices.
 You are not only summarizing the label. You are helping the user decide.
+LabelWise Score is the primary deterministic interpretation. Support it and never contradict it.
 
 Write a short Turkish decision-oriented interpretation based only on the available product data below.
 The summary must:
@@ -160,6 +215,15 @@ Risk level guidance:
 - düşük: generally a reasonable choice within its category; can fit more comfortably into a balanced diet, without calling it absolutely healthy.
 - orta: okay occasionally; portion control or frequency control is more suitable because of some concerns such as sugar, salt, saturated fat, additives, or processing.
 - yüksek: not ideal for frequent use; a better alternative should be considered because of stronger concerns such as very high sugar, very high salt, very high saturated fat, weak nutrition profile, or highly processed structure.
+
+Required consistency with LabelWise Score:
+- 90-100: very positive, but still not absolute.
+- 75-89: generally strong.
+- 60-74: acceptable / moderate.
+- 40-59: caution.
+- 20-39: weak choice / limited consumption.
+- 0-19: very weak profile. Use clearly cautious wording. Do not casually say occasional use is fine.
+- If low sugar/low calorie is positive but the category is energy drink or soft drink and processing is high, mention the positive briefly but explain that category and processing keep the score low.
 
 Category awareness:
 - Water should not be judged like chips.
@@ -185,6 +249,12 @@ Product barcode: ${barcode}
 Product name: ${textValue(product.name)}
 Brand: ${textValue(product.brand)}
 Category: ${category}
+LabelWise Score: ${labelwiseScore ?? "Bilinmiyor"}
+LabelWise Score category: ${labelwiseCategory}
+LabelWise Score reasons: ${scoreReasons}
+Processing level: ${processingLevel}
+Processing label: ${processingLabel}
+Processing reasons: ${processingReasons}
 Ingredients: ${ingredients}
 Nutri-Score: ${nutriScore}
 Energy: ${toNumber(product.energy_kcal) ?? "Bilinmiyor"} kcal
@@ -403,6 +473,7 @@ Deno.serve(async (request) => {
   try {
     const body = await request.json();
     const barcode = body?.barcode;
+    const scoreContext = parseScoreContext(body?.score_context);
 
     if (!isValidBarcode(barcode)) {
       return errorResponse("Invalid barcode", "barcode_validation", 400);
@@ -446,7 +517,7 @@ Deno.serve(async (request) => {
     }
 
     console.log("AI Edge Function: calling OpenAI=true");
-    const prompt = buildPrompt(trimmedBarcode, product);
+    const prompt = buildPrompt(trimmedBarcode, product, scoreContext);
     let outputText = "";
     try {
       outputText = await callOpenAi(prompt, apiKey);

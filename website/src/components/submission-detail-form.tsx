@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import type {
@@ -200,11 +201,16 @@ export function SubmissionDetailForm({ submission, images }: Props) {
                 key={image.path}
                 className="overflow-hidden rounded-[1.5rem] border border-white/8 bg-white/[0.04]"
               >
-                <img
-                  src={image.signedUrl}
-                  alt={image.label}
-                  className="h-60 w-full object-cover"
-                />
+                <div className="relative h-60 w-full">
+                  <Image
+                    src={image.signedUrl}
+                    alt={image.label}
+                    fill
+                    unoptimized
+                    className="object-cover"
+                    sizes="(max-width: 1024px) 100vw, 33vw"
+                  />
+                </div>
                 <figcaption className="px-4 py-3 text-sm text-white/85">
                   {image.label}
                 </figcaption>

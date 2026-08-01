@@ -12,6 +12,16 @@ class AnalysisRiskGuardrails {
     final normalized = normalize(rawRiskLevel);
     if (normalized == 'bilinmiyor') return normalized;
 
+    if (labelwiseScore != null && labelwiseScore < 20 && normalized != 'yüksek') {
+      debugPrint('AI: risk guardrail $normalized -> yüksek');
+      return 'yüksek';
+    }
+
+    if (labelwiseScore != null && labelwiseScore < 40 && normalized == 'düşük') {
+      debugPrint('AI: risk guardrail $normalized -> orta');
+      return 'orta';
+    }
+
     final cannotBeLow =
         (labelwiseScore != null && labelwiseScore < 60) ||
         (product.sugars ?? 0) >= 20 ||

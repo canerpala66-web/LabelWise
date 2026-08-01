@@ -27,6 +27,17 @@ void main() {
     );
   });
 
+  test('very low score becomes high risk', () {
+    expect(
+      AnalysisRiskGuardrails.apply(
+        'orta',
+        product: balancedProduct,
+        labelwiseScore: 12,
+      ),
+      'yüksek',
+    );
+  });
+
   test('high sugar cannot keep low risk', () {
     const highSugarProduct = Product(
       productName: 'Puding',

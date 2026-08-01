@@ -107,6 +107,16 @@ class LabelWiseScoreEngine {
       profile: profile,
     );
 
+    score = _applyLowScoreCalibration(
+      score: score,
+      product: product,
+      profile: profile,
+      processing: processing,
+      ingredientPenalty: ingredientPenalty,
+      productText: productText,
+      ingredientText: ingredientText,
+    );
+
     final finalScore = score.clamp(0, 100).round();
     final reasons = _buildReasons(
       profile: profile,
@@ -924,6 +934,65 @@ class LabelWiseScoreEngine {
     }
 
     return adjusted;
+  }
+
+  double _applyLowScoreCalibration({
+    required double score,
+    required Product product,
+    required _CategoryProfile profile,
+    required _ProcessingProfile processing,
+    required _PenaltyResult ingredientPenalty,
+    required String productText,
+    required String ingredientText,
+  }) {
+    final sugar = product.sugars ?? 0;
+    final severeCombination =
+        processing.level == 'C' &&
+        processing.severity >= 3 &&
+        ingredientPenalty.total >= 35 &&
+        (sugar >= 15 ||
+            _containsAny(
+              ingredientText,
+              const ['glukoz surubu', 'glikoz surubu', 'fruktoz surubu', 'palm'],
+            ));
+
+    if (severeCombination) {
+      return score;
+    }
+
+    if (profile.name == 'Gazlı İçecek') {
+      final zeroLike = _containsAny(
+        productText,
+        const ['zero', 'sekersiz', 'şekersiz', 'light', 'sugar free'],
+      );
+      final floor = zeroLike ? 25 : 10;
+      return score < floor ? floor.toDouble() : score;
+    }
+
+    if (profile.name == 'Enerji İçeceği') {
+      final zeroLike = _containsAny(
+            productText,
+            const ['zero', 'sekersiz', 'şekersiz', 'light', 'sugar free'],
+          ) ||
+          sugar <= 1;
+      final floor = zeroLike ? 28 : 12;
+      return score < floor ? floor.toDouble() : score;
+    }
+
+    if (profile.name == 'Cips' && ingredientPenalty.total < 30) {
+      return score < 15 ? 15 : score;
+    }
+
+    if (profile.name == 'Tatlı Atıştırmalık' && ingredientPenalty.total < 30) {
+      return score < 10 ? 10 : score;
+    }
+
+    if (profile.name == 'Sporcu Ürünü' &&
+        !(processing.level == 'C' && processing.severity >= 3 && ingredientPenalty.total >= 40)) {
+      return score < 20 ? 20 : score;
+    }
+
+    return score;
   }
 
   List<String> _buildReasons({

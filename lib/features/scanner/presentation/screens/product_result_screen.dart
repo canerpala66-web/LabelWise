@@ -2249,7 +2249,16 @@ class _AnalysisCardState extends State<_AnalysisCard> {
   Future<void> _generateAnalysis() async {
     try {
       debugPrint('AI Button: calling analysis service');
-      final result = await _analysisService.generateAnalysis(widget.product);
+      final scoreResult =
+          LabelWiseScoreService.instance.calculate(widget.product);
+      final processingProfile = const ProcessingProfileEngine().evaluate(
+        widget.product,
+      );
+      final result = await _analysisService.generateAnalysis(
+        widget.product,
+        scoreResult: scoreResult,
+        processingProfile: processingProfile,
+      );
 
       if (!mounted) {
         return;

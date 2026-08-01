@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 const footerLinks = [
+  { href: "/blog", label: "Blog" },
   { href: "/partner-center", label: "Partner Center" },
   { href: "/privacy", label: "Gizlilik Politikası" },
   { href: "/terms", label: "Kullanım Koşulları" },

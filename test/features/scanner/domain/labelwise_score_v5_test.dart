@@ -67,6 +67,58 @@ void main() {
     expect(cola.score, lessThanOrEqualTo(45));
     expect(zero.score, lessThanOrEqualTo(60));
     expect(zero.score, lessThan(yogurt.score!));
+    expect(zero.score, greaterThanOrEqualTo(25));
+    expect(cola.score, greaterThanOrEqualTo(10));
+  });
+
+  test('zero energy drink stays low but not absurdly zero', () {
+    final result = engine.calculate(
+      _product(
+        name: 'Red Bull Zero',
+        category: 'Enerji İçeceği',
+        ingredients:
+            'Su, karbondioksit, asitlik düzenleyici, taurin, kafein, aroma verici, tatlandırıcılar (asesülfam k, sukraloz)',
+        energy: 3,
+        fat: 0,
+        saturatedFat: 0,
+        sugars: 0,
+        salt: 0.1,
+      ),
+    );
+
+    expect(result.score, inInclusiveRange(25, 40));
+  });
+
+  test('sugary energy drink stays below zero energy drink', () {
+    final zeroDrink = engine.calculate(
+      _product(
+        name: 'Red Bull Zero',
+        category: 'Enerji İçeceği',
+        ingredients:
+            'Su, asitlik düzenleyici, taurin, kafein, aroma verici, tatlandırıcılar (asesülfam k, sukraloz)',
+        energy: 3,
+        fat: 0,
+        saturatedFat: 0,
+        sugars: 0,
+        salt: 0.1,
+      ),
+    );
+    final sugaryDrink = engine.calculate(
+      _product(
+        name: 'Enerji İçeceği',
+        category: 'Enerji İçeceği',
+        ingredients:
+            'Su, şeker, glukoz şurubu, asitlik düzenleyici, taurin, kafein, aroma verici',
+        energy: 46,
+        fat: 0,
+        saturatedFat: 0,
+        sugars: 11,
+        salt: 0.1,
+      ),
+    );
+
+    expect(sugaryDrink.score, lessThan(zeroDrink.score!));
+    expect(sugaryDrink.score, inInclusiveRange(10, 35));
   });
 
   test('clean legume chip scores higher than additive-heavy corn chip', () {
@@ -204,6 +256,44 @@ void main() {
     expect(cleanBar.score, greaterThan(heavyBar.score!));
     expect(cleanBar.score, inInclusiveRange(50, 70));
     expect(heavyBar.score, lessThanOrEqualTo(60));
+  });
+
+  test('additive-heavy protein bar is low but not always forced to zero', () {
+    final result = engine.calculate(
+      _product(
+        name: 'Protein Bar Fıstık',
+        category: 'Sporcu Ürünü',
+        ingredients:
+            'Süt proteini, maltodekstrin, aroma verici, emülgatör, tatlandırıcı',
+        energy: 340,
+        fat: 10,
+        saturatedFat: 2.5,
+        sugars: 7,
+        salt: 0.3,
+        fiber: 5,
+        protein: 18,
+      ),
+    );
+
+    expect(result.score, inInclusiveRange(20, 45));
+  });
+
+  test('severe syrup palm additive combination can still be near zero', () {
+    final result = engine.calculate(
+      _product(
+        name: 'Kakaolu Dolgulu Bar',
+        category: 'Bisküvi',
+        ingredients:
+            'Glukoz şurubu, palm yağı, şeker, aroma verici, emülgatör, koruyucu, renklendirici',
+        energy: 480,
+        fat: 24,
+        saturatedFat: 11,
+        sugars: 28,
+        salt: 0.8,
+      ),
+    );
+
+    expect(result.score, inInclusiveRange(0, 20));
   });
 
   test('missing ingredients lowers confidence and avoids overly high score', () {

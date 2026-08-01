@@ -1,15 +1,22 @@
 import 'package:flutter/foundation.dart';
 import 'package:labelwise/features/analysis/models/analysis_result.dart';
+import 'package:labelwise/features/analysis/models/labelwise_score_result.dart';
+import 'package:labelwise/features/analysis/models/processing_profile_result.dart';
+import 'package:labelwise/features/analysis/services/analysis_risk_guardrails.dart';
 import 'package:labelwise/features/scanner/data/product.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class AnalysisService {
   const AnalysisService();
 
-  static const analysisVersion = 'v4';
+  static const analysisVersion = 'v5';
   static const _functionName = 'generate-product-ai-analysis';
 
-  Future<AnalysisResult> generateAnalysis(Product product) async {
+  Future<AnalysisResult> generateAnalysis(
+    Product product, {
+    LabelWiseScoreResult? scoreResult,
+    ProcessingProfileResult? processingProfile,
+  }) async {
     final barcode = product.barcode.trim();
     if (barcode.isEmpty) {
       throw Exception('Product barcode is missing.');
@@ -21,7 +28,19 @@ class AnalysisService {
     try {
       final response = await Supabase.instance.client.functions.invoke(
         _functionName,
-        body: {'barcode': barcode},
+        body: {
+          'barcode': barcode,
+          if (scoreResult != null || processingProfile != null)
+            'score_context': {
+              'score': scoreResult?.score,
+              'score_category': scoreResult?.category,
+              'score_reasons': scoreResult?.reasons,
+              'product_category': product.category,
+              'processing_level': processingProfile?.grade.name,
+              'processing_label': processingProfile?.label,
+              'processing_reasons': processingProfile?.reasons,
+            },
+        },
       );
       data = response.data;
       debugPrint('AI Edge Function Flutter: function response raw=$data');
@@ -55,20 +74,13 @@ class AnalysisService {
       throw const FormatException('AI function summary is invalid.');
     }
 
-    final normalizedRisk = _normalizeRiskLevel(riskLevel);
+    final normalizedRisk = AnalysisRiskGuardrails.apply(
+      riskLevel,
+      product: product,
+      labelwiseScore: scoreResult?.score,
+    );
     debugPrint('AI: function normalized riskLevel=$normalizedRisk');
 
     return AnalysisResult(summary: summary.trim(), riskLevel: normalizedRisk);
-  }
-
-  String _normalizeRiskLevel(Object? riskLevel) {
-    final normalized = riskLevel is String
-        ? riskLevel.trim().toLowerCase()
-        : '';
-    return switch (normalized) {
-      'düşük' || 'low' => 'düşük',
-      'yüksek' || 'high' => 'yüksek',
-      _ => 'orta',
-    };
   }
 }

@@ -26,6 +26,9 @@ export function AdminShell({ title, description, children }: AdminShellProps) {
               </p>
             </div>
             <nav className="flex flex-wrap gap-3 text-sm">
+              <Link href="/admin/blog" className="button-secondary min-h-11 px-5">
+                Blog Yazıları
+              </Link>
               <Link href="/admin/submissions" className="button-secondary min-h-11 px-5">
                 Gonderimler
               </Link>
