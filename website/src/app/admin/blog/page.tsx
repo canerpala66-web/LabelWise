@@ -1,8 +1,10 @@
 import Link from "next/link";
 import { AdminBlogRowActions } from "@/components/admin-blog-row-actions";
 import { AdminShell } from "@/components/admin-shell";
+import { AdminStatusCard } from "@/components/admin-status-card";
 import { requireAdminUser } from "@/lib/admin/auth";
 import { getAllBlogPostsForAdmin } from "@/lib/blog/queries";
+import type { BlogPostRecord } from "@/lib/blog/types";
 
 function formatDate(value: string | null) {
   if (!value) return "—";
@@ -18,7 +20,30 @@ function formatDate(value: string | null) {
 
 export default async function AdminBlogPage() {
   await requireAdminUser();
-  const posts = await getAllBlogPostsForAdmin();
+  let posts: BlogPostRecord[] = [];
+  let blogLoadError: string | null = null;
+
+  try {
+    posts = await getAllBlogPostsForAdmin();
+  } catch (error) {
+    console.error("[admin/blog] blog_posts query failed", error);
+    blogLoadError = "Blog tablosu okunamadı. Migration uygulanmış mı kontrol edin.";
+  }
+
+  if (blogLoadError) {
+    return (
+      <main className="relative overflow-hidden">
+        <section className="mx-auto flex min-h-[60vh] w-full max-w-5xl items-center justify-center px-6 py-16 sm:px-8 lg:px-10">
+          <AdminStatusCard
+            title="Blog paneli yüklenemedi"
+            message={blogLoadError}
+            actionLabel="Admin durum sayfasına dön"
+            actionHref="/admin/status"
+          />
+        </section>
+      </main>
+    );
+  }
 
   return (
     <AdminShell

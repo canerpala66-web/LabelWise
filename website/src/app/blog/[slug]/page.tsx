@@ -3,7 +3,7 @@ import Image from "next/image";
 import Script from "next/script";
 import { notFound } from "next/navigation";
 import ReactMarkdown from "react-markdown";
-import { getPublishedBlogPostBySlug } from "@/lib/blog/queries";
+import { getPublishedBlogPostBySlug, getPublishedBlogPostBySlugSafe } from "@/lib/blog/queries";
 
 type Props = {
   params: Promise<{
@@ -11,19 +11,32 @@ type Props = {
   }>;
 };
 
+function getSafeExternalImageUrl(value: string | null) {
+  if (!value) return null;
+
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" || url.protocol === "http:" ? value : null;
+  } catch {
+    return null;
+  }
+}
+
 function formatDate(value: string | null) {
   if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
   return new Intl.DateTimeFormat("tr-TR", {
     day: "2-digit",
     month: "long",
     year: "numeric",
     timeZone: "Europe/Istanbul",
-  }).format(new Date(value));
+  }).format(date);
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
-  const post = await getPublishedBlogPostBySlug(slug);
+  const { data: post } = await getPublishedBlogPostBySlugSafe(slug);
 
   if (!post) {
     return {
@@ -33,6 +46,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
   const title = post.seo_title || post.title;
   const description = post.seo_description || post.excerpt || "LabelWise blog yazısı";
+  const safeCoverImageUrl = getSafeExternalImageUrl(post.cover_image_url);
 
   return {
     title,
@@ -45,10 +59,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       description,
       url: `https://labelwise.net/blog/${post.slug}`,
       type: "article",
-      images: post.cover_image_url
+      images: safeCoverImageUrl
         ? [
             {
-              url: post.cover_image_url,
+              url: safeCoverImageUrl,
               alt: post.title,
             },
           ]
@@ -65,15 +79,16 @@ export default async function BlogDetailPage({ params }: Props) {
     notFound();
   }
 
+  const safeCoverImageUrl = getSafeExternalImageUrl(post.cover_image_url);
   const formattedDate = formatDate(post.published_at);
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": "BlogPosting",
     headline: post.title,
     description: post.seo_description || post.excerpt || post.title,
-    datePublished: post.published_at,
-    dateModified: post.updated_at,
-    image: post.cover_image_url ? [post.cover_image_url] : undefined,
+    ...(post.published_at ? { datePublished: post.published_at } : {}),
+    ...(post.updated_at ? { dateModified: post.updated_at } : {}),
+    ...(safeCoverImageUrl ? { image: [safeCoverImageUrl] } : {}),
     author: {
       "@type": "Organization",
       name: "LabelWise",
@@ -127,22 +142,24 @@ export default async function BlogDetailPage({ params }: Props) {
           ) : null}
         </header>
 
-        {post.cover_image_url ? (
-          <div className="relative h-72 overflow-hidden rounded-[2rem] border border-white/8 sm:h-[26rem]">
-            <Image
-              src={post.cover_image_url}
-              alt={post.title}
-              fill
-              unoptimized
-              className="object-cover"
-              sizes="(max-width: 1024px) 100vw, 896px"
-            />
+        {safeCoverImageUrl ? (
+          <div className="h-72 overflow-hidden rounded-[2rem] border border-white/8 sm:h-[26rem]">
+            <div className="relative h-full w-full">
+              <Image
+                src={safeCoverImageUrl}
+                alt={post.title}
+                fill
+                unoptimized
+                className="object-cover"
+                sizes="(max-width: 1024px) 100vw, 896px"
+              />
+            </div>
           </div>
         ) : null}
 
         <section className="card p-8 sm:p-10">
           <div className="markdown-content">
-            <ReactMarkdown>{post.content_markdown}</ReactMarkdown>
+            <ReactMarkdown>{post.content_markdown || "Bu yazının içeriği henüz eklenmemiş."}</ReactMarkdown>
           </div>
         </section>
       </article>

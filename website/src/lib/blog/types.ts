@@ -19,6 +19,11 @@ export type BlogPostRecord = {
   updated_by: string | null;
 };
 
+export type BlogPostQueryResult<T> = {
+  data: T;
+  error: string | null;
+};
+
 export type BlogPostFormValues = {
   title: string;
   slug: string;

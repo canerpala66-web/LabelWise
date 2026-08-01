@@ -97,6 +97,14 @@ function safeMessageFromError(error: unknown) {
     return "Bu slug zaten kullanılıyor. Farklı bir slug seç.";
   }
 
+  if (lower.includes("relation") && lower.includes("blog_posts")) {
+    return "Blog tablosu bulunamadı. Migration uygulanmış mı kontrol edin.";
+  }
+
+  if (lower.includes("column") && lower.includes("blog_posts")) {
+    return "Blog tablosu beklenen alanları içermiyor. SQL yapısını kontrol edin.";
+  }
+
   return "Blog yazısı kaydedilemedi. Lütfen tekrar dene.";
 }
 
