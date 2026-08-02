@@ -48,7 +48,7 @@ export default async function AdminEditBlogPostPage({ params }: Props) {
   return (
     <AdminShell
       title="Blog Yazısını Düzenle"
-      description="Taslak ve yayın akışı aynı form üzerinden yönetilir. Public tarafta sadece yayındaki içerikler görünür."
+      description="Markdown ile yaz, taslak olarak kaydet veya güncelleyip yayınla."
     >
       <div className="flex justify-end">
         <Link

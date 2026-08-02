@@ -249,8 +249,11 @@ void main() {
     );
 
     expect(result.reasons.length, lessThanOrEqualTo(4));
-    expect(result.reasons, contains('Şeker yüksek'));
-    expect(result.reasons, contains('Tuz yüksek'));
+    expect(
+      result.reasons,
+      contains('100g üründe şeker miktarı günlük ideal sınırın aşan kısmını oluşturuyor.'),
+    );
+    expect(result.reasons, contains('Tuz yükü yüksek'));
   });
 }
 

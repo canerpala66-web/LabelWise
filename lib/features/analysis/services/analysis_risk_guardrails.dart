@@ -22,6 +22,11 @@ class AnalysisRiskGuardrails {
       return 'orta';
     }
 
+    if (labelwiseScore != null && labelwiseScore < 35 && normalized != 'yüksek') {
+      debugPrint('AI: risk guardrail $normalized -> yüksek');
+      return 'yüksek';
+    }
+
     final cannotBeLow =
         (labelwiseScore != null && labelwiseScore < 60) ||
         (product.sugars ?? 0) >= 20 ||

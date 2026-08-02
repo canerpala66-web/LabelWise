@@ -36,12 +36,21 @@ export function AdminBlogPostForm({ action, initialPost, submitLabel = "Yayınla
   const previewContent = useMemo(() => content.trim(), [content]);
 
   return (
-    <form action={formAction} className="grid gap-6">
+    <form action={formAction} className="mx-auto grid w-full max-w-6xl gap-6 overflow-x-hidden">
       {initialPost ? <input type="hidden" name="post_id" value={initialPost.id} /> : null}
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.2fr)_minmax(320px,0.8fr)]">
-        <section className="card p-6 sm:p-8">
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(320px,420px)]">
+        <section className="card min-w-0 p-6 sm:p-8">
           <div className="grid gap-5">
+            <div>
+              <h2 className="text-2xl font-semibold text-white">
+                {initialPost ? "Blog Yazısını Düzenle" : "Yeni Blog Yazısı"}
+              </h2>
+              <p className="mt-2 text-sm leading-7 text-[color:var(--text-muted)]">
+                Markdown ile yaz, taslak olarak kaydet veya yayınla.
+              </p>
+            </div>
+
             <label className="grid gap-2">
               <span className="text-sm font-medium text-white">Başlık</span>
               <input
@@ -72,7 +81,7 @@ export function AdminBlogPostForm({ action, initialPost, submitLabel = "Yayınla
                   setSlugTouched(true);
                   setSlug(event.target.value);
                 }}
-                className={inputClassName()}
+                className={`${inputClassName()} min-w-0 w-full`}
                 placeholder="glukoz-fruktoz-surubu-nedir"
                 required
               />
@@ -99,20 +108,20 @@ export function AdminBlogPostForm({ action, initialPost, submitLabel = "Yayınla
               <label className="grid gap-2">
                 <span className="text-sm font-medium text-white">Kapak görseli URL</span>
                 <input
-                  name="cover_image_url"
-                  defaultValue={state.values?.cover_image_url ?? initialPost?.cover_image_url ?? ""}
-                  className={inputClassName()}
-                  placeholder="https://..."
-                />
+                name="cover_image_url"
+                defaultValue={state.values?.cover_image_url ?? initialPost?.cover_image_url ?? ""}
+                className={`${inputClassName()} min-w-0 w-full`}
+                placeholder="https://..."
+              />
               </label>
               <label className="grid gap-2">
                 <span className="text-sm font-medium text-white">Kategori</span>
                 <input
-                  name="category"
-                  defaultValue={state.values?.category ?? initialPost?.category ?? ""}
-                  className={inputClassName()}
-                  placeholder="İçerik Rehberi"
-                />
+                name="category"
+                defaultValue={state.values?.category ?? initialPost?.category ?? ""}
+                className={`${inputClassName()} min-w-0 w-full`}
+                placeholder="İçerik Rehberi"
+              />
               </label>
             </div>
 
@@ -121,7 +130,7 @@ export function AdminBlogPostForm({ action, initialPost, submitLabel = "Yayınla
               <input
                 name="tags"
                 defaultValue={state.values?.tags ?? tagsToText(initialPost?.tags)}
-                className={inputClassName()}
+                className={`${inputClassName()} min-w-0 w-full`}
                 placeholder="katkı maddeleri, şeker, etiket okuma"
               />
             </label>
@@ -130,11 +139,11 @@ export function AdminBlogPostForm({ action, initialPost, submitLabel = "Yayınla
               <label className="grid gap-2">
                 <span className="text-sm font-medium text-white">SEO başlığı</span>
                 <input
-                  name="seo_title"
-                  defaultValue={state.values?.seo_title ?? initialPost?.seo_title ?? ""}
-                  className={inputClassName()}
-                  placeholder="Glukoz-fruktoz şurubu nedir? | LabelWise Blog"
-                />
+                name="seo_title"
+                defaultValue={state.values?.seo_title ?? initialPost?.seo_title ?? ""}
+                className={`${inputClassName()} min-w-0 w-full`}
+                placeholder="Glukoz-fruktoz şurubu nedir? | LabelWise Blog"
+              />
               </label>
               <label className="grid gap-2">
                 <span className="text-sm font-medium text-white">SEO açıklaması</span>
@@ -142,7 +151,7 @@ export function AdminBlogPostForm({ action, initialPost, submitLabel = "Yayınla
                   name="seo_description"
                   defaultValue={state.values?.seo_description ?? initialPost?.seo_description ?? ""}
                   rows={3}
-                  className={inputClassName()}
+                  className={`${inputClassName()} min-w-0 w-full`}
                   placeholder="Arama sonucu için kısa açıklama"
                 />
                 {state.fieldErrors?.seo_description ? (
@@ -157,7 +166,7 @@ export function AdminBlogPostForm({ action, initialPost, submitLabel = "Yayınla
                 <select
                   name="status"
                   defaultValue={state.values?.status ?? initialPost?.status ?? "draft"}
-                  className={inputClassName()}
+                  className={`${inputClassName()} min-w-0 w-full`}
                 >
                   <option value="draft">Taslak</option>
                   <option value="published">Yayında</option>
@@ -171,7 +180,7 @@ export function AdminBlogPostForm({ action, initialPost, submitLabel = "Yayınla
                 <input
                   name="published_at"
                   defaultValue={state.values?.published_at ?? initialPost?.published_at ?? ""}
-                  className={inputClassName()}
+                  className={`${inputClassName()} min-w-0 w-full`}
                   placeholder="Boşsa yayınlarken otomatik atanır"
                 />
               </label>
@@ -184,7 +193,7 @@ export function AdminBlogPostForm({ action, initialPost, submitLabel = "Yayınla
                 value={content}
                 onChange={(event) => setContent(event.target.value)}
                 rows={18}
-                className={`${inputClassName()} min-h-[26rem] font-mono text-sm leading-7`}
+                className={`${inputClassName()} min-h-[26rem] w-full min-w-0 font-mono text-sm leading-7`}
                 placeholder="# Başlık&#10;&#10;Paragraf metni..."
                 required
               />
@@ -195,17 +204,17 @@ export function AdminBlogPostForm({ action, initialPost, submitLabel = "Yayınla
           </div>
         </section>
 
-        <aside className="grid gap-6">
-          <section className="card p-6">
+        <aside className="grid min-w-0 gap-6">
+          <section className="card min-w-0 p-6">
             <p className="text-xs font-semibold uppercase tracking-[0.28em] text-[color:var(--gold-soft)]">
               Önizleme
             </p>
             <h2 className="mt-4 text-2xl font-semibold text-white">
               {title || "Yazı başlığı burada görünecek"}
             </h2>
-            <div className="mt-6 rounded-[1.5rem] border border-white/8 bg-white/[0.04] p-5">
+            <div className="mt-6 overflow-x-auto rounded-[1.5rem] border border-white/8 bg-white/[0.04] p-5">
               {previewContent ? (
-                <div className="markdown-content">
+                <div className="markdown-content min-w-0 break-words">
                   <ReactMarkdown>{previewContent}</ReactMarkdown>
                 </div>
               ) : (
@@ -216,7 +225,7 @@ export function AdminBlogPostForm({ action, initialPost, submitLabel = "Yayınla
             </div>
           </section>
 
-          <section className="card p-6">
+          <section className="card min-w-0 p-6">
             <p className="text-sm leading-7 text-[color:var(--text-muted)]">
               Taslak kaydı public blogda görünmez. Yayınla düğmesi, yayın tarihi boşsa bugünün anını kullanır.
             </p>
@@ -241,7 +250,7 @@ export function AdminBlogPostForm({ action, initialPost, submitLabel = "Yayınla
                 disabled={isPending}
                 className="button-secondary min-h-12 justify-center disabled:cursor-not-allowed disabled:opacity-60"
               >
-                Taslak kaydet
+                Taslak Kaydet
               </button>
               <button
                 type="submit"

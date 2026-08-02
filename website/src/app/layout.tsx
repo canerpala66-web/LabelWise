@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
-import { SiteFooter } from "@/components/site-footer";
-import { SiteHeader } from "@/components/site-header";
+import { SiteChrome } from "@/components/site-chrome";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -65,13 +64,7 @@ export default function RootLayout({
       className={`${inter.variable} h-full scroll-smooth antialiased`}
     >
       <body className="min-h-full">
-        <div className="relative flex min-h-screen flex-col">
-          <div className="site-shell absolute inset-0 -z-10" />
-          <div className="site-mesh absolute inset-0 -z-10 opacity-90" />
-          <SiteHeader />
-          <div className="flex-1">{children}</div>
-          <SiteFooter />
-        </div>
+        <SiteChrome>{children}</SiteChrome>
       </body>
     </html>
   );

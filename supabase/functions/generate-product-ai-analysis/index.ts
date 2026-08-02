@@ -8,7 +8,7 @@ const corsHeaders = {
   "Content-Type": "application/json",
 } as const;
 
-const analysisVersion = "v5";
+const analysisVersion = "v6";
 const openAiEndpoint = "https://api.openai.com/v1/responses";
 const openAiModel = "gpt-4.1-mini";
 const productSelectFields =
@@ -37,6 +37,7 @@ type ProductRecord = {
 
 type ScoreContext = {
   score?: number | null;
+  score_version?: string | null;
   score_category?: string | null;
   score_reasons?: string[] | null;
   product_category?: string | null;
@@ -96,6 +97,7 @@ function parseScoreContext(value: unknown): ScoreContext | null {
     score: typeof input.score === "number" && Number.isFinite(input.score)
       ? input.score
       : null,
+    score_version: optionalText(input.score_version),
     score_category: optionalText(input.score_category),
     score_reasons: Array.isArray(input.score_reasons)
       ? input.score_reasons
@@ -179,6 +181,7 @@ Return JSON only:
   const category = optionalText(product.category) ?? "Bilinmiyor";
   const nutriScore = optionalText(product.nutriscore_grade) ?? "Bilinmiyor";
   const labelwiseScore = scoreContext?.score ?? null;
+  const labelwiseScoreVersion = scoreContext?.score_version ?? analysisVersion;
   const labelwiseCategory = scoreContext?.score_category ?? "Bilinmiyor";
   const scoreReasons = scoreContext?.score_reasons?.length
     ? scoreContext.score_reasons.join("; ")
@@ -194,6 +197,7 @@ You are LabelWise.
 You help Turkish consumers make faster and better food choices.
 You are not only summarizing the label. You are helping the user decide.
 LabelWise Score is the primary deterministic interpretation. Support it and never contradict it.
+LabelWise Score V6 reflects daily-choice quality and daily intake burden, not just calories or one nutrient.
 
 Write a short Turkish decision-oriented interpretation based only on the available product data below.
 The summary must:
@@ -216,7 +220,7 @@ Risk level guidance:
 - orta: okay occasionally; portion control or frequency control is more suitable because of some concerns such as sugar, salt, saturated fat, additives, or processing.
 - yüksek: not ideal for frequent use; a better alternative should be considered because of stronger concerns such as very high sugar, very high salt, very high saturated fat, weak nutrition profile, or highly processed structure.
 
-Required consistency with LabelWise Score:
+Required consistency with LabelWise Score V6:
 - 90-100: very positive, but still not absolute.
 - 75-89: generally strong.
 - 60-74: acceptable / moderate.
@@ -225,11 +229,22 @@ Required consistency with LabelWise Score:
 - 0-19: very weak profile. Use clearly cautious wording. Do not casually say occasional use is fine.
 - If low sugar/low calorie is positive but the category is energy drink or soft drink and processing is high, mention the positive briefly but explain that category and processing keep the score low.
 
+How to read V6 context:
+- Daily sugar, salt, and saturated fat load matter strongly.
+- Category caps matter strongly for candy, marshmallow, gummy, biscuit, wafer, sugary drinks, energy drinks, chips, and similar snack products.
+- Positive signals such as protein, fiber, oats, legumes, nuts, seeds, or simpler ingredients can help, but they must not rescue a weak category with heavy sugar load or highly processed structure.
+- Use score reasons and processing reasons as the main explanation axis before secondary details.
+
 Category awareness:
 - Water should not be judged like chips.
 - Plain milk should not be judged like soda.
 - Chips, biscuits, desserts, chocolate spreads, soft drinks, and similar snack products should not be framed as strong daily-use choices.
 - Protein products should be judged by their overall balance, not by protein alone.
+
+Special consistency rules:
+- For candy, marshmallow, gummy, or Haribo-like products: gelatin is not a severe negative by itself, but high sugar load, candy category, and daily-load burden dominate. Do not frame them as healthy or strong choices.
+- For zero energy drinks: low sugar or low calorie can be noted briefly as a positive, but category, caffeine context, sweeteners, and processing should keep the tone clearly limited.
+- For filled biscuits, wafers, or cream-filled snack products: daily sugar load and palm oil / saturated fat load should weigh strongly in the explanation.
 
 Safety rules:
 - Do not invent missing facts.
@@ -249,6 +264,7 @@ Product barcode: ${barcode}
 Product name: ${textValue(product.name)}
 Brand: ${textValue(product.brand)}
 Category: ${category}
+LabelWise Score version: ${labelwiseScoreVersion}
 LabelWise Score: ${labelwiseScore ?? "Bilinmiyor"}
 LabelWise Score category: ${labelwiseCategory}
 LabelWise Score reasons: ${scoreReasons}

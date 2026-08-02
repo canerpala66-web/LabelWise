@@ -9,19 +9,19 @@ class LabelWiseScoreService {
   }) : _engine = engine;
 
   static const instance = LabelWiseScoreService();
-  static const scoreVersion = 'v5';
+  static const scoreVersion = 'v6';
 
   final LabelWiseScoreEngine _engine;
 
   LabelWiseScoreResult calculate(Product product, {int? fallbackScore}) {
-    // Scores are recalculated locally with V5 to avoid stale cached scores.
-    final v5Result = _engine.calculate(product);
-    if (v5Result.score != null) {
-      return v5Result;
+    // Scores are recalculated locally with V6 to avoid stale cached scores.
+    final v6Result = _engine.calculate(product);
+    if (v6Result.score != null) {
+      return v6Result;
     }
 
     if (fallbackScore == null) {
-      return v5Result;
+      return v6Result;
     }
 
     return LabelWiseScoreResult(
@@ -29,7 +29,7 @@ class LabelWiseScoreService {
       category: 'Önceki skor',
       color: _fallbackColor(fallbackScore),
       reasons: const [
-        'Güncel V5 skoru hesaplanamadığı için önceki skor gösteriliyor',
+        'Güncel V6 skoru hesaplanamadığı için önceki skor gösteriliyor',
       ],
     );
   }

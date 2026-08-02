@@ -108,7 +108,13 @@ class ProductAlternativesService {
           );
           continue;
         }
-        if (candidateScore <= currentScore) {
+        final allowsComparableMilkUpgrade =
+            currentGroup == 'milk' &&
+            candidateScore == currentScore &&
+            _isMeaningfullyLighterMilk(current: current, candidate: candidate);
+
+        if (candidateScore < currentScore ||
+            (candidateScore == currentScore && !allowsComparableMilkUpgrade)) {
           debugPrint(
             'AlternativesDebug: skipped candidate reason=score not higher',
           );
@@ -363,6 +369,21 @@ class ProductAlternativesService {
   }
 
   double _sortableNutrition(double? value) => value ?? double.infinity;
+
+  bool _isMeaningfullyLighterMilk({
+    required Product current,
+    required Product candidate,
+  }) {
+    final currentSatFat = current.saturatedFat ?? double.infinity;
+    final candidateSatFat = candidate.saturatedFat ?? double.infinity;
+    final currentEnergy = current.energyKcal ?? double.infinity;
+    final candidateEnergy = candidate.energyKcal ?? double.infinity;
+
+    final clearlyLowerSatFat = candidateSatFat + 0.5 <= currentSatFat;
+    final clearlyLowerEnergy = candidateEnergy + 10 <= currentEnergy;
+
+    return clearlyLowerSatFat || clearlyLowerEnergy;
+  }
 
   List<String> _comparisonReasons({
     required Product current,

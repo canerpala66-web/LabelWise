@@ -3,13 +3,14 @@ import 'package:labelwise/features/analysis/models/analysis_result.dart';
 import 'package:labelwise/features/analysis/models/labelwise_score_result.dart';
 import 'package:labelwise/features/analysis/models/processing_profile_result.dart';
 import 'package:labelwise/features/analysis/services/analysis_risk_guardrails.dart';
+import 'package:labelwise/features/analysis/services/labelwise_score_service.dart';
 import 'package:labelwise/features/scanner/data/product.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class AnalysisService {
   const AnalysisService();
 
-  static const analysisVersion = 'v5';
+  static const analysisVersion = 'v6';
   static const _functionName = 'generate-product-ai-analysis';
 
   Future<AnalysisResult> generateAnalysis(
@@ -33,6 +34,7 @@ class AnalysisService {
           if (scoreResult != null || processingProfile != null)
             'score_context': {
               'score': scoreResult?.score,
+              'score_version': LabelWiseScoreService.scoreVersion,
               'score_category': scoreResult?.category,
               'score_reasons': scoreResult?.reasons,
               'product_category': product.category,

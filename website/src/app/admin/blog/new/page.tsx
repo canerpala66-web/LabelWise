@@ -9,7 +9,7 @@ export default async function AdminNewBlogPostPage() {
   return (
     <AdminShell
       title="Yeni Blog Yazısı"
-      description="İçeriği markdown olarak gir, taslak kaydet ya da doğrudan yayına al."
+      description="Markdown ile yaz, taslak olarak kaydet veya yayınla."
     >
       <AdminBlogPostForm action={createBlogPostAction} submitLabel="Yayınla" />
     </AdminShell>

@@ -70,10 +70,11 @@ void main() {
     expect(prompt, contains('Data completeness: limited'));
   });
 
-  test('anchors interpretation to Score v5 with processing context', () {
+  test('anchors interpretation to Score v6 with processing context', () {
     final prompt = build();
 
     expect(prompt, contains('LabelWise Score is the primary deterministic'));
+    expect(prompt, contains('daily-choice quality and daily intake burden'));
     expect(prompt, contains('Mention at most one number'));
     expect(
       prompt,
@@ -83,6 +84,31 @@ void main() {
     );
     expect(prompt, contains('Processing level: c'));
     expect(prompt, contains('Processing label: Çok işlenmiş olabilir'));
+    expect(prompt, contains('Required tone by LabelWise Score V6'));
     expect(prompt, contains('0-19: clearly cautious'));
+    expect(prompt, contains('Daily sugar, salt, saturated fat load'));
+  });
+
+  test('includes special guardrails for candy gelatin and zero energy drinks', () {
+    final prompt = build();
+
+    expect(
+      prompt,
+      contains(
+        'gelatin is not the main negative; high sugar load and category burden should dominate',
+      ),
+    );
+    expect(
+      prompt,
+      contains(
+        'For zero energy drinks, briefly note low sugar/low calorie if relevant',
+      ),
+    );
+    expect(
+      prompt,
+      contains(
+        'For filled biscuits or cream-filled wafers, daily sugar load plus palm oil / saturated fat load',
+      ),
+    );
   });
 }
